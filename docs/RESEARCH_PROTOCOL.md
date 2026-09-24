@@ -66,6 +66,11 @@ Before any full dev run, a 5-task, k=1 smoke run checks that nothing is broken (
 | FALSE_OK | Claimed success when the database says otherwise |
 | BUDGET | Ran out of steps or turns |
 | SIM | Simulated user misbehaved (benchmark noise; tracked, not "fixed") |
+| AMBIG | Policy is ambiguous or contradictory and the agent's action was defensible (Policy Loopholes, 2609.14400); tracked, not "fixed" |
+
+For TOOL failures, also record whether the agent chose the wrong *kind* of action or chose
+the right action but executed it wrongly. These are different problems with different fixes
+(Calibration is the Bottleneck, 2609.00949).
 
 Labels come from reading traces. Once ~50 are hand-labeled, an LLM labeler can take over, but only after measuring its agreement with hand labels (Cohen's κ, reported).
 
@@ -74,16 +79,44 @@ Labels come from reading traces. Once ~50 are hand-labeled, an LLM labeler can t
 - 30 dev tasks × 4 trials gives a standard error of roughly 4–8 points on pass^1. **Effects smaller than ~5 points are not detectable on dev.** Chase big buckets first.
 - Comparisons are always paired (same tasks), which is far more sensitive than comparing two independent scores.
 - Test-set results are reported with bootstrap 95% CIs over tasks.
+- **Control for prompt length.** When a component adds text to the context (plans, rules), also run a
+  length-matched control with irrelevant text, so a gain can be credited to the information and not
+  just to a longer prompt (How Do Agent Harnesses Create Value?, 2609.20474).
+- **Verify what the grader saw.** Periodically diff the agent's raw model output against the recorded
+  trajectory; serving adapters can silently drop tool calls (Interface-Induced Trajectory Censoring, 2609.03966).
+- **Guard against shortcut gains.** A change that helps only a few specific dev tasks, or relies on
+  benchmark artifacts rather than domain knowledge, is rejected even if the score rises
+  (Bad Genius, 2609.18366; ModularRSI, 2609.14857).
 
-## Expected cycle order (a prior; the failure data overrides it)
+## Where we look for research
+
+In step 3 of every cycle, search in this order and stop once there are 2–4 good candidates:
+
+1. **The Agent Canon** (the curated curriculum) for foundations.
+2. **DAIR.AI Academy papers** — https://academy.dair.ai/papers — hand-picked weekly since 2023, with
+   curator summaries. Use the search (`/papers?q=<topic>`), the topic filters (Agents, Evaluation,
+   Memory, Retrieval, Safety, RL), and the **Harness Engineering collection**
+   (`/papers/collections/harness-engineering`). Skim the new weekly issue every Monday.
+3. **arXiv** directly for anything newer than the latest DAIR issue.
+
+Every paper that informs an experiment gets its arXiv ID recorded in `EXPERIMENTS.md`.
+
+## Expected cycle order and reading map (a prior; the failure data overrides it)
+
+All IDs verified on arXiv. Most 2026 entries were found through DAIR.AI Academy (Sep 2026 scan).
 
 | Cycle | Focus | Candidate reading |
 |---|---|---|
-| 0 | Baseline, observability, first failure analysis | τ-Knowledge (2603.04370), ττ-bench (2609.04611) |
-| 1 | Finding and actually reading the right documents | Context engineering, Context Rot, ACE (2510.04618) |
-| 2 | Policy compilation: knowledge base → structured rules | interwhen (2602.11202), ττ-bench atomic facts |
-| 3 | Ordering: plan-then-verify | CaMeL (2503.18813), design patterns (2506.08837), ReWOO (2305.18323) |
-| 4 | Trust: verify user claims before state changes | False success (2606.09863), CRITIC (2305.11738) |
-| 5 | State and memory across long conversations | SKILL.state (2608.26263), Recuris (2608.24876) |
-| 6 | Cost: smaller model, caching, routing | AI Agents That Matter (2407.01502) |
-| 7 | Test-set evaluation, ablations, writeup, leaderboard submission | — |
+| 0 | Baseline, observability, first failure analysis | τ-Knowledge (2603.04370); ττ-bench (2609.04611); Policy Loopholes (2609.14400); Calibration is the Bottleneck (2609.00949); Harness or Model? (2609.11987) |
+| 1 | Finding and actually reading the right documents | Is Bash All You Need? (2609.11999); VikingRAG (2609.11390); When Tools Get in the Way (2609.14157); Context Rot; ACE (2510.04618) |
+| 2 | Policy compilation: knowledge base → structured rules | interwhen (2602.11202); ContrAgent, contracts compiled to automata that gate tool calls (2609.18128); Out-of-Band Policy Enforcement (2608.27646) |
+| 3 | Ordering: plan-then-verify | Compositional Policy Violations (2609.18820); ContrAgent (2609.18128); CaMeL (2503.18813); design patterns (2506.08837); ReWOO (2305.18323) |
+| 4 | Trust: verify user claims before state changes | False success (2606.09863); PACE, hidden conflicts in requests (2609.03293); Grounding Agent Memory (2609.11060); CRITIC (2305.11738) |
+| 5 | State and memory across long conversations | Belief-State Engine (2609.10036); SKILL.state (2608.26263); Recuris (2608.24876); The Compaction Cliff (2608.22752) |
+| 6 | Cost: smaller model, caching, efficiency metrics | AI Agents That Matter (2407.01502); RideWay efficiency metric (2609.17985) |
+| 7 | Test-set evaluation, ablations, writeup, leaderboard submission | How Do Agent Harnesses Create Value? (2609.20474) for ablation design |
+| 8 (optional) | Distill the harness into a smaller open model (the "10x cheaper" path) | Harness-Zero (2609.24974); Co-Evolving Harnesses and Models (2609.09134): imitating a stronger model's trajectories *hurt* the weaker model, on-policy correction helped; SFT or RL for Tool-Calling? (2609.17848); CHART (2609.22247) |
+
+Automated harness optimization (SoL-Pi 2609.20519, Ecdysis 2609.11677, HarnessEvolve 2609.00829)
+is out of scope until the hand-built harness works. HarnessEvolve replays tasks with the ground-truth
+answer in hand, which would break our integrity rules.
