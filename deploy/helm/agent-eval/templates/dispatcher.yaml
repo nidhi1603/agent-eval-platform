@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aep.name" . }}-dispatcher
+  labels: {{- include "aep.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dispatcher
+spec:
+  replicas: 1  # single dispatcher so the concurrency cap is enforced in one place
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: dispatcher
+  template:
+    metadata:
+      labels: {{- include "aep.labels" . | nindent 8 }}
+        app.kubernetes.io/component: dispatcher
+    spec:
+      serviceAccountName: {{ include "aep.name" . }}-dispatcher
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: dispatcher
+          image: {{ include "aep.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "app.dispatcher"]
+          env: {{- include "aep.env" . | nindent 12 }}
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          securityContext: {{- include "aep.containerSecurity" . | nindent 12 }}

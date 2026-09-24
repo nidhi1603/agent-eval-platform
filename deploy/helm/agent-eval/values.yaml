@@ -1,0 +1,31 @@
+image:
+  repository: agent-eval
+  tag: dev
+  pullPolicy: IfNotPresent
+
+api:
+  replicas: 1
+  port: 8000
+
+dispatcher:
+  maxConcurrency: 4
+
+trial:
+  cpuLimit: 500m
+  memoryLimit: 512Mi
+  deadlineSeconds: 900
+
+# In-cluster Postgres/Redis for local dev (kind). On EKS, set enabled: false and point
+# externalUrl at RDS / ElastiCache (via Terraform outputs).
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  database: aep
+  user: aep
+  password: aep-dev-only
+  externalUrl: ""
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  externalUrl: ""

@@ -1,0 +1,29 @@
+# Only the dispatcher may touch the Kubernetes API, and only Jobs in this namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "aep.name" . }}-dispatcher
+  labels: {{- include "aep.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "aep.name" . }}-job-launcher
+  labels: {{- include "aep.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "aep.name" . }}-job-launcher
+  labels: {{- include "aep.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "aep.name" . }}-dispatcher
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "aep.name" . }}-job-launcher
