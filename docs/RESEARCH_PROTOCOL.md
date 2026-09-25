@@ -97,7 +97,12 @@ In step 3 of every cycle, search in this order and stop once there are 2–4 goo
    curator summaries. Use the search (`/papers?q=<topic>`), the topic filters (Agents, Evaluation,
    Memory, Retrieval, Safety, RL), and the **Harness Engineering collection**
    (`/papers/collections/harness-engineering`). Skim the new weekly issue every Monday.
-3. **arXiv** directly for anything newer than the latest DAIR issue.
+3. **arXiv**, for everything newer than the latest DAIR issue. Run the triage weekly:
+   `uv run python scripts/arxiv_scan.py`. It reads the past-week listings for cs.AI, cs.CL and cs.LG
+   (one request each; the search API throttles this network after a few queries), matches titles to
+   each cycle, skips papers already seen (`research/arxiv_seen.json`), and writes
+   `research/arxiv_digest_<date>.md`. Abstracts are added when the API allows. Title matching is a
+   triage filter and can miss papers, which is why DAIR is also checked.
 
 Every paper that informs an experiment gets its arXiv ID recorded in `EXPERIMENTS.md`.
 
@@ -116,6 +121,14 @@ All IDs verified on arXiv. Most 2026 entries were found through DAIR.AI Academy 
 | 6 | Cost: smaller model, caching, efficiency metrics | AI Agents That Matter (2407.01502); RideWay efficiency metric (2609.17985) |
 | 7 | Test-set evaluation, ablations, writeup, leaderboard submission | How Do Agent Harnesses Create Value? (2609.20474) for ablation design |
 | 8 (optional) | Distill the harness into a smaller open model (the "10x cheaper" path) | Harness-Zero (2609.24974); Co-Evolving Harnesses and Models (2609.09134): imitating a stronger model's trajectories *hurt* the weaker model, on-policy correction helped; SFT or RL for Tool-Calling? (2609.17848); CHART (2609.22247) |
+
+**Candidate tool: Jev (TypeSafe AI, Sep 2026)**, a non-generative "System One" classifier that returns
+calibrated probabilities for yes/no, choice, and score questions ($0.042 per 1M input tokens, output free;
+vendor-reported 40–200x faster than LLMs; early access). Candidate uses, each a separate experiment:
+failure labeling and false-success detection (tooling), the claim-verification gate before state-changing
+tool calls (cycle 4), and per-turn model routing between a cheap and a strong model (cycle 6). Vendor
+claims are not accepted as results: Jev is validated against hand labels like any other judge, the model
+version is pinned, and its use is disclosed in any leaderboard submission.
 
 Automated harness optimization (SoL-Pi 2609.20519, Ecdysis 2609.11677, HarnessEvolve 2609.00829)
 is out of scope until the hand-built harness works. HarnessEvolve replays tasks with the ground-truth
