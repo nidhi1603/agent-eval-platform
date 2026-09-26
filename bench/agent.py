@@ -99,10 +99,15 @@ def leakage_check(task, agent_visible_text: str) -> dict:
     return {"passed": not findings, "findings": findings[:20]}
 
 
+TASK_SEARCH_DEPTH = 4
+
+
 def task_references(obj, task_cls, depth: int = 0, seen=None) -> list[str]:
-    """Paths inside the built agent that reference a Task object (there must be none)."""
+    """Paths to Task objects found by a bounded search (depth 4) of the agent's attributes, lists
+    and dicts. It does not inspect closures, globals or C-level state, so an empty result means
+    "none found by this search", not "none reachable". The factory allowlist is the real safeguard."""
     seen = seen if seen is not None else set()
-    if depth > 4 or id(obj) in seen:
+    if depth > TASK_SEARCH_DEPTH or id(obj) in seen:
         return []
     seen.add(id(obj))
     if isinstance(obj, task_cls):

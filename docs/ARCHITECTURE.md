@@ -62,7 +62,7 @@ Inside each trial pod, the worker runs **one tau2-bench simulation** for one (ta
 1. Check in with the API → receive task id, agent config, model.
 2. Call tau2's `run_task(...)` with domain `banking_knowledge`, the agent, user simulator `gpt-5.2`, retrieval config `alltools`.
 3. tau2's evaluator grades the **final database state** (or expected actions, per task).
-4. Report `reward`, turn count, the trajectory, and two spend figures to the API: the cost tau2 reports (`agent_cost` + `user_cost`, from litellm's price map, which records 0.0 for models it does not know and omits embeddings, the LLM grader and failed calls) and the complete incurred spend from our own ledger (`bench/budget.py`).
+4. Report `reward`, turn count, the trajectory, and two spend figures to the API: the cost tau2 reports (`agent_cost` + `user_cost`, from litellm's price map, which records 0.0 for models it does not know and omits embeddings, the LLM grader and failed calls) and our own ledger (`bench/budget.py`): a usage-based estimate plus unresolved reservations. Provider-reconciled charges come only from the provider's dashboard.
 
 **Decisions:**
 - User simulator **gpt-5.2** and retrieval **alltools**: the same configuration as the standard leaderboard entries. That makes our numbers comparable only when the official protocol is run in full (all 97 tasks, 4 trials); a dev or holdout subset is never a leaderboard reproduction.

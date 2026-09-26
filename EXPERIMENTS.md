@@ -21,6 +21,13 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 
 ---
 
+### S001: integration smoke test (planned; not an experiment)
+- Task: dev task_015, chosen by a rule fixed in advance (easiest DB-graded dev task, lowest id).
+- Setup: 1 trial, retrieval=bm25 (non-official, labelled), user sim=gpt-5.2 with reasoning_effort=low, seed 300.
+- Purpose: check credentials, request compatibility, logging, grading and spend accounting. Not a baseline estimate.
+- Kept regardless of outcome; not retried until it passes.
+- Status: waiting on the budget, model IDs and prices, and the API key.
+
 ### E000 — Default-agent baseline (planned)
 - Cycle / target: 0 — establish the reference point
 - Hypothesis: the default tau2 agent's dev-split behaviour is a usable reference point for later paired comparisons.

@@ -15,9 +15,14 @@ Status on 2026-09-26: **all 9 reproduced, none fixed.** Fixes below are proposal
 | 4 | Reconcile/result race: reconcile reads an attempt as running, the result commits, reconcile then marks it `infra_failed` and requeues | A completed, scored trial is overwritten and rerun | Same compare-and-set; reconcile only settles attempts still in the state it read |
 | 5 | Two concurrent callbacks for one attempt both pass the status check; the later write wins | Reward can flip after being reported | Same compare-and-set on the attempt; the loser gets 409 |
 | 6 | Reward, cost and turn count are not range-checked | Corrupt values enter pass^k and spend | Schema constraints: reward in [0, 1], finite; cost ≥ 0; turns ≥ 0 |
-| 7 | A lost `/start` or `/result` response cannot be retried: the retry gets 409 | Completed (paid) work thrown away, then rerun | Identical retries are idempotent (return the stored outcome / the spec); the worker retries with backoff |
+| 7 | A lost `/start` or `/result` response cannot be retried: the retry gets 409 | Completed (paid) work thrown away, then rerun | Idempotent retries **for the same execution only**: the first `/start` issues an execution nonce; a retry presenting it gets the spec again, a request without it (a competing worker) gets 409. An identical `/result` replay returns the stored outcome. The worker retries with backoff. Returning the spec to every repeated `/start` would authorize duplicate execution |
 | 8 | Two dispatchers can run at once (default RollingUpdate, no leader lock) and both pass the cap check | Concurrency, and therefore rate limits and spend, can exceed the cap | `strategy: Recreate` plus a Postgres advisory lock held by the active dispatcher |
 | 9 | Dev Postgres and Redis write to the container filesystem with no volume (Redis's default RDB snapshot included), so a pod restart loses them | A pod restart loses runs or the queue | PVC for Postgres; with fix 2, Redis becomes rebuildable from Postgres, so its loss is recoverable (AOF on a volume is optional hardening) |
+
+The tests for defects 8 and 9 only check the Helm templates for strings (`Recreate`,
+`persistentVolumeClaim`). That proves neither single leadership nor durability. When cluster work
+resumes they must be replaced by behavioural tests (two dispatchers against one database; restart a
+datastore pod and check the data) or at least checks on the parsed, rendered manifests.
 
 Related (not a defect in our code, recorded for analysis): a Job's `activeDeadlineSeconds` "applies to
 the duration of the job", timed from the Job's start. Time spent scheduling or pulling the image is

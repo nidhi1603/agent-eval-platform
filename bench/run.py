@@ -1,35 +1,47 @@
-"""Run one banking development task locally and save a complete trace.
+"""Run one banking development task locally and save a structured trace.
 
     # zero cost: scripted model responses through the real tau2 path (trace is labelled MOCK)
-    uv run python -m bench.run --task task_015 --scripted bench/scripts/task_015_reference.json
+    uv run --extra bench python -m bench.run --task task_015 --retrieval-config bm25 \
+        --scripted bench/scripts/task_015_reference.json
 
-    # live: needs an approved --budget-usd, verified prices in bench/prices.json, and a key in .env
-    uv run python -m bench.run --task task_015 --agent-model MODEL --user-model MODEL --budget-usd 0.50
+    # live: needs an approved --budget-usd, recorded prices in bench/prices.json, and a key in .env
+    uv run --extra bench python -m bench.run --task task_015 --retrieval-config bm25 \
+        --agent-model MODEL --budget-usd 1.00
 
-Pipeline: verify pins -> refuse test-split tasks -> build tau2's orchestrator with our allowlisted
-agent -> integrity checks on the agent's inputs -> run tau2's orchestrator and official evaluator
-with every paid call metered -> write runs/local/<run_id>/trace.json (always, even on failure).
+Files in runs/local/<run_id>/ (run_id is unique; the directory is created exclusively):
+    manifest.json   written first, before any benchmark code or network call; state updated at the end
+    ledger.jsonl    append-only, fsync'd: every reservation before its request, every settlement after
+    trace.json      the full trace, written at the end (trace_error.json if writing it fails)
+    repo.diff       uncommitted changes to tracked files, when the working tree is dirty
+    simulation.json tau2's own SimulationRun, when the simulation returned
+    tau2.log        tau2's debug log
+A process killed with SIGKILL leaves manifest.json (state "started") and ledger.jsonl.
 """
 
 import argparse
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import time
+import traceback
+import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
 from bench import REPO_ROOT, agent, pins
-from bench.budget import Budget, Limits, install, load_prices, metered_embedder, role
+from bench.budget import Budget, Limits, check_llm_args, install, load_prices, metered_embedder, role
 from bench.trace import (
     SCHEMA_VERSION,
+    SIDE_CHANNEL_TOOL,
     ConfigError,
-    classify,
+    attribute,
     missing_fields,
     models_observed,
+    research_eligibility,
     retrievals,
     serialize_messages,
     tool_calls,
@@ -38,17 +50,19 @@ from bench.trace import (
 OFFICIAL_NOTE = (
     "Official protocol (docs/leaderboard-submission.md, arXiv 2603.04370): all 97 tasks, 4 trials, "
     "retrieval_config=alltools, user simulator gpt-5.2 with reasoning_effort=low, seed 300. A single "
-    "development task is never comparable to the leaderboard."
+    "development task is an integration smoke test, never a baseline estimate or a leaderboard comparison."
 )
+OFFICIAL_USER_MODEL = "gpt-5.2"
+OFFICIAL_USER_ARGS = {"reasoning_effort": "low"}
 
 
 @dataclass
 class RunOptions:
     task_id: str
     agent_model: str
-    user_model: str
+    user_model: str = OFFICIAL_USER_MODEL
     agent_llm_args: dict = field(default_factory=lambda: {"temperature": 0.0})
-    user_llm_args: dict = field(default_factory=lambda: {"temperature": 0.0})
+    user_llm_args: dict = field(default_factory=lambda: dict(OFFICIAL_USER_ARGS))
     retrieval_config: str = "alltools"
     max_steps: int = 200  # tau2 default; counts every message, not only agent turns
     max_errors: int = 10
@@ -63,32 +77,31 @@ class RunOptions:
 def run(opts: RunOptions) -> tuple[dict, Path]:
     mode = "mock" if opts.scripted else "live"
     started = datetime.now(timezone.utc)
-    run_id = f"{started:%Y%m%dT%H%M%SZ}_{opts.task_id}_{mode}"
+    run_id = f"{started:%Y%m%dT%H%M%S}Z_{opts.task_id}_{mode}_{uuid.uuid4().hex[:8]}"
     run_dir = opts.out_dir / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir.mkdir(parents=True, exist_ok=False)  # never share or overwrite another run's directory
 
-    trace: dict = {
-        "schema_version": SCHEMA_VERSION,
-        "label": ("MOCK: scripted model responses and fake embeddings. Tests the harness; NOT a benchmark result."
-                  if opts.scripted else
-                  "LIVE development run: one dev-split task, one trial. Not a leaderboard reproduction."),
-        "run_id": run_id,
-        "mode": mode,
-        "started_at": started.isoformat(),
-        "config": _config_record(opts),
-        "protocol_note": OFFICIAL_NOTE,
-        "provenance": pins.provenance(),
-    }
-    budget = None
-    orchestrator = None
-    simulation = None
+    trace: dict = {"schema_version": SCHEMA_VERSION, "run_id": run_id, "mode": mode,
+                   "started_at": started.isoformat(), "messages": []}
+    budget = orchestrator = simulation = log_sink = None
     error: BaseException | None = None
     t0 = time.perf_counter()
-    log_sink = _capture_tau2_logs(run_dir)
-    import litellm
-
-    litellm.suppress_debug_info = True  # tau2's cost lookup fails loudly for scripted model names
     try:
+        trace["label"] = ("MOCK: scripted model responses and fake embeddings. Tests the harness; NOT a benchmark result."
+                          if opts.scripted else
+                          "LIVE development smoke test: one dev-split task, one trial. Not a baseline estimate "
+                          "and not a leaderboard comparison.")
+        trace["config"] = _config_record(opts)
+        trace["protocol_note"] = OFFICIAL_NOTE
+        trace["provenance"] = _provenance(opts, run_dir)
+        _write_json(run_dir / "manifest.json", {**{k: trace[k] for k in (
+            "schema_version", "run_id", "mode", "started_at", "label", "config", "provenance")},
+            "state": "started", "pid": os.getpid()})
+        log_sink = _capture_tau2_logs(run_dir)
+
+        import litellm
+
+        litellm.suppress_debug_info = True  # tau2's cost lookup fails loudly for scripted model names
         trace["benchmark"] = pins.verify_benchmark()
         split = pins.load_split()
         if opts.task_id not in split["dev"]:
@@ -96,20 +109,25 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
             raise ConfigError(f"{opts.task_id} is in the {where}; local runs are restricted to dev tasks")
         if opts.retrieval_config in agent.FORBIDDEN_RETRIEVAL_CONFIGS:
             raise ConfigError(f"retrieval_config={opts.retrieval_config} gives the agent task-specific documents")
+        check_llm_args(opts.agent_llm_args, "agent")
+        check_llm_args(opts.user_llm_args, "user simulator")
 
-        budget, send, embedder_cls = _prepare_spending(opts)
-        trace["budget"] = {"cap_usd": budget.cap_usd, "limits": asdict(opts.limits)}
+        budget, send, embedder_cls = _prepare_spending(opts, run_dir / "ledger.jsonl")
+        trace["budget"] = {"cap_usd": budget.cap_usd, "limits": asdict(opts.limits),
+                           "mechanism": "estimated spend admission control (bench/budget.py), not a guarantee"}
 
         from tau2.data_model.simulation import TextRunConfig
         from tau2.runner.build import _build_env_kwargs, build_text_orchestrator
         from tau2.runner.helpers import get_tasks
         from tau2.runner.simulation import run_simulation
 
+        from bench import independence
+
         agent.register()
         task = get_tasks(pins.DOMAIN, task_ids=[opts.task_id])[0]
-        trace["task"] = {"id": task.id, "split": "dev", "reward_basis": [str(b.value) for b in
-                         task.evaluation_criteria.reward_basis],
-                         "sha256": hashlib.sha256((pins.tasks_dir() / f"{task.id}.json").read_bytes()).hexdigest()}
+        trace["task"] = {"id": task.id, "split": "dev",
+                         "reward_basis": [str(b.value) for b in task.evaluation_criteria.reward_basis],
+                         "sha256": _sha256(pins.tasks_dir() / f"{task.id}.json")}
         config = TextRunConfig(
             domain=pins.DOMAIN, agent=agent.AGENT_NAME,
             llm_agent=opts.agent_model, llm_args_agent=dict(opts.agent_llm_args),
@@ -120,27 +138,54 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
         with install(budget, opts.limits, send=send, embedder_cls=embedder_cls):
             with role("environment_setup"):  # a fresh environment (fresh DB) is built for every run
                 orchestrator = build_text_orchestrator(config, task, seed=opts.seed)
-            trace["agent_inputs"] = _audit_agent_inputs(orchestrator, task, opts.retrieval_config)
+            trace["agent_inputs"] = _audit_agent_inputs(orchestrator, task, config)
             if not trace["agent_inputs"]["passed"]:
                 raise ConfigError("agent input integrity check failed; see agent_inputs")
             with role("environment"):  # tool calls and grading replays; agent/user/grader tag themselves
                 simulation = run_simulation(orchestrator, env_kwargs=_build_env_kwargs(config, task) or None)
-    except BaseException as e:  # noqa: BLE001 - every exit path, including Ctrl-C, must leave a trace
+            with role("independence_check"):
+                trace["answer_independence"] = independence.check(config, task, simulation.messages)
+    except BaseException as e:  # noqa: BLE001 - every exit path must leave a trace
         error = e
     finally:
-        trace.update(_result_record(simulation, orchestrator, error))
-        trace["spend"] = _spend_record(simulation, trace["messages"], budget)
-        trace["finished_at"] = datetime.now(timezone.utc).isoformat()
-        trace["duration_s"] = round(time.perf_counter() - t0, 2)
-        trace["missing_fields"] = missing_fields(trace)
-        path = run_dir / "trace.json"
-        path.write_text(json.dumps(trace, indent=2, default=str))
-        if simulation is not None:
-            (run_dir / "simulation.json").write_text(simulation.model_dump_json(indent=2))
-        _release_tau2_logs(log_sink)
+        path = _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0)
+        if log_sink is not None:
+            _release_tau2_logs(log_sink)
     if isinstance(error, KeyboardInterrupt):
         raise error
     return trace, path
+
+
+def _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0) -> Path:
+    path = run_dir / "trace.json"
+    try:
+        trace.update(_result_record(simulation, orchestrator, error))
+        trace["spend"] = _spend_record(simulation, budget)
+        trace["attribution"] = attribute(trace["termination_reason"], (trace.get("evaluation") or {}).get("reward"),
+                                         error, trace["messages"], trace["spend"]["ledger"])
+        trace["finished_at"] = datetime.now(timezone.utc).isoformat()
+        trace["duration_s"] = round(time.perf_counter() - t0, 2)
+        trace["missing_fields"] = missing_fields(trace)
+        trace["trace_complete"] = not trace["missing_fields"]
+        trace["research_eligibility"] = research_eligibility(trace)
+        if error is not None:
+            trace["error_traceback"] = "".join(traceback.format_exception(error))[-4000:]
+        path.write_text(json.dumps(trace, indent=2, default=str))
+        if simulation is not None:
+            (run_dir / "simulation.json").write_text(simulation.model_dump_json(indent=2))
+        state = "finalized"
+    except Exception as e:  # noqa: BLE001 - record the finalization failure itself
+        path = run_dir / "trace_error.json"
+        _write_json(path, {"run_id": trace.get("run_id"), "finalization_error": repr(e),
+                           "traceback": traceback.format_exc()[-4000:],
+                           "run_error": repr(error) if error else None})
+        state = "finalization_failed"
+    try:
+        manifest = json.loads((run_dir / "manifest.json").read_text())
+        _write_json(run_dir / "manifest.json", {**manifest, "state": state, "finished_at": trace.get("finished_at")})
+    except Exception:  # noqa: BLE001 - the manifest may not exist if setup failed very early
+        pass
+    return path
 
 
 def _config_record(opts: RunOptions) -> dict:
@@ -157,16 +202,37 @@ def _config_record(opts: RunOptions) -> dict:
         "seed": opts.seed,
         "seed_note": "tau2 sends this seed to both LLMs; providers treat it as best-effort, so runs can differ",
         "timeout_s": opts.timeout_s,
+        "budget_usd": opts.budget_usd,
+        "limits": asdict(opts.limits),
+        "scripted": str(opts.scripted) if opts.scripted else None,
         "evaluation": "tau2 evaluate_simulation, EvaluationType.ALL (reward = product over the task's reward_basis)",
     }
 
 
-def _prepare_spending(opts: RunOptions):
+def _provenance(opts: RunOptions, run_dir: Path) -> dict:
+    prov = pins.provenance()
+    files = [*(REPO_ROOT / "bench").glob("*.py"), REPO_ROOT / "bench" / "prices.json", REPO_ROOT / "uv.lock",
+             pins.SPLIT_FILE, *([Path(opts.scripted).resolve()] if opts.scripted else [])]
+    prov["file_sha256"] = {
+        str(p.relative_to(REPO_ROOT) if p.is_relative_to(REPO_ROOT) else p): _sha256(p)
+        for p in sorted(f.resolve() for f in files) if p.exists()}
+    if prov.get("repo_dirty"):
+        diff = subprocess.run(["git", "diff", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True).stdout
+        (run_dir / "repo.diff").write_text(diff)
+        prov["repo_diff_sha256"] = hashlib.sha256(diff.encode()).hexdigest()
+    untracked = subprocess.run(["git", "ls-files", "--others", "--exclude-standard", "bench"], cwd=REPO_ROOT,
+                               capture_output=True, text=True).stdout.split()
+    prov["untracked_bench_files"] = untracked  # hashed above if they are .py files in bench/
+    return prov
+
+
+def _prepare_spending(opts: RunOptions, journal: Path):
     if opts.scripted:
         from bench.scripted import FAKE_PRICES, FakeEmbedder, ScriptedLLM
 
         _isolate_embedding_cache(Path(tempfile.mkdtemp(prefix="aep-mock-embeddings-")))
-        return Budget(opts.budget_usd or 1.0, FAKE_PRICES), ScriptedLLM.from_file(opts.scripted), FakeEmbedder
+        budget = Budget(opts.budget_usd if opts.budget_usd is not None else 1.0, FAKE_PRICES, journal)
+        return budget, ScriptedLLM.from_file(opts.scripted), FakeEmbedder
 
     if opts.budget_usd is None:
         raise ConfigError("live runs need an explicitly approved --budget-usd")
@@ -175,7 +241,7 @@ def _prepare_spending(opts: RunOptions):
     from tau2.knowledge.embedders.openai_embedder import OpenAIEmbedder
 
     load_dotenv(REPO_ROOT / ".env", override=False)
-    budget = Budget(opts.budget_usd, load_prices())
+    budget = Budget(opts.budget_usd, load_prices(), journal)
     needed = {opts.agent_model, opts.user_model}
     if opts.retrieval_config.startswith("alltools") or "openai_embeddings" in opts.retrieval_config:
         needed.add("text-embedding-3-large")
@@ -186,7 +252,7 @@ def _prepare_spending(opts: RunOptions):
         if not env.get("keys_in_environment"):
             raise ConfigError(f"missing credentials for {model}: set {env.get('missing_keys')} in .env")
     _isolate_embedding_cache(Path.home() / ".cache" / "agent-eval-platform" / "embeddings")
-    return budget, None, metered_embedder(budget, OpenAIEmbedder)
+    return budget, None, metered_embedder(budget, opts.limits, OpenAIEmbedder)
 
 
 def _isolate_embedding_cache(cache_dir: Path) -> None:
@@ -196,29 +262,37 @@ def _isolate_embedding_cache(cache_dir: Path) -> None:
     embeddings_cache._global_cache = embeddings_cache.EmbeddingsCache(cache_dir=str(cache_dir))
 
 
-def _audit_agent_inputs(orchestrator, task, retrieval_config: str) -> dict:
+def _audit_agent_inputs(orchestrator, task, config) -> dict:
+    """Gate: the agent was built without the task, and its prompt and tool schemas are byte-identical
+    to those built from a copy of the task with the answer key emptied. The string scan is a
+    diagnostic: overlaps in inputs proven task-independent are public information, reported for review."""
     from tau2.data_model.tasks import Task
-    from tau2.domains.banking_knowledge.environment import get_knowledge_base
-    from tau2.domains.banking_knowledge.retrieval import build_policy, resolve_variant
+
+    from bench import independence
 
     a = orchestrator.agent
     schemas = [t.openai_schema for t in a.tools]
-    visible = a.system_prompt + "\n" + json.dumps(schemas)
-    variant = resolve_variant(retrieval_config)
-    kb = get_knowledge_base()
-    policy_independent = build_policy(variant, kb, task) == build_policy(variant, kb, None)
+    blind_env = independence.fresh_env(config, independence.blind_copy(task))
+    blind_schemas = [t.openai_schema for t in blind_env.get_tools()]
+    policy_same = orchestrator.environment.get_policy() == blind_env.get_policy()
+    schemas_same = json.dumps(schemas, sort_keys=True) == json.dumps(blind_schemas, sort_keys=True)
     task_refs = agent.task_references(a, Task)
-    leakage = agent.leakage_check(task, visible)
+    scan = agent.leakage_check(task, a.system_prompt + "\n" + json.dumps(schemas))
     return {
         **agent.last_build,
         "system_prompt_sha256": hashlib.sha256(a.system_prompt.encode()).hexdigest(),
         "system_prompt_chars": len(a.system_prompt),
         "tools": [s["function"]["name"] for s in schemas],
-        "policy_identical_with_and_without_task": policy_independent,
-        "task_references_inside_agent": task_refs,
-        "leakage_check": leakage,
-        "passed": ("task" in agent.last_build.get("withheld", []) and policy_independent
-                   and not task_refs and leakage["passed"]),
+        "side_channel_tool_exposed": SIDE_CHANNEL_TOOL in [s["function"]["name"] for s in schemas],
+        "policy_identical_without_answer_key": policy_same,
+        "tool_schemas_identical_without_answer_key": schemas_same,
+        "task_objects_found": task_refs,
+        "task_object_search": f"bounded: depth {agent.TASK_SEARCH_DEPTH}, attributes/lists/dicts, no closures",
+        "string_scan": {**scan, "role": "diagnostic, not the gate",
+                        "interpretation": ("overlaps are in inputs proven identical without the answer key, "
+                                           "so they are public information; review them") if scan["findings"]
+                        and policy_same and schemas_same else None},
+        "passed": ("task" in agent.last_build.get("withheld", []) and policy_same and schemas_same and not task_refs),
     }
 
 
@@ -227,33 +301,31 @@ def _result_record(simulation, orchestrator, error) -> dict:
         messages = serialize_messages(simulation.messages)
         termination = simulation.termination_reason.value
         reward_info = simulation.reward_info.model_dump(mode="json") if simulation.reward_info else None
-        reward = simulation.reward_info.reward if simulation.reward_info else None
     else:
         partial = orchestrator.get_trajectory() if orchestrator is not None else []
         messages = serialize_messages(partial)
-        termination, reward_info, reward = None, None, None
+        termination, reward_info = None, None
     calls = tool_calls(messages)
     return {
-        "outcome": classify(termination, reward, error),
-        "complete": simulation is not None and error is None,
+        "execution": {"finished": simulation is not None and error is None,
+                      "simulation_returned": simulation is not None,
+                      "error": f"{type(error).__name__}: {error}"[:500] if error else None,
+                      "error_in_role": getattr(error, "aep_role", None) if error else None},
         "termination_reason": termination,
-        "evaluation": reward_info,
+        "evaluation": reward_info,  # the official evaluator's output, unmodified
         "models_observed": models_observed(messages),
         "counts": {"messages": len(messages), "tool_calls": len(calls),
                    "agent_tool_calls": sum(c["by"] == "agent" for c in calls),
-                   "tool_errors": sum(bool(c["error"]) for c in calls)},
+                   "tool_errors": sum(bool(c["error"]) for c in calls),
+                   "side_channel_tool_calls": sum(c["by"] == "agent" and c["name"] == SIDE_CHANNEL_TOOL
+                                                  for c in calls)},
         "messages": messages,
         "tool_calls": calls,
         "retrievals": retrievals(calls),
-        # tau2 logs a discoverable READ call only if it is in the reference trajectory, and this tool
-        # lists the log, so its output can reveal reference membership (docs/BENCHMARK_INTEGRATION.md).
-        # Recorded so that no intervention can come to depend on it unnoticed.
-        "side_channel_uses": sum(c["by"] == "agent" and c["name"] == "list_discoverable_agent_tools"
-                                 for c in calls),
     }
 
 
-def _spend_record(simulation, messages: list[dict], budget: Budget | None) -> dict:
+def _spend_record(simulation, budget: Budget | None) -> dict:
     reported = None
     if simulation is not None:
         reported = {"agent_cost": simulation.agent_cost, "user_cost": simulation.user_cost,
@@ -264,6 +336,16 @@ def _spend_record(simulation, messages: list[dict], budget: Budget | None) -> di
         "incurred": budget.summary() if budget else None,
         "ledger": budget.ledger() if budget else [],
     }
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _write_json(path: Path, obj) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(obj, indent=2, default=str))
+    os.replace(tmp, path)  # atomic: readers never see a half-written file
 
 
 def _capture_tau2_logs(run_dir: Path):
@@ -285,9 +367,9 @@ def main(argv=None) -> int:
     p.add_argument("--task", required=True)
     p.add_argument("--scripted", type=Path, help="script file: mock run, no network, no spend")
     p.add_argument("--agent-model")
-    p.add_argument("--user-model")
+    p.add_argument("--user-model", default=OFFICIAL_USER_MODEL)
     p.add_argument("--agent-args", type=json.loads, default={"temperature": 0.0})
-    p.add_argument("--user-args", type=json.loads, default={"temperature": 0.0})
+    p.add_argument("--user-args", type=json.loads, default=dict(OFFICIAL_USER_ARGS))
     p.add_argument("--retrieval-config", default="alltools")
     p.add_argument("--max-steps", type=int, default=200)
     p.add_argument("--max-errors", type=int, default=10)
@@ -300,8 +382,8 @@ def main(argv=None) -> int:
     if a.scripted:
         from bench.scripted import AGENT_MODEL, USER_MODEL
         a.agent_model, a.user_model = AGENT_MODEL, USER_MODEL
-    elif not (a.agent_model and a.user_model):
-        p.error("live runs need --agent-model and --user-model")
+    elif not a.agent_model:
+        p.error("live runs need --agent-model")
     opts = RunOptions(
         task_id=a.task, agent_model=a.agent_model, user_model=a.user_model,
         agent_llm_args=a.agent_args, user_llm_args=a.user_args, retrieval_config=a.retrieval_config,
@@ -310,19 +392,18 @@ def main(argv=None) -> int:
         scripted=a.scripted,
     )
     trace, path = run(opts)
-    ev = trace.get("evaluation") or {}
     spend = (trace.get("spend") or {}).get("incurred") or {}
     print(json.dumps({
-        "label": trace["label"],
-        "outcome": trace["outcome"],
-        "termination_reason": trace["termination_reason"],
-        "reward": ev.get("reward"),
-        "messages": trace["counts"]["messages"],
-        "tool_calls": trace["counts"]["tool_calls"],
-        "spend_incurred_upper_bound_usd": spend.get("complete_incurred_upper_bound_usd"),
+        "label": trace.get("label"),
+        "termination_reason": trace.get("termination_reason"),
+        "official_reward": (trace.get("evaluation") or {}).get("reward"),
+        "attribution": trace.get("attribution"),
+        "trace_complete": trace.get("trace_complete"),
+        "research_eligibility": trace.get("research_eligibility"),
+        "spend_upper_bound_usd": spend.get("upper_bound_usd"),
         "trace": str(path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path),
     }, indent=2))
-    return 0 if trace["outcome"]["class"] in ("agent_success", "agent_failure") else 1
+    return 0 if trace.get("execution", {}).get("finished") else 1
 
 
 if __name__ == "__main__":

@@ -17,10 +17,11 @@ import json
 import uuid
 from pathlib import Path
 
+import litellm
 import numpy as np
 from litellm import ModelResponse
 
-from bench.budget import Price, current_role, estimate_input_tokens
+from bench.budget import Price, current_role
 
 AGENT_MODEL = "scripted/agent"
 USER_MODEL = "scripted/user"
@@ -61,7 +62,10 @@ class ScriptedLLM:
                 "type": "function",
                 "function": {"name": step["call"], "arguments": json.dumps(step.get("args", {}))},
             }]
-        prompt_tokens = estimate_input_tokens(model, messages, tools)
+        try:
+            prompt_tokens = litellm.token_counter(model="gpt-4o", messages=messages, tools=tools)
+        except Exception:  # noqa: BLE001 - token counts here only feed fake prices
+            prompt_tokens = len(json.dumps(messages, default=str)) // 4
         completion_tokens = max(1, len(json.dumps(message)) // 4)
         return ModelResponse(
             model=model,

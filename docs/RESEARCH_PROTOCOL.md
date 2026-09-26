@@ -58,6 +58,23 @@ are all acceptable outcomes.
 - **Trials:** k = 4 per task, so pass^1 through pass^4 are all measurable.
 - **Baseline retrieval config:** `alltools` (the leaderboard's standard configuration).
 
+## Denominator and replacement rules (fixed before any live run)
+
+Every scheduled trial is reported in one of: completed and eligible, completed but ineligible, interrupted, replaced.
+Nothing leaves the denominator silently.
+
+- **Official score:** the evaluator's reward for every scheduled trial, exactly as tau2 computes it (premature
+  terminations score 0). This is the number comparable to published results.
+- **Research eligibility** (`research_eligibility` in each trace): finished, officially graded, trace complete,
+  no unresolved spend, and the failure cause is the agent or none.
+- **Replacement:** a trial whose cause is `provider`, `configuration`, `interrupted` or `harness` is rerun once
+  with the same seed and recorded as *replaced*, with both traces kept. A second such failure is reported as
+  missing, and results are shown with it counted as a failure and with it excluded.
+- **Unattributed** (`max_steps`, `timeout`): read the trace and label the cause before seeing any
+  comparison result; report the result with and without these trials.
+- **Side-channel exposure** (`answer_independence` flag): trajectories are kept and flagged; claims are
+  limited accordingly. A variant that hides the log is a disclosed environment change, never the baseline.
+
 ## Data split
 
 - **Dev (30 tasks):** all development, debugging, and failure analysis.
