@@ -11,6 +11,7 @@ class RunCreate(BaseModel):
     model: str | None = None
     task_ids: list[str] = Field(min_length=1, max_length=1000)
     k: int = Field(default=1, ge=1, le=8)
+    deadline_seconds: int | None = Field(default=None, ge=10, le=3600)
 
 
 class RunSummary(BaseModel):
@@ -22,8 +23,11 @@ class RunSummary(BaseModel):
     k: int
     created_at: datetime
     status_counts: dict[str, int]
+    # Over trials with an agent outcome (completed or errored; errored counts as failure).
+    # infra_failed trials are excluded and visible in status_counts.
     pass_hat_k: dict[int, float | None]
-    total_cost_usd: float
+    attempts: int
+    spend_usd: float  # every attempt's reported cost, including retried and late attempts
 
 
 class TrialOut(BaseModel):
@@ -35,6 +39,8 @@ class TrialOut(BaseModel):
     cost_usd: float | None
     n_turns: int | None
     error: str | None
+    failure_class: str | None
+    attempts: int
     started_at: datetime | None
     finished_at: datetime | None
 
@@ -43,6 +49,7 @@ class TrialSpec(BaseModel):
     """What a trial pod needs to run: returned when it checks in."""
 
     trial_id: int
+    attempt: int
     run_id: int
     task_id: str
     trial_index: int

@@ -1,95 +1,60 @@
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-from app.db import Base, get_session
-from app.main import app, get_queue
-from app.queue import QueuedTrial
 
 
-class FakeQueue:
-    def __init__(self):
-        self.items: list[QueuedTrial] = []
-
-    def push(self, item):
-        self.items.append(item)
-
-    def push_front(self, item):
-        self.items.insert(0, item)
-
-    def pop(self, timeout):
-        return self.items.pop(0) if self.items else None
+def dispatch_all(env):
+    while env.dispatcher().dispatch_once():
+        pass
 
 
-@pytest.fixture
-def ctx():
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine, expire_on_commit=False)
-    queue = FakeQueue()
-
-    def session_override():
-        with Session() as s:
-            yield s
-
-    app.dependency_overrides[get_session] = session_override
-    app.dependency_overrides[get_queue] = lambda: queue
-    yield TestClient(app), queue
-    app.dependency_overrides.clear()
-
-
-def create_run(client, task_ids=("t1", "t2"), k=2):
-    body = {"name": "smoke", "agent": "stub", "domain": "mock", "task_ids": list(task_ids), "k": k}
-    r = client.post("/runs", json=body)
-    assert r.status_code == 201, r.text
-    return r.json()
-
-
-def finish(client, item, reward):
-    h = {"x-trial-token": item.callback_token}
-    assert client.post(f"/trials/{item.trial_id}/start", headers=h).status_code == 200
-    r = client.post(f"/trials/{item.trial_id}/result", headers=h, json={"status": "completed", "reward": reward, "cost_usd": 0.01})
-    assert r.status_code == 200, r.text
-
-
-def test_create_run_enqueues_task_times_k_trials(ctx):
-    client, queue = ctx
-    run = create_run(client, task_ids=("t1", "t2", "t2"), k=3)  # duplicate task ids collapse
+def test_create_run_enqueues_trial_ids_only(env):
+    run = env.create_run(task_ids=("t1", "t2", "t2"), k=3)  # duplicate task ids collapse
     assert run["status_counts"] == {"queued": 6}
-    assert len(queue.items) == 6
-    assert len({i.callback_token for i in queue.items}) == 6
+    assert env.queue.queue == [1, 2, 3, 4, 5, 6]  # ids only: callback tokens never leave the database
 
 
-def test_trial_lifecycle_and_pass_hat_k(ctx):
-    client, queue = ctx
-    run = create_run(client)
-    items = list(queue.items)
-    for item, reward in zip(items, [1.0, 1.0, 1.0, 0.0]):  # t1 passes twice, t2 passes once
-        finish(client, item, reward)
+def test_trial_lifecycle_and_pass_hat_k(env):
+    run = env.create_run()
+    dispatch_all(env)
+    for trial_id, reward in zip([1, 2, 3, 4], [1.0, 1.0, 1.0, 0.0]):  # t1 passes twice, t2 once
+        token = env.token(trial_id)
+        assert env.start(trial_id, token).status_code == 200
+        assert env.result(trial_id, token, reward=reward).status_code == 200
 
-    summary = client.get(f"/runs/{run['id']}").json()
+    summary = env.run_summary(run["id"])
     assert summary["status_counts"] == {"completed": 4}
     assert summary["pass_hat_k"]["1"] == pytest.approx(0.75)
     assert summary["pass_hat_k"]["2"] == pytest.approx(0.5)
-    assert summary["total_cost_usd"] == pytest.approx(0.04)
+    assert summary["spend_usd"] == pytest.approx(0.04)
+    assert summary["attempts"] == 4
 
 
-def test_callback_requires_the_trials_own_token(ctx):
-    client, queue = ctx
-    create_run(client)
-    a, b = queue.items[0], queue.items[1]
-    assert client.post(f"/trials/{a.trial_id}/start").status_code == 403
-    assert client.post(f"/trials/{a.trial_id}/start", headers={"x-trial-token": b.callback_token}).status_code == 403
-    assert client.post("/trials/9999/start", headers={"x-trial-token": a.callback_token}).status_code == 403
+def test_agent_error_counts_as_failure(env):
+    run = env.create_run(task_ids=("t1",), k=2)
+    dispatch_all(env)
+    for trial_id, status in [(1, "completed"), (2, "errored")]:
+        token = env.token(trial_id)
+        env.start(trial_id, token)
+        env.result(trial_id, token, reward=1.0 if status == "completed" else None, status=status)
+    summary = env.run_summary(run["id"])
+    assert summary["pass_hat_k"]["1"] == pytest.approx(0.5)
+    trials = env.client.get(f"/runs/{run['id']}/trials").json()
+    assert trials[1]["failure_class"] == "agent"
 
 
-def test_finished_trial_cannot_be_rewritten(ctx):
-    client, queue = ctx
-    create_run(client)
-    item = queue.items[0]
-    finish(client, item, 1.0)
-    h = {"x-trial-token": item.callback_token}
-    r = client.post(f"/trials/{item.trial_id}/result", headers=h, json={"status": "completed", "reward": 0.0})
-    assert r.status_code == 409
+def test_callback_requires_the_attempts_own_token(env):
+    env.create_run()
+    dispatch_all(env)
+    a, b = env.token(1), env.token(2)
+    assert env.client.post("/trials/1/start").status_code == 403
+    assert env.start(1, b).status_code == 403
+    assert env.start(9999, a).status_code == 403
+
+
+def test_duplicate_result_callback_is_rejected_not_overwritten(env):
+    run = env.create_run(task_ids=("t1",), k=1)
+    dispatch_all(env)
+    token = env.token(1)
+    env.start(1, token)
+    assert env.result(1, token, reward=1.0).status_code == 200
+    assert env.result(1, token, reward=0.0).status_code == 409
+    assert env.run_summary(run["id"])["pass_hat_k"]["1"] == 1.0
