@@ -69,38 +69,52 @@ Inside each trial pod, the worker runs **one tau2-bench simulation** for one (ta
 - Our harness plugs in as a **registered tau2 agent** (`registry.register_agent_factory`); tau2's orchestrator, tools, and grader are untouched. That keeps the result a legitimate *custom* submission.
 - **Integrity:** tau2 ships `LLMGTAgent`, a ground-truth ("GT") agent that sees the answers. It is never used. Our agent never reads `evaluation_criteria`, `required_documents`, or expected actions.
 
-## Layer 3 — The harness 🧪 (each piece added by an experiment, behind a flag)
+## Layer 3 — The harness 🧪 (revised 2026-09-26 after external review)
 
 ```
-  OFFLINE (once per knowledge-base version)        RUNTIME (every conversation turn)
-  ┌────────────────────────────────────┐          ┌──────────────────────────────────────────┐
-  │ Policy compiler  (strong model)     │          │ Conversation LLM (agent model)            │
-  │ 698 docs → rules + dependencies     │─rules──► │  ├─ document search & reading (cycle 1)  │
-  │ (versioned artifact, reviewed)      │          │  ├─ task-state object       (cycle 5)    │
-  └────────────────────────────────────┘          │  ├─ plan → PLAN VERIFIER (code) (cycle 3)│
-                                                   │  ├─ TRUST GATE before writes (cycle 4)   │
-                                                   │  └─ ROUTER: cheap ↔ strong  (cycle 6)    │
-                                                   └──────────────────────────────────────────┘
+  OFFLINE (per workflow family, per KB version)        RUNTIME (every turn)
+  ┌─────────────────────────────────────────┐          ┌──────────────────────────────────────────────┐
+  │ Prerequisite extractor (compiler)        │          │ Conversation LLM (agent model)                │
+  │ docs → source-linked rules:              │─rules──► │  ├─ retrieval: search + read       (days 8–14)│
+  │  passage · action · conditions ·          │          │  ├─ task state + EVIDENCE RECORDS  (day 1 on)  │
+  │  exceptions · required evidence ·         │          │  └─ ACTION-TIME CHECK before every write:     │
+  │  version · executable/ambiguous/          │          │       real action + args vs rules + evidence  │
+  │  unsupported                              │          │       → allow · block (with source) · ask     │
+  └──────────────┬──────────────────────────┘          └──────────────────────────────────────────────┘
+                 ▼
+  Compiler evaluation: hand-written rule test set (allowed / forbidden / missing evidence / exceptions)
 ```
 
-| Component | Cycle | Decided approach | Candidate tech |
-|---|---|---|---|
-| Document search and reading | 1 | Start from the benchmark's best retrieval; fix "searched but not read" | terminal-style grep/cat (Sierra: best in 5/6 configs) |
-| **Policy compiler** (the differentiator) | 2 | Documents → structured rules and dependencies, compiled **offline once**, stored as a reviewed, versioned artifact | Strong model (GPT-6 Sol); ideas from interwhen, ContrAgent |
-| Plan verifier | 3 | Agent drafts its action sequence; **deterministic code** checks it against the rules before execution | Plain Python over the rule graph (no LLM) |
-| Trust gate | 4 | Customer claims must be confirmed by a tool before any account-changing action | Jev (calibrated yes/no) or a cheap LLM, validated vs hand labels |
-| Task state | 5 | Explicit state object instead of re-reading the full history | SKILL.state / Belief-State Engine ideas |
-| Router | 6 | Cheap model by default, escalate hard steps to a strong model | Jev or LangChain router middleware |
+| Component | When | Decided approach |
+|---|---|---|
+| Task state + evidence records | Day 1 onward | Each fact the agent relies on is stored with its source tool call, the account/customer it concerns, and its freshness |
+| Retrieval | Days 8–14 | Start from the benchmark's best retrieval; fix "searched but not read" (variant B) |
+| Prerequisite extractor | Days 15–28 | Source-linked rules for 1–2 workflow families chosen from dev failures; builds on PCAS, Autoformalization into Policy-as-Code, COVENANT |
+| Action-time check | Days 15–28 | Deterministic code checks the **actual** write action and arguments immediately before execution, against the rules and the evidence records; state updates from the result |
+| Unknown handling | Days 15–28 | `ambiguous`/`unsupported` rules never permit an action: the agent asks, looks up evidence, or escalates |
 
-Each component is switchable, so the final ablation table (component on/off → Δpass^k, Δcost) comes for free.
+**Two separate evaluations:** compiler correctness (do the rules preserve conditions, exceptions and
+dependencies? checked against a hand-written test set) and runtime enforcement (did the agent obey the
+rules with valid, current evidence? measured including false blocks).
 
-## Layer 4 — Observability 🔜
+Removed from the 60-day scope: model routing, sophisticated memory, the classifier-based trust gate
+(authorization comes from evidence), distillation and training.
 
-- **Traces:** OpenTelemetry spans for every model call, tool call, verifier decision and grade, using the GenAI semantic conventions. One trace per trial, with context carried through the Redis message into the pod.
-- **Metrics:** Prometheus; pass rate, pass^k, cost per resolved task, tokens, cache hit rate, p50/p95 turn latency, tool errors, queue depth. Low-cardinality labels only (model, variant, domain); per-trial IDs live in traces.
-- **Logs:** structured JSON with `trace_id`.
-- **Backends:** OTel Collector → Tempo, Prometheus, Loki → Grafana (all via Helm).
-- **Use in research:** failure labels are attached to traces, so "which failures did this change fix?" is a query.
+## Layer 4 — Observability 🔜 (minimal first)
+
+- **First:** structured JSON event logs per trial: model calls, retrieval, actions, evidence records,
+  check decisions, cost, outcome. Stored with the trial and queryable.
+- **Later, only if time allows:** OpenTelemetry spans (GenAI conventions) and the Tempo/Prometheus/Loki/Grafana stack.
+
+## Platform reliability gaps (found in review, to fix before real runs)
+
+| Gap | Effect | Fix |
+|---|---|---|
+| Dispatcher crashes after popping a trial, before launching it | Trial lost; stays `queued` forever | Atomic move to a processing list (`LMOVE`) and requeue on restart |
+| Trial pod dies or hits its deadline without reporting | Trial stays `running` forever | Reconciler marks trials `errored` when their Job failed or expired |
+| No retry accounting | A retried trial could double-count cost | Record attempt number; count only the final attempt |
+
+Already handled: duplicate launches (Job name collision → 409) and duplicate results (409).
 
 ## Layer 5 — Research workflow ✅
 
@@ -114,9 +128,9 @@ Each component is switchable, so the final ablation table (component on/off → 
 | Role | Model | Status |
 |---|---|---|
 | Simulated customer | gpt-5.2 | Fixed (leaderboard standard) |
-| Agent (conversation) | **GPT-6 Luna** recommended; held fixed across harness experiments | ❓ confirm |
-| Policy compiler (offline) | GPT-6 Sol (strong, one-time cost) | 🧪 cycle 2 |
-| Failure labeling / trust gate | Classical classifier → Jev → cheap LLM, first to pass validation | 🧪 |
+| Agent (conversation) | Chosen by a small capability-and-cost pilot using model IDs the account can actually call; held fixed afterward | ❓ pilot |
+| Prerequisite extractor (offline) | A strong model; its extra cost is reported | 🧪 days 15–28 |
+| Failure labeling | Hand labels first; a classifier or LLM only after validation against them | 🧪 |
 | Grader | tau2's database-state check (no LLM) | ✅ fixed |
 
 ## Decision log
@@ -134,12 +148,17 @@ Each component is switchable, so the final ablation table (component on/off → 
 | D9 | Deterministic code for rule checks; learned models only for fuzzy judgments | Rule checks must be exact and auditable |
 | D10 | Never use `LLMGTAgent` or ground-truth task fields | Integrity of every reported number |
 | D11 | Jev optional, behind a flag, with an LLM fallback | New vendor; signups paused; may change or disappear |
+| D12 | Research question narrowed to source-linked action prerequisites vs a strong retrieval baseline | External review: automatic procedure drafting already exists in Decagon and Intercom, and in PCAS, Autoformalization and COVENANT |
+| D13 | Primary comparison is paired and internal; leaderboard only via the official protocol | A 67-task holdout score is not comparable to a full-benchmark score |
+| D14 | Authorization from evidence records, checked at action time | A plan checked once goes stale; a classifier can't grant permission |
+| D15 | Compiler correctness evaluated separately with a hand-written rule test set | Exact execution of a wrong rule is still wrong |
+| D16 | Freeze platform expansion; structured logs before the observability stack; no training in scope | Time goes to finding out whether the intervention works |
 
 ## Open decisions
 
 | # | Question | Recommendation |
 |---|---|---|
-| O1 | Agent model | GPT-6 Luna: fits the budget and makes the "cheaper model" claim strongest |
+| O1 | Agent model | Small pilot on 2–3 models the key can actually call; pick on capability per dollar |
 | O2 | Dispatcher concurrency on OpenAI usage tier 1 | Lower from 4 to 1–2 before the first real run |
 | O3 | Where trajectories are stored | Postgres JSONB first (tens–hundreds of KB each); move to S3 if it grows |
 | O4 | Publish the repo publicly | Needed for the resume link; awaiting approval |
