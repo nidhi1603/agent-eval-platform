@@ -63,15 +63,24 @@ are all acceptable outcomes.
 Every scheduled trial is reported in one of: completed and eligible, completed but ineligible, interrupted, replaced.
 Nothing leaves the denominator silently.
 
-- **Official score:** the evaluator's reward for every scheduled trial, exactly as tau2 computes it (premature
-  terminations score 0). This is the number comparable to published results.
-- **Research eligibility** (`research_eligibility` in each trace): finished, officially graded, trace complete,
-  no unresolved spend, and the failure cause is the agent or none.
-- **Replacement:** a trial whose cause is `provider`, `configuration`, `interrupted` or `harness` is rerun once
-  with the same seed and recorded as *replaced*, with both traces kept. A second such failure is reported as
-  missing, and results are shown with it counted as a failure and with it excluded.
-- **Unattributed** (`max_steps`, `timeout`): read the trace and label the cause before seeing any
-  comparison result; report the result with and without these trials.
+- **Primary result:** the official evaluator's reward for every scheduled trial, exactly as tau2 computes
+  it (premature terminations, including timeouts and step limits, score 0). Using the official evaluator
+  does not by itself make a result comparable to published numbers; that needs the full official protocol.
+- **Eligibility is split** (`research_eligibility` in each trace). *Reliability*: officially graded, trace
+  complete, and the run measured the agent (cause is not provider, configuration, interrupted, harness or
+  unclassified). *Cost*: additionally, no unresolved spend. Unresolved billing never removes a valid task
+  outcome from reliability analysis.
+- **Replacement** (one rerun, same seed, recorded as *replaced*, both traces kept): only for causes
+  `provider`, `configuration` or `harness` that occurred **before the conversation finished**. A second such
+  failure is reported as missing, and results are shown with it counted as a failure and with it excluded.
+- **No replacement for budget exhaustion.** A trial stopped by the spend limit is scored as the official
+  evaluator scores it (0 if unfinished) and reported; a fresh trial would give longer or less efficient
+  agents extra attempts and extra spend.
+- **No new conversation for a post-run diagnostic failure.** If the answer-independence check fails, it is
+  rerun on the saved trajectory (`python -m bench.independence <run_dir>`); the graded trial stands.
+- **Timeouts, step limits, user-simulator failures** stay in the primary result. Their causes are labelled
+  from the trace before any comparison result is seen, and any exclusion appears only in a clearly
+  labelled secondary analysis.
 - **Side-channel exposure** (`answer_independence` flag): trajectories are kept and flagged; claims are
   limited accordingly. A variant that hides the log is a disclosed environment change, never the baseline.
 

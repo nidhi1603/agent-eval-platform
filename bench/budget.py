@@ -2,7 +2,7 @@
 grader, embeddings).
 
 What it does:
-- Before each request, reserve a conservative upper bound on that request's cost and refuse the
+- Before each request, reserve a conservative estimate of that request's maximum cost and refuse the
   request if usage-based spend + unresolved reservations + this bound would exceed the cap.
   Input bound: UTF-8 bytes of the serialized request plus fixed overhead. OpenAI's tokenizers are
   byte-level BPE, so each token covers at least one byte; the bound relies on that and is checked.
@@ -21,6 +21,7 @@ max_tokens, and on the tokenizer assumption. Provider-reconciled charges are not
 code; compare the ledger with the provider's usage dashboard.
 """
 
+import hashlib
 import json
 import math
 import os
@@ -186,13 +187,11 @@ class Budget:
             return call
 
     def settle_ok(self, call: Call, usage, provider_model: str | None, started: float) -> None:
-        """Settle from a response's usage. Missing or malformed usage leaves the reservation unresolved."""
+        """Settle from a response's usage. Both counts must be present, non-negative integers (not bools,
+        floats or None); anything else leaves the reservation unresolved."""
         try:
-            inp = int(usage.prompt_tokens if hasattr(usage, "prompt_tokens") else usage["prompt_tokens"])
-            out_raw = usage.completion_tokens if hasattr(usage, "completion_tokens") else usage.get("completion_tokens", 0)
-            out = int(out_raw or 0)
-            if inp < 0 or out < 0:
-                raise ValueError("negative token count")
+            inp = _token_count(usage, "prompt_tokens")
+            out = _token_count(usage, "completion_tokens")
         except Exception as e:  # noqa: BLE001 - any failure here must keep the reservation
             self.settle_unresolved(call, e, started, status="usage_unresolved")
             return
@@ -241,6 +240,22 @@ class Budget:
             return [asdict(c) for c in self.calls]
 
 
+def _token_count(usage, field: str) -> int:
+    if usage is None:
+        raise ValueError("no usage in response")
+    if isinstance(usage, dict):
+        if field not in usage:
+            raise ValueError(f"usage has no {field}")
+        value = usage[field]
+    elif hasattr(usage, field):
+        value = getattr(usage, field)
+    else:
+        raise ValueError(f"usage has no {field}")
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"{field} must be a non-negative integer, got {value!r}")
+    return value
+
+
 def check_llm_args(args: dict, who: str) -> dict:
     extra = set(args) - ALLOWED_LLM_ARGS
     if extra:
@@ -260,7 +275,10 @@ def metered_completion(budget: Budget, limits: Limits, send):
         kwargs["max_tokens"] = limits.max_output_tokens
         kwargs["timeout"] = limits.request_timeout_s
         params = {k: v for k, v in kwargs.items() if k in ALLOWED_LLM_ARGS | {"max_tokens", "timeout"}}
+        # Arguments as handed to litellm, not the provider's final HTTP payload (litellm may still transform it).
+        params["tool_choice"] = tool_choice
         params["tools"] = len(tools or [])
+        params["tools_sha256"] = hashlib.sha256(json.dumps(tools or [], sort_keys=True).encode()).hexdigest()
         in_bound = input_token_bound(messages, tools)
         for attempt in range(1, limits.max_attempts + 1):
             call = budget.reserve("chat", model, attempt, in_bound, limits.max_output_tokens, params)

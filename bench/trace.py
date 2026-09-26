@@ -88,31 +88,48 @@ def attribute(termination_reason: str | None, reward: float | None, error: BaseE
     return {"cause": UNCLASSIFIED, "evidence": f"termination_reason={termination_reason!r}"}
 
 
+NOT_A_MEASUREMENT = {PROVIDER, CONFIGURATION, INTERRUPTED, HARNESS, UNCLASSIFIED}
+
+
 def research_eligibility(trace: dict) -> dict:
-    """Whether this trajectory is a valid measurement of the agent. Ineligible runs are kept and
-    reported (never silently dropped); flags limit claims without excluding the run."""
-    reasons, flags = [], []
+    """Whether the run can be used, separately for reliability (task outcome) and cost analysis.
+
+    Ineligible runs are kept and reported, never silently dropped. Timeouts, step limits and
+    user-simulator failures stay in the primary scheduled-trial result (the official evaluator scored
+    them); their causes are flagged for a clearly labelled secondary analysis. Unresolved billing
+    affects cost analysis only.
+    """
+    common, flags = [], []
     if trace.get("mode") == "mock":
-        reasons.append("mock run (scripted responses)")
-    if not trace.get("execution", {}).get("finished"):
-        reasons.append("execution did not finish")
-    if trace.get("evaluation") is None:
-        reasons.append("no official evaluation")
+        common.append("mock run (scripted responses)")
     if trace.get("missing_fields"):
-        reasons.append("trace incomplete")
-    if (trace.get("spend", {}).get("incurred") or {}).get("unresolved_calls"):
-        reasons.append("spend has unresolved calls")
+        common.append("trace incomplete")
+
+    reliability = list(common)
+    if trace.get("evaluation") is None:
+        reliability.append("no official evaluation")
     cause = (trace.get("attribution") or {}).get("cause")
-    if cause not in AGENT_CAUSES:
-        reasons.append(f"failure cause is {cause}, not the agent")
+    if cause in NOT_A_MEASUREMENT:
+        reliability.append(f"run did not measure the agent: cause is {cause}")
+    elif cause not in AGENT_CAUSES:
+        flags.append(f"secondary analysis: failure cause is {cause}")
+
+    cost = list(common)
+    if (trace.get("spend", {}).get("incurred") or {}).get("unresolved_calls"):
+        cost.append("spend has unresolved calls")
+
     indep = trace.get("answer_independence") or {}
     if indep.get("agent_visible_outputs_depending_on_hidden_reference"):
         flags.append("agent saw output that depends on hidden reference data (benchmark side channel)")
+    if indep.get("conclusive") is False:
+        flags.append("answer-independence check inconclusive (nondeterministic outputs or check error)")
     if indep and indep.get("replay_matches_recorded") is False:
         flags.append("environment replay did not reproduce the recorded tool outputs")
     if trace.get("config", {}).get("retrieval_config") != "alltools":
         flags.append(f"non-official retrieval config: {trace.get('config', {}).get('retrieval_config')}")
-    return {"eligible": not reasons, "reasons": reasons, "flags": flags}
+    return {"reliability": {"eligible": not reliability, "reasons": reliability},
+            "cost": {"eligible": not cost, "reasons": cost},
+            "flags": flags}
 
 
 def serialize_messages(messages) -> list[dict]:

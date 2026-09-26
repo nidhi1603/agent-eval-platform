@@ -143,9 +143,14 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
                 raise ConfigError("agent input integrity check failed; see agent_inputs")
             with role("environment"):  # tool calls and grading replays; agent/user/grader tag themselves
                 simulation = run_simulation(orchestrator, env_kwargs=_build_env_kwargs(config, task) or None)
-            with role("independence_check"):
-                trace["answer_independence"] = independence.check(config, task, simulation.messages)
-    except BaseException as e:  # noqa: BLE001 - every exit path must leave a trace
+            # A post-run diagnostic. Its failure must not turn a finished, graded trial into a failed one;
+            # it can be rerun later from the saved trajectory (python -m bench.independence <run_dir>).
+            try:
+                with role("independence_check"):
+                    trace["answer_independence"] = independence.check(config, task, simulation.messages)
+            except Exception as e:  # noqa: BLE001
+                trace["answer_independence"] = {"error": f"{type(e).__name__}: {e}"[:500], "conclusive": False}
+    except BaseException as e:  # noqa: BLE001 - leave a trace on every exit path this process controls
         error = e
     finally:
         path = _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0)
@@ -170,6 +175,7 @@ def _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0) -> Pa
         trace["research_eligibility"] = research_eligibility(trace)
         if error is not None:
             trace["error_traceback"] = "".join(traceback.format_exception(error))[-4000:]
+        trace["persisted"] = True  # set before writing: the file on disk exists only if the write succeeds
         path.write_text(json.dumps(trace, indent=2, default=str))
         if simulation is not None:
             (run_dir / "simulation.json").write_text(simulation.model_dump_json(indent=2))
@@ -179,6 +185,7 @@ def _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0) -> Pa
         _write_json(path, {"run_id": trace.get("run_id"), "finalization_error": repr(e),
                            "traceback": traceback.format_exc()[-4000:],
                            "run_error": repr(error) if error else None})
+        trace["persisted"] = False
         state = "finalization_failed"
     try:
         manifest = json.loads((run_dir / "manifest.json").read_text())
@@ -263,18 +270,21 @@ def _isolate_embedding_cache(cache_dir: Path) -> None:
 
 
 def _audit_agent_inputs(orchestrator, task, config) -> dict:
-    """Gate: the agent was built without the task, and its prompt and tool schemas are byte-identical
-    to those built from a copy of the task with the answer key emptied. The string scan is a
-    diagnostic: overlaps in inputs proven task-independent are public information, reported for review."""
+    """Gate: the agent was built without the task, and its complete system prompt and tool schemas are
+    byte-identical to an agent built from a copy of the task with the answer key emptied (reference
+    actions, NL assertions, communicate info, required documents). The string scan is a diagnostic."""
     from tau2.data_model.tasks import Task
 
     from bench import independence
 
+    from tau2.agent.llm_agent import LLMAgent
+
     a = orchestrator.agent
     schemas = [t.openai_schema for t in a.tools]
     blind_env = independence.fresh_env(config, independence.blind_copy(task))
-    blind_schemas = [t.openai_schema for t in blind_env.get_tools()]
-    policy_same = orchestrator.environment.get_policy() == blind_env.get_policy()
+    blind_agent = LLMAgent(tools=blind_env.get_tools(), domain_policy=blind_env.get_policy(), llm=a.llm)
+    blind_schemas = [t.openai_schema for t in blind_agent.tools]
+    policy_same = a.system_prompt == blind_agent.system_prompt  # the complete system prompt, not only the policy
     schemas_same = json.dumps(schemas, sort_keys=True) == json.dumps(blind_schemas, sort_keys=True)
     task_refs = agent.task_references(a, Task)
     scan = agent.leakage_check(task, a.system_prompt + "\n" + json.dumps(schemas))
@@ -284,13 +294,13 @@ def _audit_agent_inputs(orchestrator, task, config) -> dict:
         "system_prompt_chars": len(a.system_prompt),
         "tools": [s["function"]["name"] for s in schemas],
         "side_channel_tool_exposed": SIDE_CHANNEL_TOOL in [s["function"]["name"] for s in schemas],
-        "policy_identical_without_answer_key": policy_same,
+        "system_prompt_identical_without_answer_key": policy_same,
         "tool_schemas_identical_without_answer_key": schemas_same,
         "task_objects_found": task_refs,
         "task_object_search": f"bounded: depth {agent.TASK_SEARCH_DEPTH}, attributes/lists/dicts, no closures",
         "string_scan": {**scan, "role": "diagnostic, not the gate",
-                        "interpretation": ("overlaps are in inputs proven identical without the answer key, "
-                                           "so they are public information; review them") if scan["findings"]
+                        "interpretation": ("these inputs are unchanged when the answer key is emptied; "
+                                           "inspect where the overlapping values come from") if scan["findings"]
                         and policy_same and schemas_same else None},
         "passed": ("task" in agent.last_build.get("withheld", []) and policy_same and schemas_same and not task_refs),
     }
@@ -378,6 +388,7 @@ def main(argv=None) -> int:
     p.add_argument("--budget-usd", type=float)
     p.add_argument("--max-output-tokens", type=int, default=4096)
     p.add_argument("--max-attempts", type=int, default=3)
+    p.add_argument("--out-dir", type=Path, default=REPO_ROOT / "runs" / "local")
     a = p.parse_args(argv)
     if a.scripted:
         from bench.scripted import AGENT_MODEL, USER_MODEL
@@ -389,7 +400,7 @@ def main(argv=None) -> int:
         agent_llm_args=a.agent_args, user_llm_args=a.user_args, retrieval_config=a.retrieval_config,
         max_steps=a.max_steps, max_errors=a.max_errors, seed=a.seed, timeout_s=a.timeout_s,
         budget_usd=a.budget_usd, limits=Limits(max_output_tokens=a.max_output_tokens, max_attempts=a.max_attempts),
-        scripted=a.scripted,
+        scripted=a.scripted, out_dir=a.out_dir,
     )
     trace, path = run(opts)
     spend = (trace.get("spend") or {}).get("incurred") or {}
@@ -399,10 +410,14 @@ def main(argv=None) -> int:
         "official_reward": (trace.get("evaluation") or {}).get("reward"),
         "attribution": trace.get("attribution"),
         "trace_complete": trace.get("trace_complete"),
+        "persisted": trace.get("persisted"),
         "research_eligibility": trace.get("research_eligibility"),
         "spend_upper_bound_usd": spend.get("upper_bound_usd"),
         "trace": str(path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path),
     }, indent=2))
+    if not trace.get("persisted"):
+        print("ERROR: the trace was not saved; see trace_error.json / manifest.json", file=sys.stderr)
+        return 2
     return 0 if trace.get("execution", {}).get("finished") else 1
 
 

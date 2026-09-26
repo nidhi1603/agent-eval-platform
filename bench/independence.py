@@ -8,10 +8,12 @@ environments built through tau2's official path (`_build_env_kwargs`):
            info, required documents) are emptied
 Legitimate inputs (initial state, retrieval config, tool arguments) are identical in all three.
 An agent-visible output that is stable (real == control) but differs from blind depends on the
-answer key. Outputs that differ between real and control are reported as nondeterministic.
+answer key. If any output differs between real and control, the check is inconclusive: random
+variation could hide answer dependence.
 
-Known volatile content is normalized before comparing, and the list is recorded in the result:
-KB search results end with a wall-clock "[Timing: ...]" line.
+Known volatile content is normalized before comparing, and the list is recorded in the result: the
+KB search tools end their output with a wall-clock "[Timing: ...]" footer. Only that trailing footer,
+and only for those tools, is normalized.
 
 Scope: only the calls this trajectory made. It cannot show that other calls are answer-independent.
 """
@@ -20,14 +22,15 @@ import re
 
 from bench import pins
 
-NORMALIZERS = {"kb_search_timing": (re.compile(r"\[Timing:[^\]]*\]"), "[Timing: <normalized>]")}
+SEARCH_TOOLS = {"KB_search", "KB_search_bm25", "KB_search_dense"}
+# Exact footer format from tau2 domains/banking_knowledge/retrieval_mixins.py:_format_kb_search_result
+TIMING_FOOTER = re.compile(r"\[Timing: retrieval=\d+ms(?:, reranking=\d+ms)?, total=\d+ms\]\s*\Z")
+NORMALIZERS = ["kb_search_timing_footer"]
 
 
-def normalize(text: str | None) -> str:
+def normalize(tool: str, text: str | None) -> str:
     text = text or ""
-    for pattern, repl in NORMALIZERS.values():
-        text = pattern.sub(repl, text)
-    return text
+    return TIMING_FOOTER.sub("[Timing: <normalized>]", text) if tool in SEARCH_TOOLS else text
 
 
 def blind_copy(task):
@@ -61,21 +64,46 @@ def check(config, task, messages) -> dict:
         if m.role not in ("assistant", "user"):
             continue
         for tc in m.tool_calls or []:
-            out = {name: normalize(env.get_response(tc).content) for name, env in envs.items()}
+            out = {name: normalize(tc.name, env.get_response(tc).content) for name, env in envs.items()}
             replayed += 1
             if out["real"] != out["control"]:
                 nondeterministic.append({"message_i": i, "tool": tc.name})
             elif m.role == "assistant" and out["real"] != out["blind"]:
                 dependent.append({"message_i": i, "tool": tc.name, "arguments": tc.arguments,
                                   "real": out["real"][:300], "blind": out["blind"][:300]})
-            if tc.id in recorded and out["real"] != normalize(recorded[tc.id]):
+            if tc.id in recorded and out["real"] != normalize(tc.name, recorded[tc.id]):
                 mismatched.append({"message_i": i, "tool": tc.name})
     return {
         "method": "replay tool calls against real, control (real again) and answer-key-emptied environments",
-        "normalized": sorted(NORMALIZERS),
+        "normalized": NORMALIZERS,
+        "conclusive": not nondeterministic,
         "calls_replayed": replayed,
         "agent_visible_outputs_depending_on_hidden_reference": dependent,
         "nondeterministic_outputs": nondeterministic,
         "replay_matches_recorded": not mismatched,
         "replay_mismatches": mismatched[:10],
     }
+
+
+def recheck(run_dir) -> dict:
+    """Rerun the check from a saved run (simulation.json + trace.json), without a new conversation."""
+    import json
+    from pathlib import Path
+
+    from tau2.data_model.simulation import SimulationRun, TextRunConfig
+    from tau2.runner.helpers import get_tasks
+
+    run_dir = Path(run_dir)
+    trace = json.loads((run_dir / "trace.json").read_text())
+    sim = SimulationRun.model_validate_json((run_dir / "simulation.json").read_text())
+    cfg = trace["config"]
+    config = TextRunConfig(domain=pins.DOMAIN, retrieval_config=cfg["retrieval_config"])
+    task = get_tasks(pins.DOMAIN, task_ids=[cfg["task_id"]])[0]
+    return check(config, task, sim.messages)
+
+
+if __name__ == "__main__":
+    import json
+    import sys
+
+    print(json.dumps(recheck(sys.argv[1]), indent=2))

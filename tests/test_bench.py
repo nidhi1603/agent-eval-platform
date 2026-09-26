@@ -69,7 +69,7 @@ def test_public_overlap_is_reported_for_review_not_used_to_drop_the_task(tmp_pat
     # task_085's reference arguments contain a timestamp that also appears in the (task-independent) policy.
     trace, _ = scripted_run(tmp_path, script="task_085_side_channel.json", task_id="task_085")
     inputs = trace["agent_inputs"]
-    assert inputs["passed"] and inputs["policy_identical_without_answer_key"] and inputs["tool_schemas_identical_without_answer_key"]
+    assert inputs["passed"] and inputs["system_prompt_identical_without_answer_key"] and inputs["tool_schemas_identical_without_answer_key"]
     assert inputs["string_scan"]["findings"] and inputs["string_scan"]["interpretation"]
     assert trace["execution"]["finished"]
 
@@ -106,7 +106,7 @@ def test_reference_run_has_no_answer_dependent_outputs(tmp_path):
     trace, _ = scripted_run(tmp_path)
     ind = trace["answer_independence"]
     assert ind["agent_visible_outputs_depending_on_hidden_reference"] == []
-    assert ind["replay_matches_recorded"] and ind["normalized"] == ["kb_search_timing"]
+    assert ind["replay_matches_recorded"] and ind["conclusive"] and ind["normalized"] == ["kb_search_timing_footer"]
 
 
 # --- the real integration path, scripted ------------------------------------------------------
@@ -119,7 +119,9 @@ def test_reference_conversation_scores_one_and_trace_is_complete(tmp_path):
     assert trace["attribution"]["cause"] == "none"
     assert trace["trace_complete"] and trace["missing_fields"] == []
     elig = trace["research_eligibility"]
-    assert not elig["eligible"] and elig["reasons"] == ["mock run (scripted responses)"]
+    assert elig["reliability"] == {"eligible": False, "reasons": ["mock run (scripted responses)"]}
+    assert elig["cost"] == {"eligible": False, "reasons": ["mock run (scripted responses)"]}
+    assert trace["persisted"] is True
 
     calls = [(c["by"], c["name"]) for c in trace["tool_calls"]]
     assert calls == [("agent", "KB_search"), ("agent", "give_discoverable_user_tool"),
@@ -151,15 +153,21 @@ def test_run_directories_are_unique_even_within_one_second(tmp_path):
     assert len(dirs) == 3
 
 
-def test_finalization_failure_leaves_an_error_record(tmp_path, monkeypatch):
+def test_finalization_failure_is_recorded_and_fails_the_command(tmp_path, monkeypatch, capsys):
     def broken(trace):
-        raise RuntimeError("disk full")
+        raise RuntimeError("injected finalization error")  # a raised error, not a real full disk
 
     monkeypatch.setattr("bench.run.research_eligibility", broken)
     trace, run_dir = scripted_run(tmp_path)
-    assert (run_dir / "trace_error.json").exists()
+    assert trace["persisted"] is False and trace["execution"]["finished"]  # the conversation itself finished
+    assert (run_dir / "trace_error.json").exists() and not (run_dir / "trace.json").exists()
     assert json.loads((run_dir / "manifest.json").read_text())["state"] == "finalization_failed"
-    assert (run_dir / "ledger.jsonl").exists()  # the spend journal survives regardless
+    assert (run_dir / "ledger.jsonl").exists()
+
+    from bench.run import main
+    code = main(["--task", DEV_TASK, "--retrieval-config", "bm25", "--out-dir", str(tmp_path),
+                 "--scripted", str(SCRIPTS / "task_015_reference.json")])
+    assert code == 2  # the command fails when the required trace was not saved
 
 
 # --- failure attribution ------------------------------------------------------------------------
@@ -222,7 +230,9 @@ def test_missing_usage_keeps_the_reservation(tmp_path, monkeypatch):
     inc = trace["spend"]["incurred"]
     assert inc["usage_based_estimate_usd"] == 0 and inc["unresolved_calls"] == len(trace["spend"]["ledger"]) > 0
     assert inc["upper_bound_usd"] == pytest.approx(sum(c["reserved_usd"] for c in trace["spend"]["ledger"]))
-    assert "spend has unresolved calls" in trace["research_eligibility"]["reasons"]
+    elig = trace["research_eligibility"]
+    assert "spend has unresolved calls" in elig["cost"]["reasons"]
+    assert "spend has unresolved calls" not in elig["reliability"]["reasons"]  # outcome still usable
 
 
 def test_attribution_of_termination_reasons():
@@ -337,3 +347,50 @@ def test_embedding_sdk_retries_are_disabled_and_each_request_reserved(monkeypatc
     embedder.embed(["hello"])
     assert FakeClient.options["max_retries"] == 0
     assert [(c.attempt, c.status) for c in b.calls] == [(1, "failed"), (2, "ok")]
+
+
+@pytest.mark.parametrize("usage", [
+    {"prompt_tokens": 100},  # completion count missing
+    {"prompt_tokens": 100, "completion_tokens": None},
+    {"prompt_tokens": 100.9, "completion_tokens": 4},
+    {"prompt_tokens": 100, "completion_tokens": 4.9},
+    {"prompt_tokens": True, "completion_tokens": 4},
+    {"prompt_tokens": -1, "completion_tokens": 4},
+    None,
+])
+def test_malformed_usage_keeps_the_reservation(usage):
+    b = B.Budget(1.0, PRICES)
+    call = b.reserve("chat", "m", 1, 1000, 100)
+    b.settle_ok(call, usage, "m", started=0.0)
+    assert call.status == "usage_unresolved" and call.cost_usd is None
+    assert b.summary()["unresolved_reservations_usd"] == pytest.approx(call.reserved_usd)
+
+
+def test_timing_normalization_only_touches_the_search_footer():
+    from bench.independence import normalize
+
+    body = "1. Doc\n   Content: see [Timing: this is document text]\n"
+    assert normalize("KB_search", body + "[Timing: retrieval=1ms, total=1ms]") == body + "[Timing: <normalized>]"
+    assert normalize("KB_search", body + "[Timing: retrieval=1ms, reranking=2ms, total=3ms]") == body + "[Timing: <normalized>]"
+    assert normalize("KB_search", body) == body  # mid-text match left alone
+    assert normalize("get_user_information_by_id", "x [Timing: 1ms]") == "x [Timing: 1ms]"
+
+
+def test_failed_diagnostic_does_not_fail_a_finished_trial(tmp_path, monkeypatch):
+    def broken(config, task, messages):
+        raise RuntimeError("diagnostic crashed")
+
+    monkeypatch.setattr("bench.independence.check", broken)
+    trace, _ = scripted_run(tmp_path)
+    assert trace["execution"]["finished"] and trace["evaluation"]["reward"] == 1.0
+    assert trace["attribution"]["cause"] == "none"
+    assert trace["answer_independence"]["conclusive"] is False
+    assert any("inconclusive" in f for f in trace["research_eligibility"]["flags"])
+
+
+def test_diagnostic_can_be_rerun_from_a_saved_run(tmp_path):
+    from bench.independence import recheck
+
+    trace, run_dir = scripted_run(tmp_path, script="task_085_side_channel.json", task_id="task_085")
+    again = recheck(run_dir)
+    assert [d["tool"] for d in again["agent_visible_outputs_depending_on_hidden_reference"]] == ["list_discoverable_agent_tools"]
