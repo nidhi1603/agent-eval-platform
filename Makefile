@@ -3,10 +3,15 @@ RELEASE := aep
 IMAGE   := agent-eval:dev
 CHART   := deploy/helm/agent-eval
 
-.PHONY: test cluster image load deploy up smoke logs down
+.PHONY: test cluster image load deploy up smoke logs down bench-mock
 
 test:
 	uv run pytest -q
+
+# One dev task through the real tau2 path with scripted model responses: no network, no spend.
+bench-mock:
+	uv run --extra bench python -m bench.run --task task_015 --retrieval-config bm25 \
+		--scripted bench/scripts/task_015_reference.json
 
 cluster:
 	kind get clusters | grep -qx $(CLUSTER) || kind create cluster --config deploy/kind/cluster.yaml

@@ -62,10 +62,10 @@ Inside each trial pod, the worker runs **one tau2-bench simulation** for one (ta
 1. Check in with the API → receive task id, agent config, model.
 2. Call tau2's `run_task(...)` with domain `banking_knowledge`, the agent, user simulator `gpt-5.2`, retrieval config `alltools`.
 3. tau2's evaluator grades the **final database state** (or expected actions, per task).
-4. Report `reward`, `agent_cost`, `user_cost`, turn count, and the trajectory to the API.
+4. Report `reward`, turn count, the trajectory, and two spend figures to the API: the cost tau2 reports (`agent_cost` + `user_cost`, from litellm's price map, which records 0.0 for models it does not know and omits embeddings, the LLM grader and failed calls) and the complete incurred spend from our own ledger (`bench/budget.py`).
 
 **Decisions:**
-- User simulator **gpt-5.2** and retrieval **alltools**: identical to every leaderboard entry, so numbers are comparable.
+- User simulator **gpt-5.2** and retrieval **alltools**: the same configuration as the standard leaderboard entries. That makes our numbers comparable only when the official protocol is run in full (all 97 tasks, 4 trials); a dev or holdout subset is never a leaderboard reproduction.
 - Our harness plugs in as a **registered tau2 agent** (`registry.register_agent_factory`); tau2's orchestrator, tools, and grader are untouched. That keeps the result a legitimate *custom* submission.
 - **Integrity:** tau2 ships `LLMGTAgent`, a ground-truth ("GT") agent that sees the answers. It is never used. Our agent never reads `evaluation_criteria`, `required_documents`, or expected actions.
 
@@ -112,7 +112,7 @@ Removed from the 60-day scope: model routing, sophisticated memory, the classifi
 |---|---|---|
 | Dispatcher crashes after popping a trial, before launching it | Trial lost; stays `queued` forever | Atomic move to a processing list (`LMOVE`) and requeue on restart |
 | Trial pod dies or hits its deadline without reporting | Trial stays `running` forever | Reconciler marks trials `errored` when their Job failed or expired |
-| No retry accounting | A retried trial could double-count cost | Record attempt number; count only the final attempt |
+| No retry accounting | A retried trial's spend was ambiguous | Implemented: every attempt is recorded; the counted *result* is the final attempt's, and *spend* sums every attempt (retried work still cost money) |
 
 Already handled: duplicate launches (Job name collision → 409) and duplicate results (409).
 

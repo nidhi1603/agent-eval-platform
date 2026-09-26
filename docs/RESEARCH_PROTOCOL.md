@@ -25,15 +25,21 @@ held-out tasks, with vs without the intervention. Results are reported with task
 | A. Standard agent | Starting point |
 | B. A + improved retrieval | Whether finding the right information is enough |
 | C. B + extracted rules in context | Whether structured guidance helps |
-| D. C's rules + action-time enforcement | Whether enforcement adds value beyond guidance |
+| D. C plus action-time enforcement of the same rules | Whether enforcement adds value beyond guidance |
 | E. D with a small manually reviewed rule set | Whether compiler quality is the bottleneck |
+
+D differs from C in exactly one thing: the identical rule set, still shown in context, is also enforced
+before controlled actions. Any other difference (new rules, different retrieval, different prompt)
+would confound the C→D comparison. E's rules are labelled human-reviewed and never reported as automatic.
 
 Metrics beyond task success: incorrect write actions executed, **valid actions wrongly blocked**
 (false blocks), whether the required evidence existed before each write, cost and latency.
 Extra resources (a stronger compiler model, extra inference, longer context) are reported, never hidden.
 
-**Leaderboard numbers are context, not the comparison.** A score on our 67-task holdout is not
-directly comparable to a full-benchmark leaderboard score. Any leaderboard claim requires running the
+**Leaderboard numbers are context, not the comparison.** A score on our 67-task holdout, the 30-task
+dev split, or any single task is not a leaderboard reproduction and is never presented as one. The
+leaderboard requires all 97 tasks, 4 trials each, unmodified task definitions (`docs/leaderboard-submission.md`
+in tau2-bench). Any leaderboard claim requires running the
 official protocol on all tasks and submitting through Sierra's process. For context only: the best
 standard text entry is 55.2% pass^1 / 35.1% pass^4 (Qwen 3.8 Max, from Sierra's
 `web/leaderboard/public/submissions` data, read 2026-09-24).
@@ -43,8 +49,11 @@ are all acceptable outcomes.
 
 ## Fixed setup (changes only by an explicit, logged decision)
 
-- **Benchmark:** tau2-bench `banking_knowledge`, tasks.json sha256 recorded in `splits/banking_knowledge.json`.
-- **User simulator:** `gpt-5.2`, matching every leaderboard entry.
+- **Benchmark:** tau2-bench v1.0.1 at commit b7ea907 `banking_knowledge`. The hash of the task files
+  tau2 actually loads (`tasks/task_*.json`) is recorded in `splits/banking_knowledge.json` and checked
+  before every run. (The aggregate `tasks.json` is stale on 13 tasks and is not used.)
+- **User simulator:** `gpt-5.2` with `reasoning_effort: low`, as in the paper (arXiv 2603.04370) and
+  the standard leaderboard entries.
 - **Agent model:** chosen once in cycle 0 and held fixed while harness components change.
 - **Trials:** k = 4 per task, so pass^1 through pass^4 are all measurable.
 - **Baseline retrieval config:** `alltools` (the leaderboard's standard configuration).
@@ -70,6 +79,9 @@ are all acceptable outcomes.
 4. **Hypothesize before coding:** write the prediction in `EXPERIMENTS.md`, e.g. "a plan verifier will fix ≥ 6 of the 14 ordering failures and raise dev pass^1 by ≥ 5 points."
 5. **Implement the smallest version** behind a config flag, so every component can be switched off later for ablations.
 6. **Compare paired:** same dev tasks, same k, with vs without the change. Report Δpass^1 with a paired bootstrap 95% CI, Δpass^4, and Δcost.
+   *Status: planned. Only pass^k point estimates are implemented (`app/metrics.py`); the paired
+   bootstrap and task-level CIs are not written yet and must be implemented and tested before the
+   first comparison is reported.*
 7. **Decide by the pre-set rule:**
    - **Keep** if the Δpass^1 CI excludes zero, or Δ ≥ +5 points replicated on a second run, and the cost increase is justified.
    - **Revise once** if the direction is right but the signal is weak.

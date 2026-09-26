@@ -1,4 +1,4 @@
-# Project status (as of 2026-09-26)
+# Project status (updated 2026-09-26, evening)
 
 An honest snapshot of what is built, what is verified, and what is not. Reviewers: please check every claim here against the code in this repo. Section 7 lists open questions.
 
@@ -23,15 +23,16 @@ An honest snapshot of what is built, what is verified, and what is not. Reviewer
 | A | Standard tau2 agent |
 | B | A + strong retrieval |
 | C | B + extracted rules placed in context |
-| D | B + rules enforced at action time |
+| D | C plus action-time enforcement of the same rules (only difference from C) |
 | E | D with human-reviewed rules, labelled separately and never mixed with the "fully automatic" results |
 
 **Evaluation design.**
 - **Metric:** pass^k, meaning the chance the agent succeeds on all k tries.
-- **Comparisons:** paired comparisons with task-level confidence intervals.
+- **Comparisons:** paired comparisons with task-level confidence intervals. *Planned, not implemented:* only pass^k point estimates exist (`app/metrics.py`).
 - **Split:** fixed dev/test split of 30/67 tasks, stratified.
 - **Pre-registration:** each experiment is written down before it runs.
-- Leaderboard comparisons only through the official tau2 protocol.
+- Leaderboard comparisons only through the official tau2 protocol (all 97 tasks, 4 trials). A dev, holdout or single-task score is never presented as a leaderboard reproduction.
+- **Spend** is reported two ways: what tau2 reports (litellm price map, agent + user only, 0.0 for unknown models) and the complete incurred spend from our ledger (all paid calls, retries and failed calls).
 
 **Out of scope:** training, distillation, routing, and memory.
 
@@ -50,7 +51,10 @@ Commercial vendors already generate procedures automatically (Decagon AOP Copilo
 
 > Run a banking task end to end, save a complete structured trace, demonstrate recovery from the identified infrastructure failures, and explain one observed agent failure.
 
-**Status: not reached.** Only the infrastructure-recovery part has progress, and it has been tested only with unit tests, not live on the cluster.
+**Status: not reached.**
+- Local path (no Kubernetes): **built and verified with scripted responses only.** A real banking dev task runs through tau2's orchestrator and official grader; traces are complete. No live model has been called: blocked on an API key and an approved budget.
+- Platform recovery: unit-tested, with **9 reproduced defects** (`docs/DEFECTS.md`). Not verified live on the cluster. The cluster is not used for scored experiments until the defects are fixed.
+- Explaining an observed agent failure: requires the first live run.
 
 ---
 
@@ -82,23 +86,30 @@ Each item below is marked as **IMPLEMENTED**, **VERIFIED** (I have evidence), **
 - **VERIFIED: Rebuilt image deployed** to a local kind cluster via Helm. API, dispatcher, Postgres and Redis are all Running with **0 restarts** (~104 minutes uptime at the time of writing). The dispatcher previously crash-looped on cold start; I fixed that by removing `create_all` from it and retrying `recover()`.
 - **NOT DONE: Live failure demo.** `scripts/failure_demo.sh` exists but has never run; I stopped it. It injects six failures on the real cluster: dispatcher restart, worker crash, pod deletion, deadline, duplicate delivery, and replayed callback.
 
+### Local runner (`bench/`, uncommitted at time of writing)
+
+Decisions and sources: `docs/BENCHMARK_INTEGRATION.md`.
+
+- **IMPLEMENTED + TESTED: tau2 pinned** (v1.0.1 @ b7ea907) as the `bench` extra. Every run verifies the installed package, the data checkout commit, that it is unmodified, that tau2 actually reads that data directory, and the hash of the task files that run.
+- **IMPLEMENTED + TESTED: agent input allowlist.** The factory accepts `tools`, `domain_policy`, `llm`, `llm_args` and records what it withheld (`task`, audio options). Before each run: policy identical with and without the task, no Task object reachable from the agent, and a leakage scan of the system prompt and tool schemas (exact reference values plus 8-word overlaps with the hidden user instructions). Positive controls prove the scan detects planted content. Test-split tasks and `golden_retrieval` are refused.
+- **IMPLEMENTED + TESTED: shared budget** (`bench/budget.py`). Agent, user simulator, LLM grader and embeddings all reserve an upper bound before sending; in-flight reservations count; litellm's hidden retries are disabled and ours are reserved one by one; failed calls keep their reservation as an upper bound; `max_tokens` is forced. Live runs refuse to start without an approved cap, a verified price for every model, and credentials.
+- **IMPLEMENTED + TESTED: structured trace** per run: provenance, pins, config, seed, agent-input audit, every message, tool calls paired with results, retrievals with returned document ids, termination reason, the official evaluator's breakdown, models observed, both spend figures and the per-call ledger. Written on every exit path (including budget stop and Ctrl-C) with a completeness check.
+- **IMPLEMENTED + TESTED: failure classes**: agent success/failure vs configuration, provider, simulator, interrupted, harness error.
+- **VERIFIED (MOCK ONLY): zero-cost path.** Scripted responses on dev task_015: the reference conversation scores 1.0 and a refusal scores 0.0 through the official grader. These are harness tests, not benchmark results.
+- **NOT DONE: live run.** No API key in `.env`; no approved budget; `alltools` also needs the `srt` sandbox and `ripgrep` installed.
+
+**Findings from the benchmark research:**
+- The split's `tasks.json` hash was computed from a stale aggregate file: tau2 loads `tasks/task_*.json`, which differ on 13 tasks (3 dev). Membership unchanged; the runtime hash is now recorded and checked.
+- The benchmark has a small side channel (reproduced): `list_discoverable_agent_tools` reveals whether a discoverable read is in the reference trajectory. Never used; counted in every trace.
+- tau2's own reported cost is 0.0 for models litellm cannot price and omits embeddings, the grader and failed calls.
+
 ### Not started
-- **NOT DONE: Benchmark adapter.**
-  - Add tau2 as a pinned dependency.
-  - Register an agent factory that runs a real banking task.
-  - **Integrity guard:** tau2's `build_agent` passes `task=` (which contains the expected actions) to every agent factory. Our factory must drop it, with a test proving that it does.
-  - Never use tau2's `LLMGTAgent`: it is a ground-truth agent.
-- **NOT DONE: Structured per-trial event trace** (JSON: messages, tool calls, retrievals, costs, reward breakdown).
-- **NOT DONE: Local runner** without Kubernetes, so the core logic can be run and understood without the deployment stack.
-- **NOT DONE: Spending guard.** Dollar cap including in-flight requests, and a maximum number of turns. Cost is currently self-reported by the worker.
-- **PROPOSAL: Zero-cost end-to-end test.** Use litellm's `mock_response` so the full tau2 path runs without API spend.
-- **NOT DONE: Retrieval (B), rule extraction (C/D), hand-written rule test set, human review (E), experiments.**
+- Live baseline run and failure explanation (blocked, above).
+- Fixes for the 9 platform defects (`docs/DEFECTS.md`); live failure demo.
+- Paired bootstrap / task-level CIs.
+- Retrieval (B), rule extraction (C/D), hand-written rule test set, human review (E).
 
-**Waiting on:**
-- An API key, kept in a local `.env` file (never committed).
-- An approved dollar cap, set before any paid run.
-
-**Money spent: $0.** Only stub agents have run, with no LLM calls.
+**Money spent: $0.** Only stub agents and scripted responses have run.
 
 ---
 
@@ -134,12 +145,13 @@ POST /runs ──> Postgres (Run, Trial rows) ──> Redis queue (trial ids)
 
 ```
 ~/Desktop/agent-eval-platform/
+├── bench/          local runner: run.py, agent.py, budget.py, trace.py, scripted.py, pins.py, prices.json, scripts/
 ├── app/            dispatcher.py, queue.py, models.py, main.py, k8s.py, schemas.py, settings.py, metrics.py, db.py
 ├── worker/         trial.py (pod entrypoint), agents.py (stub agents)
-├── tests/          conftest.py, test_dispatcher.py, test_api.py, test_k8s.py, test_metrics.py
+├── tests/          conftest.py, test_dispatcher.py, test_api.py, test_k8s.py, test_metrics.py, test_bench.py, test_known_defects.py
 ├── scripts/        failure_demo.sh, smoke.sh, make_split.py, arxiv_scan.py
 ├── deploy/helm/agent-eval/   values.yaml + templates
-├── docs/           RESEARCH_PROTOCOL.md, ARCHITECTURE.md
+├── docs/           RESEARCH_PROTOCOL.md, ARCHITECTURE.md, BENCHMARK_INTEGRATION.md, DEFECTS.md
 ├── splits/banking_knowledge.json
 ├── research/arxiv_digest_2026-09-25.md
 └── EXPERIMENTS.md  (E000 baseline: planned, not run)
@@ -147,7 +159,9 @@ POST /runs ──> Postgres (Run, Trial rows) ──> Redis queue (trial ids)
 
 ---
 
-## 6. Weaknesses I already suspect (please confirm or refute)
+## 6. Weaknesses suspected before the review
+
+Items 1 and 5 are now reproduced as defects 2 and 8 in `docs/DEFECTS.md`; item 4 is addressed for the local path by the budget ledger.
 
 1. **Trials can get stranded, i.e. never dispatched.**
    - `create_run` commits the trials and then pushes them to Redis. `reconcile()` commits `status="queued"` and then pushes.
