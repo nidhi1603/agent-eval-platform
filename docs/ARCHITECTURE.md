@@ -161,5 +161,5 @@ Already handled: duplicate launches (Job name collision → 409) and duplicate r
 | O1 | Agent model | Small pilot on 2–3 models the key can actually call; pick on capability per dollar |
 | O2 | Dispatcher concurrency on OpenAI usage tier 1 | Lower from 4 to 1–2 before the first real run |
 | O3 | Where trajectories are stored | Postgres JSONB first (tens–hundreds of KB each); move to S3 if it grows |
-| O4 | Publish the repo publicly | Needed for the resume link; awaiting approval |
+| O4 | Publish the repo publicly | Decided 2026-09-26: published on GitHub for external review |
 | O5 | When to build the Next.js dashboard and EKS deploy | After the cycle-0 baseline, so they show real data |
