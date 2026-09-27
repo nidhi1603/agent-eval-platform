@@ -179,7 +179,7 @@ def test_writes_need_a_logged_verification_but_reads_do_not(config):
     assert verified.verification_logged() and not unverified.verification_logged()
     assert guard.check(freeze, verified, guard.OBSERVED_RULES).allowed
     d = guard.check(freeze, unverified, guard.OBSERVED_RULES)
-    assert not d.allowed and d.rule == "write_requires_logged_verification"
+    assert not d.allowed and d.rule == "write_requires_verification_log"
     assert guard.check(lookup, unverified, guard.OBSERVED_RULES).allowed  # reads are not covered by this rule
     for exempt in ({"name": "unlock_discoverable_agent_tool", "arguments": {"agent_tool_name": "freeze_debit_card_3892"}},
                    {"name": "give_discoverable_user_tool", "arguments": {"discoverable_tool_name": "x"}}):
@@ -200,3 +200,39 @@ def test_observed_rules_never_read_the_database():
         guard.check(call, ev, guard.OBSERVED_RULES)  # the tripwire raises if any observed rule touches db
     assert all(guard.RULES[r]["evidence"] == "observed" for r in guard.OBSERVED_RULES)
     assert guard.RULES[RULE]["evidence"] == "environment_db"
+
+
+def test_missing_tool_type_metadata_is_a_configuration_error():
+    call = {"name": "call_discoverable_agent_tool",
+            "arguments": {"agent_tool_name": "freeze_debit_card_3892", "arguments": "{}"}}
+    with pytest.raises(guard.GuardConfigError):
+        guard.check(call, guard.Evidence(messages=[], tool_type=None), guard.OBSERVED_RULES)
+
+
+def test_known_limit_a_log_of_an_invented_identity_satisfies_the_rule(config):
+    """Documents what the rule does NOT protect (review reproduction): log_verification accepts invented identity
+    fields and reports success, and the rule only requires that such a log exists. If this test ever needs to fail,
+    the rule has become identity enforcement and its documentation must change with it."""
+    from tau2.data_model.message import ToolCall
+
+    env = fresh_env(config, _task("task_080"))
+    msgs = []
+
+    def run(i, name, args):
+        tc = ToolCall(id=f"c{i}", name=name, arguments=args, requestor="assistant")
+        res = env.get_response(tc)
+        msgs.extend([{"role": "assistant", "tool_calls": [{"id": tc.id, "name": name, "arguments": args}]},
+                     {"role": "tool", "tool_call_id": tc.id, "content": res.content, "error": bool(res.error)}])
+        return res.content
+
+    clock = run(0, "get_current_time", {}).split("is ")[1].rstrip(".")
+    fake = {"name": "Nobody Real", "user_id": "not_a_user", "address": "1 Fake St", "email": "fake@example.com",
+            "phone_number": "000-000-0000", "date_of_birth": "01/01/1900", "time_verified": clock}
+    ev = guard.Evidence(messages=list(msgs), tool_type=guard.toolkit_type_lookup(env.tools))
+    assert guard.check({"name": "log_verification", "arguments": fake}, ev, guard.OBSERVED_RULES).allowed
+    assert "Verification logged successfully" in run(1, "log_verification", fake)
+    freeze = {"name": "call_discoverable_agent_tool", "arguments": {
+        "agent_tool_name": "freeze_debit_card_3892", "arguments": json.dumps({"card_id": "dbc_tm92c4d7e8_blue"})}}
+    ev = guard.Evidence(messages=list(msgs), tool_type=guard.toolkit_type_lookup(env.tools), db=env.tools.db)
+    assert guard.check(freeze, ev, tuple(guard.RULES)).allowed  # all three rules allow it: a known, documented gap
+    assert guard.RULES["write_requires_verification_log"]["unprotected"]

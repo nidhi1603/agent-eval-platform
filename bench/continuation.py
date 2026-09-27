@@ -7,6 +7,16 @@ restored environment and their results fed back, until it sends a text message (
 `max_rounds` tool rounds pass. No user simulator is called, and nothing is graded by tau2: this measures
 the next decision at a known failure point, not task success.
 
+Evidence handling:
+- Every generated proposal is recorded, including one reached at the round limit and drafts withheld by a
+  guard or pre-send check (from the agent's harness events). Records are written to disk as they grow, so a
+  later error or budget stop never erases earlier actions.
+- Tool results are kept in full; the full text is the evidence for scoring and provenance. Previews are
+  separate and only for reading.
+- Success is judged from receipts (tau2 returns failures as text starting "Error", often with error=False).
+- Outcomes are separated: proposed, blocked, attempted, successful, and final state (read from the
+  environment after the continuation).
+
 Cases are chosen after observing failures, so results are a development diagnostic on known failures,
 never a reliability estimate. Scoring rules are fixed in the case file before any run.
 
@@ -14,6 +24,7 @@ never a reliability estimate. Scoring rules are fixed in the case file before an
 """
 
 import argparse
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -22,6 +33,11 @@ from pathlib import Path
 from bench import REPO_ROOT, pins
 
 JSON_ARG_KEYS = {"arguments"}
+PREVIEW = 300
+
+
+class PlanError(Exception):
+    """The plan does not match what would run. Raised before any network call."""
 
 
 def agent_visible(trace_messages: list[dict], end: int) -> list[dict]:
@@ -68,6 +84,12 @@ def restore_env(config, task, trace_messages: list[dict], end: int):
     return env
 
 
+def prefix_steps(trace_messages: list[dict], end: int) -> list[dict]:
+    return [{"requestor": "assistant" if m["role"] == "assistant" else "user", "name": c["name"],
+             "arguments": c["arguments"], "checked": False}
+            for m in trace_messages[:end] for c in m.get("tool_calls") or []]
+
+
 def _leaves(obj):
     if isinstance(obj, dict):
         for k, v in obj.items():
@@ -86,76 +108,30 @@ def _leaves(obj):
 
 
 def unsupported_values(arguments: dict, context: str, ignore: set[str]) -> list[str]:
-    """Argument values that appear nowhere in what the agent had seen (possible inventions)."""
+    """Argument values that appear nowhere in what the agent had seen (a review flag, not a verdict)."""
     return [v for v in _leaves(arguments) if v not in ignore and v not in context]
 
 
-def underlying(call: dict) -> str:
-    if call["name"] in ("call_discoverable_agent_tool", "unlock_discoverable_agent_tool"):
-        return call["arguments"].get("agent_tool_name") or call["name"]
-    if call["name"] == "give_discoverable_user_tool":
-        return call["arguments"].get("discoverable_tool_name") or call["name"]
-    return call["name"]
+def underlying(name: str, arguments: dict) -> str:
+    if name in ("call_discoverable_agent_tool", "unlock_discoverable_agent_tool"):
+        return (arguments or {}).get("agent_tool_name") or name
+    if name == "give_discoverable_user_tool":
+        return (arguments or {}).get("discoverable_tool_name") or name
+    return name
 
 
-def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds: int = 8,
-                  guard_rules: tuple = (), nudges: tuple = ()) -> dict:
-    """Run one continuation. The caller installs spending control (bench.budget.install)."""
-    from tau2.data_model.message import MultiToolMessage
-    from tau2.data_model.simulation import TextRunConfig
-    from tau2.runner.helpers import get_tasks
-
-    from bench import agent as agent_mod
-
-    trace = json.loads((REPO_ROOT / case["source_trace"]).read_text())
-    end = case["prefix_end"]
-    task = get_tasks(pins.DOMAIN, task_ids=[case["task_id"]])[0]
-    config = TextRunConfig(domain=pins.DOMAIN, retrieval_config=case.get("retrieval_config", "bm25"))
-    env = restore_env(config, task, trace["messages"], end)
-    seen = agent_visible(trace["messages"], end)
-    assert seen and seen[-1]["role"] in ("user", "tool"), "a prefix must end with the customer's or a tool's message"
-    agent = agent_mod.factory(tools=env.get_tools(), domain_policy=env.get_policy(), variant=variant,
-                              guard_rules=tuple(guard_rules), nudges=tuple(nudges), llm=llm, llm_args=dict(llm_args))
-    if guard_rules or nudges:
-        from bench import guard
-
-        agent.guard_toolkit = env.tools
-        agent.agent_tool_names = frozenset(env.tools.get_discoverable_tools())
-        agent.discoverable_names = agent.agent_tool_names | frozenset(env.user_tools.get_discoverable_tools())
-        if any(guard.RULES[r]["evidence"] == "environment_db" for r in guard_rules):
-            agent.guard_db = env.tools.db
-    history = to_tau2(seen)
-    state = agent.get_init_state(history[:-1])
-    incoming = history[-1]
-    context = json.dumps(seen)
-    calls, final_text, rounds = [], None, 0
-    while True:
-        msg, state = agent.generate_next_message(incoming, state)
-        if not msg.tool_calls:
-            final_text = msg.content
-            break
-        if rounds >= max_rounds:
-            break
-        rounds += 1
-        results = []
-        for tc in msg.tool_calls:
-            res = env.get_response(tc)
-            call = {"round": rounds, "name": tc.name, "arguments": tc.arguments, "error": bool(res.error),
-                    "result": (res.content or "")[:600]}
-            call["underlying"] = underlying(call)
-            call["values_not_in_context"] = unsupported_values(tc.arguments, context, set(case.get("ignore_values", [])))
-            calls.append(call)
-            context += json.dumps(call["result"])
-            results.append(res)
-        incoming = results[0] if len(results) == 1 else MultiToolMessage(role="tool", tool_messages=results)
-    return {"case": case["id"], "variant": variant, "guard_rules": list(guard_rules), "nudges": list(nudges),
-            "harness_events": getattr(agent, "events", []), "calls": calls, "final_text": final_text,
-            "rounds": rounds, "stopped": "text" if final_text is not None else "max_rounds",
-            "score": score(case, calls, final_text)}
+def receipt_ok(name: str, content: str) -> bool:
+    """Whether the tool result is a success receipt. tau2 reports most failures as text, not as errors."""
+    text = (content or "").lstrip()
+    if name == "unlock_discoverable_agent_tool":
+        return text.startswith("Tool unlocked:")
+    if name == "give_discoverable_user_tool":
+        return text.startswith("Tool given to user:")
+    return not text.startswith("Error")
 
 
-def _inner_args(call: dict) -> dict:
-    inner = call["arguments"].get("arguments") or "{}"
+def _inner_args(arguments: dict) -> dict:
+    inner = (arguments or {}).get("arguments") or "{}"
     try:
         inner = json.loads(inner) if isinstance(inner, str) else dict(inner)
     except (json.JSONDecodeError, TypeError):
@@ -163,43 +139,241 @@ def _inner_args(call: dict) -> dict:
     return inner if isinstance(inner, dict) else {}
 
 
-def score(case: dict, calls: list[dict], final_text: str | None) -> dict:
-    """Automatic parts of the pre-registered scoring. Text behaviours are labelled by reading.
+def _table_digest(db, table: str) -> str:
+    rows = getattr(getattr(db, table, None), "data", None) or {}
+    return hashlib.sha256(json.dumps(rows, sort_keys=True, default=str).encode()).hexdigest()
 
-    Values in `values_for_review` appear nowhere in what the agent had seen. They are a review flag, not
-    a verdict: correct calculations, reformatting and policy constants can also be new values."""
-    executed_ok = [c for c in calls if c["name"] == "call_discoverable_agent_tool" and not c["error"]
-                   and not c["result"].lstrip().startswith("Error")]
-    ok_tools = {c["underlying"] for c in executed_ok}
+
+def final_state(case: dict, env, before: dict) -> dict:
+    """Case-specific final-state facts, read from the environment after the continuation."""
+    out = {}
+    spec = case.get("completion_state")
+    if spec:
+        rows = getattr(getattr(env.tools.db, spec["table"]), "data")
+        done = [rid for rid in spec["records"]
+                if isinstance(rows.get(rid), dict) and rows[rid].get(spec["field"]) == spec["value"]]
+        out["completed_targets"] = done
+        out["completion"] = f"{len(done)}/{len(spec['records'])}"
+    for table in case.get("watch_tables", []):
+        out[f"{table}_changed"] = _table_digest(env.tools.db, table) != before.get(table)
+    return out
+
+
+def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds: int = 8,
+                  guard_rules: tuple = (), nudges: tuple = (), budget=None, record_path: Path | None = None) -> dict:
+    """Run one continuation. The caller installs spending control (bench.budget.install). Always returns a
+    record; on an exception the record keeps every action taken so far, with status 'error'."""
+    from tau2.data_model.message import MultiToolMessage
+    from tau2.data_model.simulation import TextRunConfig
+    from tau2.runner.helpers import get_tasks
+
+    from bench import agent as agent_mod
+
+    rec: dict = {"case": case["id"], "variant": variant, "guard_rules": list(guard_rules), "nudges": list(nudges),
+                 "status": "started", "proposals": [], "calls": [], "final_text": None, "rounds": 0}
+    seq_start = len(budget.calls) if budget is not None else None
+
+    def flush():
+        if record_path is not None:
+            record_path.write_text(json.dumps(rec, indent=2, default=str) + "\n")
+
+    agent = env = task = config = None
+    before: dict = {}
+    trace_messages: list[dict] = []
+    try:
+        trace = json.loads((REPO_ROOT / case["source_trace"]).read_text())
+        trace_messages = trace["messages"]
+        end = case["prefix_end"]
+        task = get_tasks(pins.DOMAIN, task_ids=[case["task_id"]])[0]
+        config = TextRunConfig(domain=pins.DOMAIN, retrieval_config=case.get("retrieval_config", "bm25"))
+        env = restore_env(config, task, trace_messages, end)
+        before = {t: _table_digest(env.tools.db, t) for t in case.get("watch_tables", [])}
+        seen = agent_visible(trace_messages, end)
+        if not seen or seen[-1]["role"] not in ("user", "tool"):
+            raise PlanError("a prefix must end with the customer's or a tool's message")
+        agent = agent_mod.factory(tools=env.get_tools(), domain_policy=env.get_policy(), variant=variant,
+                                  guard_rules=tuple(guard_rules), nudges=tuple(nudges), llm=llm, llm_args=dict(llm_args))
+        if guard_rules or nudges:
+            from bench import guard
+
+            agent.guard_toolkit = env.tools
+            agent.agent_tool_names = frozenset(env.tools.get_discoverable_tools())
+            agent.discoverable_names = agent.agent_tool_names | frozenset(env.user_tools.get_discoverable_tools())
+            if any(guard.RULES[r]["evidence"] == "environment_db" for r in guard_rules):
+                agent.guard_db = env.tools.db
+        history = to_tau2(seen)
+        state = agent.get_init_state(history[:-1])
+        incoming = history[-1]
+        context = json.dumps(seen)
+        while True:
+            msg, state = agent.generate_next_message(incoming, state)
+            prop = {"n": len(rec["proposals"]), "text": msg.content,
+                    "tool_calls": [{"name": tc.name, "arguments": tc.arguments} for tc in msg.tool_calls or []],
+                    "executed": False}
+            rec["proposals"].append(prop)
+            flush()
+            if not msg.tool_calls:
+                rec["final_text"], rec["status"] = msg.content, "text"
+                break
+            if rec["rounds"] >= max_rounds:
+                prop["not_executed_reason"] = "round limit reached"
+                rec["status"] = "max_rounds"
+                break
+            rec["rounds"] += 1
+            prop["executed"] = True
+            results = []
+            for tc in msg.tool_calls:
+                res = env.get_response(tc)
+                content = res.content or ""
+                call = {"round": rec["rounds"], "name": tc.name, "arguments": tc.arguments,
+                        "underlying": underlying(tc.name, tc.arguments), "error_flag": bool(res.error),
+                        "ok": receipt_ok(tc.name, content) and not res.error,
+                        "result": content, "result_preview": content[:PREVIEW],
+                        "values_not_in_context": unsupported_values(tc.arguments, context,
+                                                                    set(case.get("ignore_values", [])))}
+                rec["calls"].append(call)
+                context += json.dumps(content)  # the model sees the full result, so provenance uses it too
+                results.append(res)
+                flush()
+            incoming = results[0] if len(results) == 1 else MultiToolMessage(role="tool", tool_messages=results)
+    except Exception as e:  # noqa: BLE001 - keep the evidence; the caller decides whether to stop
+        rec["status"], rec["error_type"], rec["error"] = "error", type(e).__name__, f"{type(e).__name__}: {e}"[:500]
+    finally:
+        rec["harness_events"] = getattr(agent, "events", []) if agent is not None else []
+        if budget is not None:
+            rec["ledger_calls"] = [c.seq for c in budget.calls[seq_start:]]
+        if env is not None:
+            rec["final_state"] = final_state(case, env, before)
+        rec["score"] = score(case, rec)
+        if env is not None and task is not None:
+            rec["exposure"] = _exposure(config, task, trace_messages, case["prefix_end"], rec["calls"])
+        flush()
+    return rec
+
+
+def _exposure(config, task, trace_messages, end, calls) -> dict:
+    """Answer-dependence of the continuation's own tool outputs, replaying prefix + continuation.
+    A failed or inconclusive check is 'unknown', never 'not observed'."""
+    from bench.independence import check_sequence
+
+    try:
+        steps = prefix_steps(trace_messages, end) + [
+            {"requestor": "assistant", "name": c["name"], "arguments": c["arguments"], "checked": True} for c in calls]
+        r = check_sequence(config, task, steps)
+        dep = r["agent_visible_outputs_depending_on_hidden_reference"]
+        r["status"] = "exposed" if dep else "not_observed" if r["conclusive"] else "unknown"
+        return r
+    except Exception as e:  # noqa: BLE001
+        return {"status": "unknown", "error": f"{type(e).__name__}: {e}"[:300]}
+
+
+def score(case: dict, rec: dict) -> dict:
+    """Automatic parts of the pre-registered scoring, at separate levels. Text behaviours are labelled by reading.
+
+    proposed   every tool call the agent generated: executed, stopped by the round limit, or withheld/blocked by
+               the harness (from its events)
+    blocked    proposals a permission rule blocked
+    attempted  calls sent to the environment
+    successful attempted calls whose result is a success receipt
+    final      facts read from the environment after the continuation (rec["final_state"])
+
+    `values_for_review` are argument values that appear nowhere in what the agent had seen, compared against
+    full tool results. A review flag, not a verdict: calculations, reformatting and policy constants are new too."""
+    calls = rec.get("calls", [])
+    proposed = [(tc["name"], tc["arguments"]) for p in rec.get("proposals", []) for tc in p["tool_calls"] if not p["executed"]]
+    proposed += [(c["name"], c["arguments"]) for c in calls]
+    blocked = []
+    for e in rec.get("harness_events", []):
+        if e.get("event") == "blocked":
+            blocked.append((e["tool_call"], e["arguments"]))
+            proposed.append((e["tool_call"], e["arguments"]))
+        elif e.get("event") == "nudged":
+            proposed += [(tc["name"], tc["arguments"]) for tc in e.get("draft_tool_calls_full", [])]
+    names = lambda pairs: sorted({underlying(n, a) for n, a in pairs})  # noqa: E731
+    discoverable_calls = lambda cs: [c for c in cs if c["name"] == "call_discoverable_agent_tool"]  # noqa: E731
+    ok_calls = [c for c in calls if c["ok"]]
     s = {
-        "unlocked": sorted({c["underlying"] for c in calls if c["name"] == "unlock_discoverable_agent_tool"}),
-        "executed_discoverable": sorted(ok_tools),
-        "given_to_user": sorted({c["underlying"] for c in calls if c["name"] == "give_discoverable_user_tool"}),
+        "proposed_tools": names(proposed),
+        "blocked_tools": names(blocked),
+        "attempted_discoverable": sorted({c["underlying"] for c in discoverable_calls(calls)}),
+        "successful_discoverable": sorted({c["underlying"] for c in discoverable_calls(ok_calls)}),
+        "unlocked_ok": sorted({c["underlying"] for c in ok_calls if c["name"] == "unlock_discoverable_agent_tool"}),
+        "given_to_user_ok": sorted({c["underlying"] for c in ok_calls if c["name"] == "give_discoverable_user_tool"}),
         "values_for_review": [v for c in calls for v in c["values_not_in_context"]],
-        "tool_errors": sum(c["error"] for c in calls),
+        "failed_receipts": sum(not c["ok"] for c in calls),
+        "status": rec.get("status"),
     }
     if case.get("success_tool"):  # a successful call of this tool with these exact argument values
         want = case.get("success_args", {})
         s["success"] = any(c["underlying"] == case["success_tool"]
-                           and all(_inner_args(c).get(k) == v for k, v in want.items()) for c in executed_ok)
+                           and all(_inner_args(c["arguments"]).get(k) == v for k, v in want.items())
+                           for c in discoverable_calls(ok_calls))
     if case.get("progress_any_of"):  # intermediate progress, never reported as completion
-        s["progress"] = bool(ok_tools & set(case["progress_any_of"]))
-    if case.get("completion_tool"):  # how many intended targets the completing action succeeded on
-        done = {_inner_args(c).get(case["completion_arg"]) for c in executed_ok
-                if c["underlying"] == case["completion_tool"]}
-        s["completed_targets"] = sorted(done & set(case["completion_values"]))
-        s["completion"] = f"{len(s['completed_targets'])}/{len(case['completion_values'])}"
+        s["progress"] = bool(set(s["successful_discoverable"]) & set(case["progress_any_of"]))
+    if case.get("completion_state"):
+        fs = rec.get("final_state") or {}
+        s["completion_final_state"] = fs.get("completion")  # from the environment, not from calls made
     if case.get("forbidden"):
-        proposed = {c["underlying"] for c in calls if c["name"] == "call_discoverable_agent_tool"}
-        s["forbidden_proposed"] = sorted(proposed & set(case["forbidden"]))
-        s["forbidden_executed"] = sorted(ok_tools & set(case["forbidden"]))
-    if case.get("valid_next_step_tools"):  # automatic part; an explained dispute process is labelled by reading
-        s["valid_next_step_tool_used"] = bool(set(s["given_to_user"]) & set(case["valid_next_step_tools"]))
+        f = set(case["forbidden"])
+        s["forbidden_proposed"] = sorted(set(s["proposed_tools"]) & f)
+        s["forbidden_blocked"] = sorted(set(s["blocked_tools"]) & f)
+        s["forbidden_attempted"] = sorted(set(s["attempted_discoverable"]) & f)
+        s["forbidden_successful"] = sorted(set(s["successful_discoverable"]) & f)
+        for table in case.get("watch_tables", []):
+            s[f"final_{table}_changed"] = (rec.get("final_state") or {}).get(f"{table}_changed")
+    if case.get("valid_next_step_tools"):  # automatic part (successful handoff); explaining is labelled by reading
+        s["valid_next_step_tool_given_ok"] = bool(set(s["given_to_user_ok"]) & set(case["valid_next_step_tools"]))
     return s
 
 
+# ---- preflight --------------------------------------------------------------------------------------
+
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def preflight(plan: dict, approved_usd: float) -> dict:
+    """Everything that must hold before any network call. Returns the manifest to save first."""
+    from bench import variants
+
+    if plan.get("budget_usd_total") is None or abs(approved_usd - plan["budget_usd_total"]) > 1e-9:
+        raise PlanError(f"approved ${approved_usd} does not match the plan's ${plan.get('budget_usd_total')}")
+    for name, recorded in plan.get("variants", {}).items():
+        actual = variants.record(name)["sha256"]
+        if recorded.get("sha256") != actual:
+            raise PlanError(f"variant {name!r}: plan sha256 {recorded.get('sha256')} != file sha256 {actual}")
+    cases = {c["id"]: c for c in plan["cases"]}
+    arms = plan.get("arms", {})
+    split = pins.load_split()
+    for c in plan["cases"]:
+        if c["task_id"] not in split["dev"]:
+            raise PlanError(f"case {c['id']}: {c['task_id']} is not a development task")
+        if not (REPO_ROOT / c["source_trace"]).is_file():
+            raise PlanError(f"case {c['id']}: source trace missing")
+    for item in plan["runs"]:
+        if item["case"] not in cases:
+            raise PlanError(f"run references unknown case {item['case']!r}")
+        if item["variant"] not in plan.get("variants", {}):
+            raise PlanError(f"run references variant {item['variant']!r} that the plan does not fingerprint")
+        if item.get("arm") is not None and item["arm"] not in arms:
+            raise PlanError(f"run references undefined arm {item['arm']!r}")
+    return {
+        "batch_id": plan["batch_id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "approved_usd": approved_usd,
+        "plan_sha256": hashlib.sha256(json.dumps(plan, sort_keys=True).encode()).hexdigest(),
+        "variants": {n: variants.record(n) for n in plan.get("variants", {})},
+        "source_traces": {c["id"]: {"path": c["source_trace"], "sha256": _sha(REPO_ROOT / c["source_trace"])}
+                          for c in plan["cases"]},
+        "settings": plan["settings"],
+        "arms": arms,
+        "benchmark": pins.verify_benchmark(),
+        "provenance": pins.provenance(),
+    }
+
+
 def main(argv=None) -> int:
-    from bench.budget import BoundViolation, Budget, BudgetExceeded, Limits, install, load_prices
+    from bench.budget import Budget, Limits, install, load_prices
 
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("plan", type=Path)
@@ -207,45 +381,43 @@ def main(argv=None) -> int:
     p.add_argument("--out-dir", type=Path, default=REPO_ROOT / "experiments")
     a = p.parse_args(argv)
     plan = json.loads(a.plan.read_text())
-    if plan.get("budget_usd_total") is None or abs(a.approved_usd - plan["budget_usd_total"]) > 1e-9:
-        raise SystemExit(f"approved ${a.approved_usd} does not match the plan's ${plan.get('budget_usd_total')}")
+    try:
+        manifest = preflight(plan, a.approved_usd)
+    except PlanError as e:
+        raise SystemExit(f"preflight failed, nothing was sent: {e}") from e
     import litellm
     from dotenv import load_dotenv
 
     load_dotenv(REPO_ROOT / ".env", override=False)
     litellm.suppress_debug_info = True
-    pins.verify_benchmark()
     out_dir = a.out_dir / f"{plan['batch_id']}_runs"
     out_dir.mkdir(exist_ok=False)
+    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str) + "\n")  # saved first
     budget = Budget(a.approved_usd, load_prices(), out_dir / "ledger.jsonl")
     cases = {c["id"]: c for c in plan["cases"]}
-    rows = []
-    stopped = False
+    rows, stopped = [], False
     with install(budget, Limits()):
-        for item in plan["runs"]:
+        for k, item in enumerate(plan["runs"]):
+            base = {"run": k, "case": item["case"], "variant": item["variant"], "arm": item.get("arm"),
+                    "sample": item.get("sample", 0)}
             if stopped:
-                rows.append({"case": item["case"], "variant": item["variant"], "sample": item.get("sample", 0),
-                             "status": "not_run", "reason": "allocation exhausted or bound violated"})
+                rows.append({**base, "status": "not_run", "reason": "allocation exhausted or bound violated"})
                 continue
-            case = cases[item["case"]]
-            try:
-                arm = plan.get("arms", {}).get(item.get("arm"), {})
-                r = continue_case(case, item["variant"], plan["settings"]["agent_model"], plan["settings"]["agent_args"],
-                                  plan["settings"].get("max_rounds", 8), tuple(arm.get("guard_rules", ())),
-                                  tuple(arm.get("nudges", ())))
-                r["arm"] = item.get("arm")
-                r["sample"] = item.get("sample", 0)
-            except Exception as e:  # noqa: BLE001 - record, never retry
-                r = {"case": item["case"], "variant": item["variant"], "sample": item.get("sample", 0),
-                     "status": "error", "error": f"{type(e).__name__}: {e}"[:500]}
-                stopped = isinstance(e, (BudgetExceeded, BoundViolation))
-            rows.append(r)
-            (out_dir / "results.json").write_text(json.dumps(rows, indent=2) + "\n")
+            arm = plan.get("arms", {}).get(item["arm"], {}) if item.get("arm") is not None else {}
+            r = continue_case(cases[item["case"]], item["variant"], plan["settings"]["agent_model"],
+                              plan["settings"]["agent_args"], plan["settings"].get("max_rounds", 8),
+                              tuple(arm.get("guard_rules", ())), tuple(arm.get("nudges", ())),
+                              budget=budget, record_path=out_dir / f"run_{k:02d}.json")
+            rows.append({**base, **r})
+            stopped = r.get("error_type") in ("BudgetExceeded", "BoundViolation")
+            (out_dir / "results.json").write_text(json.dumps(rows, indent=2, default=str) + "\n")
     summary = {"batch_id": plan["batch_id"], "finished_at": datetime.now(timezone.utc).isoformat(),
+               "manifest": str((out_dir / "manifest.json").relative_to(a.out_dir)),
+               "by_status": {st: sum(r.get("status") == st for r in rows) for st in {r.get("status") for r in rows}},
                "spend": budget.summary(), "results": rows}
     (a.out_dir / f"{plan['batch_id']}_results.json").write_text(json.dumps(summary, indent=2, default=str) + "\n")
-    print(json.dumps(summary["spend"], indent=2, default=str))
-    return 0
+    print(json.dumps({k: summary[k] for k in ("by_status", "spend")}, indent=2, default=str))
+    return 3 if any(r.get("status") in ("error", "not_run") for r in rows) else 0
 
 
 if __name__ == "__main__":

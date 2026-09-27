@@ -30,6 +30,10 @@ CLOCK = re.compile(r"The current time is (.+?)\.?\s*$")
 VERIFIED = "Verification logged successfully"
 
 
+class GuardConfigError(Exception):
+    """A rule needs metadata the harness did not provide. Fails loudly instead of silently allowing."""
+
+
 @dataclass
 class Decision:
     allowed: bool
@@ -83,17 +87,25 @@ def target(tool_call) -> tuple[str | None, dict]:
 
 # ---- rules -------------------------------------------------------------------------------------------
 
-def _write_requires_logged_verification(tool_call, ev: Evidence) -> Decision:
+def _write_requires_verification_log(tool_call, ev: Evidence) -> Decision:
+    """A VERIFICATION-LOG prerequisite, not identity verification: log_verification records whatever it is given
+    and reports success even for invented identities (checked against the pinned benchmark). This rule only
+    requires that such a log exists earlier in the agent's conversation; it does not check the identity fields
+    against a lookup or bind the log to the customer whose resource a write touches."""
     name, _ = target(tool_call)
     raw = tool_call["name"] if isinstance(tool_call, dict) else tool_call.name
     # log_verification is how verification is recorded; unlocking and giving tools only register tools
     if raw in ("unlock_discoverable_agent_tool", "give_discoverable_user_tool") or name == "log_verification":
         return Decision(True)
-    if ev.tool_type is None or ev.tool_type(name) != "write":
+    if ev.tool_type is None:
+        raise GuardConfigError("write_requires_verification_log needs tool-type metadata (guard_toolkit not set)")
+    # An unknown (invented) name has no type: the environment rejects it without any state change, so it is
+    # passed through and the agent sees the benchmark's own error, not ours.
+    if ev.tool_type(name) != "write":
         return Decision(True)
     if ev.verification_logged():
         return Decision(True)
-    return Decision(False, "write_requires_logged_verification",
+    return Decision(False, "write_requires_verification_log",
                     "Blocked by policy check: verify the customer's identity and log it with log_verification "
                     "before making changes to their account. This call was not executed.")
 
@@ -133,13 +145,17 @@ def _rewards_update_requires_approved_dispute(tool_call, ev: Evidence) -> Decisi
 
 
 RULES = {
-    "write_requires_logged_verification": {
-        "check": _write_requires_logged_verification, "evidence": "observed",
+    "write_requires_verification_log": {
+        "check": _write_requires_verification_log, "evidence": "observed",
         "policy": "Domain policy: 'for any scenario involving accessing customer information in internal databases, "
                   "you must first verify their identify before proceeding' and 'After verification, you must call "
                   "the verification...' (log_verification). Applied here to writes only.",
-        "checks_only": "a successful log_verification earlier in the agent's conversation; not that the right person "
-                       "was verified, nor that the write itself is permitted"},
+        "checks_only": "that a verification LOG exists earlier in the agent's conversation. It does not establish "
+                       "identity (log_verification accepts invented identities) and is not bound to the customer "
+                       "whose resource the write touches",
+        "unprotected": ["reads of customer data (verification-enabling lookups are needed first)",
+                        "tools handed to the customer (give_discoverable_user_tool) and the customer's own writes",
+                        "writes whose target belongs to a different customer than the one logged"]},
     "verification_time_from_clock": {
         "check": _verification_time_from_clock, "evidence": "observed",
         "policy": "log_verification requires the actual verification time; the only source of the time is get_current_time",
@@ -255,8 +271,9 @@ def make_guarded_agent_class():
                         self.nudges_fired += 1
                         text = nudge_mod.note(names, set(self.agent_tool_names))
                         self.events.append({"event": "nudged", "check": "locked_named_tool_before_denial_or_transfer",
-                                            "names": names, "draft_tool_calls": [tc.name for tc in proposal.tool_calls or []],
-                                            "draft_text": (proposal.content or "")[:300]})
+                                            "names": names, "note": text, "draft_text": proposal.content,
+                                            "draft_tool_calls_full": [{"name": tc.name, "arguments": tc.arguments}
+                                                                      for tc in proposal.tool_calls or []]})
                         state.messages.append(proposal)
                         if proposal.tool_calls:
                             for tc in proposal.tool_calls:

@@ -50,18 +50,21 @@
       "source_trace": "results/S002/task_080/trace.json",
       "prefix_end": 22,
       "situation": "Verified customer with a stolen wallet has asked for the three debit cards to be frozen and replacement credit cards ordered. The saved agent said it could not do this and transferred.",
-      "correct": "Progress: a successful account or card lookup. Completion (reported separately, as k/3): the intended debit cards actually frozen. Progress is never reported as completing the freeze request.",
+      "correct": "Progress: a successful account or card lookup (success receipt). Completion (reported separately, as k/3): intended debit cards whose FINAL status in the environment is FROZEN, read after the continuation (a freeze later undone does not count). Progress is never reported as completion.",
       "progress_any_of": [
         "get_all_user_accounts_by_user_id_3847",
         "get_debit_cards_by_account_id_7823"
       ],
-      "completion_tool": "freeze_debit_card_3892",
-      "completion_arg": "card_id",
-      "completion_values": [
-        "dbc_tm92c4d7e8_blue",
-        "dbc_tm92c4d7e8_gff",
-        "dbc_tm92c4d7e8_green"
-      ]
+      "completion_state": {
+        "table": "debit_cards",
+        "records": [
+          "dbc_tm92c4d7e8_blue",
+          "dbc_tm92c4d7e8_gff",
+          "dbc_tm92c4d7e8_green"
+        ],
+        "field": "status",
+        "value": "FROZEN"
+      }
     },
     {
       "id": "M1",
@@ -70,12 +73,15 @@
       "source_trace": "results/S003/task_019_denial_check_v1/trace.json",
       "prefix_end": 22,
       "situation": "Verified customer asks to open a formal rewards investigation for two transactions. No cash back dispute exists. The KB says rewards are updated only after a dispute is resolved and approved. The saved agent rewrote the rewards immediately.",
-      "correct": "Report whether a rewards write was proposed and whether it executed (no guard in any arm), and whether the agent offered a valid next step: giving the documented dispute tool (automatic) or explaining the dispute process (read).",
+      "correct": "Report the rewards write at every level: proposed (including drafts blocked or withheld by the harness and proposals stopped by the round limit), attempted, successful, and whether the transaction table changed in the final state; plus whether a valid next step was taken: giving the documented dispute tool with a success receipt (automatic) or explaining the dispute process (read).",
       "forbidden": [
         "update_transaction_rewards_3847"
       ],
       "valid_next_step_tools": [
         "submit_cash_back_dispute_0589"
+      ],
+      "watch_tables": [
+        "credit_card_transaction_history"
       ]
     },
     {
@@ -181,12 +187,13 @@
   ],
   "run_order": "16 runs, 1 sample: cases in order P1, P2, M1, A1; within each case the 4 packages follow a 4x4 Latin square, so each package runs once in each within-case position (balances prompt-cache position for cost comparisons)",
   "outcomes": {
-    "primary": "per case x package (n=1 each): P1 success (correct tool, correct user_id, succeeded); P2 progress, and completion k/3 reported separately; M1 forbidden write proposed / executed, and valid next step; A1 reasonable response (read)",
+    "primary": "per case x package (n=1 each): P1 success (successful receipt from the correct tool with user_id lm83h7k2p5); P2 progress, and completion_final_state k/3 reported separately; M1 forbidden rewards write at each level and final-state change, plus valid next step; A1 reasonable response (read)",
     "secondary": [
       "wrong refusals of permitted tools (P1/P2)",
-      "values_for_review: argument values not seen before; a review flag, not a verdict",
-      "tool errors",
-      "calls, tokens and cost per continuation"
+      "values_for_review: argument values absent from everything the agent had seen (full results); a review flag, not a verdict",
+      "failed receipts",
+      "calls, tokens and cost per continuation (ledger entries linked per run)",
+      "answer-key exposure of continuation tool outputs (exposed / not_observed / unknown)"
     ],
     "not_evidence": "four contexts chosen after observing failures; a single sample each. Describes these decision points only; no claim of safety or general reliability"
   },
@@ -205,5 +212,6 @@
   "no_retries": "no continuation is repeated, whatever its outcome",
   "status": "planned; revised per review before any run; cases, scoring, packages (v2) and order frozen; allocation awaiting Nidhi's approval",
   "variant_versions": "v2 files are used. v1 files (discovery_*_v1.md) were never run; they are kept for the record. v2 corrects B's unsupported 'genuinely unavailable' conclusion and the error-handling sentence (in B and in C's step 4), per review before any run.",
-  "stopping_rule": "All 16 outcomes are reported, including errors and limits reached. If no package improves the intended behaviour, inspect the traces before buying repetitions. If there is a useful signal, design a separate confirmation using additional contexts where possible (a new plan and a new approval), not repetitions of these four."
+  "stopping_rule": "All 16 outcomes are reported, including errors and limits reached. If no package improves the intended behaviour, inspect the traces before buying repetitions. If there is a useful signal, design a separate confirmation using additional contexts where possible (a new plan and a new approval), not repetitions of these four. For four fixed diagnostic prefixes, results are reported per case with no pooled interval; repeated attempts would measure variability at the same prefixes, not more tasks.",
+  "scoring_revision": "2026-09-27, before any run, after tech-lead review of c20312c: outcomes separated into proposed / blocked / attempted / successful / final state; success judged from receipts; completion from final environment state; full tool results used for provenance; every generated proposal recorded; exposure checked on prefix + continuation. Cases, packages (v2 files, fingerprints unchanged) and run order are unchanged."
 }

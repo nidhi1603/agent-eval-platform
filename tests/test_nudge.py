@@ -34,12 +34,22 @@ def test_fires_on_the_measured_failures_and_ranks_the_needed_tool_first(names):
     assert "emergency_credit_bureau_incident_transfer_1114" in _at("results/S002/task_035/trace.json", 8, names)
 
 
-def test_does_not_fire_on_ordinary_messages_or_after_the_tool_was_used(names):
+def test_does_not_fire_on_ordinary_messages_or_after_a_successful_unlock(names):
     assert _at("results/S002/task_047/trace.json", 4, names) is None  # not a denial or transfer
-    msgs = [{"role": "tool", "tool_call_id": "a", "content": "1. Doc\\n Use freeze_debit_card_3892 to freeze."},
+    msgs = [{"role": "tool", "tool_call_id": "a", "content": "1. Doc  Use freeze_debit_card_3892 to freeze."},
             {"role": "assistant", "tool_calls": [{"id": "u", "name": "unlock_discoverable_agent_tool",
-                                                  "arguments": {"agent_tool_name": "freeze_debit_card_3892"}}]}]
+                                                  "arguments": {"agent_tool_name": "freeze_debit_card_3892"}}]},
+            {"role": "tool", "tool_call_id": "u", "content": "Tool unlocked: freeze_debit_card_3892"}]
     assert nudge.trigger({"content": "Sorry, I don't have access to that."}, msgs, names) is None
+
+
+def test_a_failed_unlock_leaves_the_tool_locked(names):
+    # review reproduction: a failed unlock followed by a denial used to suppress the check
+    msgs = [{"role": "tool", "tool_call_id": "a", "content": "1. Doc  Use freeze_debit_card_3892 to freeze."},
+            {"role": "assistant", "tool_calls": [{"id": "u", "name": "unlock_discoverable_agent_tool",
+                                                  "arguments": {"agent_tool_name": "freeze_debit_card_3892"}}]},
+            {"role": "tool", "tool_call_id": "u", "content": "Error: Unknown agent tool 'freeze_debit_card_3892'."}]
+    assert nudge.trigger({"content": "Sorry, I don't have access to that."}, msgs, names) == ["freeze_debit_card_3892"]
 
 
 def test_note_separates_agent_and_customer_tools_and_keeps_prerequisites():

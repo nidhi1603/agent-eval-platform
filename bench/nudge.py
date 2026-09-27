@@ -1,6 +1,6 @@
 """Pre-send checks that advise, never block (a harness change; the benchmark is unchanged).
 
-Mechanism adapted from Reflexion's heuristic-triggered reflection (arXiv 2303.11366) and Voyager's
+Inspired by (not an implementation of) Reflexion's heuristic-triggered reflection (arXiv 2303.11366) and Voyager's
 self-verification step (arXiv 2305.16291), and from Meta-Harness's observation that additive information
 beat prompt rewrites (arXiv 2603.28052, App. A.2): instead of a standing instruction on every turn (S003,
 which raised cost 45% without improving success), a deterministic trigger fires only at the failure
@@ -51,6 +51,7 @@ def locked_named_tools(messages: list[dict], discoverable: set[str]) -> list[str
     most recent first. Ordering by recency alone buried the one relevant tool under later broad searches."""
     best: dict[str, tuple[int, int]] = {}
     used: set[str] = set()
+    results = {m.get("tool_call_id"): m.get("content") or "" for m in messages if m.get("role") == "tool"}
     for step, m in enumerate(messages):
         if m.get("role") == "tool":
             for rank, n in _ranked_names(m.get("content") or "", discoverable):
@@ -59,11 +60,13 @@ def locked_named_tools(messages: list[dict], discoverable: set[str]) -> list[str
                     best[n] = (rank, step)
         for c in m.get("tool_calls") or []:
             args = c.get("arguments") or {}
-            if c["name"] == "unlock_discoverable_agent_tool":
+            receipt = results.get(c.get("id"), "").lstrip()
+            # only a successful receipt counts as used: a failed unlock leaves the tool locked
+            if c["name"] == "unlock_discoverable_agent_tool" and receipt.startswith("Tool unlocked:"):
                 used.add(args.get("agent_tool_name"))
-            elif c["name"] == "give_discoverable_user_tool":
+            elif c["name"] == "give_discoverable_user_tool" and receipt.startswith("Tool given to user:"):
                 used.add(args.get("discoverable_tool_name"))
-            elif c["name"] == "call_discoverable_agent_tool":
+            elif c["name"] == "call_discoverable_agent_tool" and receipt and not receipt.startswith("Error"):
                 used.add(target(c)[0])
     ordered = sorted(best, key=lambda n: (best[n][0], -best[n][1]))
     return [n for n in ordered if n not in used]

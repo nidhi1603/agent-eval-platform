@@ -85,6 +85,31 @@ def check(config, task, messages) -> dict:
     }
 
 
+def check_sequence(config, task, steps: list[dict]) -> dict:
+    """The same differential check for an explicit sequence of tool calls, e.g. a saved prefix followed by a
+    continuation. Each step is {"requestor", "name", "arguments", "checked"}; every step is replayed (to reach
+    the same states) and only steps with checked=True are compared for answer dependence."""
+    from tau2.data_model.message import ToolCall
+
+    envs = {"real": fresh_env(config, task), "control": fresh_env(config, task),
+            "blind": fresh_env(config, blind_copy(task))}
+    dependent, nondeterministic = [], []
+    for k, st in enumerate(steps):
+        tc = ToolCall(id=f"seq_{k}", name=st["name"], arguments=st["arguments"], requestor=st["requestor"])
+        out = {name: normalize(tc.name, env.get_response(tc).content) for name, env in envs.items()}
+        if not st.get("checked"):
+            continue
+        if out["real"] != out["control"]:
+            nondeterministic.append({"step": k, "tool": tc.name})
+        elif st["requestor"] == "assistant" and out["real"] != out["blind"]:
+            dependent.append({"step": k, "tool": tc.name, "real": out["real"][:300], "blind": out["blind"][:300]})
+    return {"method": "replay the full sequence against real, control and answer-key-emptied environments",
+            "normalized": NORMALIZERS, "steps_checked": sum(bool(s.get("checked")) for s in steps),
+            "conclusive": not nondeterministic,
+            "agent_visible_outputs_depending_on_hidden_reference": dependent,
+            "nondeterministic_outputs": nondeterministic}
+
+
 def recheck(run_dir) -> dict:
     """Rerun the check from a saved run (simulation.json + trace.json), without a new conversation."""
     import json

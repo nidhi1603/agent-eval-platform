@@ -1,4 +1,8 @@
-# Project status (updated 2026-09-26, evening)
+# Project status (HISTORICAL snapshot, 2026-09-26 evening)
+
+> **Superseded.** This snapshot predates all experiment results. For the current state see `docs/WRITEUP.md` (results),
+> `EXPERIMENTS.md` (every experiment and decision), `docs/HARNESS_ARCHITECTURE.md` (the implemented harness) and
+> `docs/RESEARCH_AGENDA.md` (what to try next). Kept unchanged below for the record.
 
 An honest snapshot of what is built, what is verified, and what is not. Reviewers: please check every claim here against the code in this repo. Section 7 lists open questions.
 

@@ -128,3 +128,21 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Stopping rule:** if nothing improves, read the traces before buying repetitions; confirmation needs new contexts and a new approval.
 - **Forecast:** about $0.30 full price. Allocation awaiting approval ($0.50).
 - Plan: `experiments/D001_plan.json`.
+
+### Review of c20312c: measurement and preflight fixes (2026-09-27, $0)
+- **Outcome:** all five tech-lead findings were verified against the code and the pinned benchmark, and accepted. There is one partial disagreement: an invented tool name passes through, because the environment rejects it with no state change.
+- **Continuation runner fixes:**
+  - progressive evidence that survives errors;
+  - full results used for provenance;
+  - receipts, not error flags, decide success;
+  - five scoring levels: proposed, blocked, attempted, successful, final state;
+  - preflight (fingerprints, split, arms, approval) and a manifest written before any network call;
+  - exposure checked on prefix plus continuation.
+- **Guard:** the rule is renamed `write_requires_verification_log`, because `log_verification` accepts invented identities, and its unprotected paths are documented. Missing metadata is now a configuration error.
+- **Pre-send check:**
+  - only success receipts count as used;
+  - "relevance" is renamed as reference-name overlap;
+  - 12 of 13 firings would name an out-of-reference write.
+  - The applicability review of the 13 firing points (`experiments/N001_applicability_review.md`): helpful at 5, harm risk at 5, and the draft was already correct at 2. **v1 is not ready for N001.** The next candidate is reads-only, after a verification log, evaluated offline first.
+- **D001:** scoring revised before any run; still awaiting approval.
+- Decision record: `docs/reviews/2026-09-27-tech-lead-review-c20312c.md`.

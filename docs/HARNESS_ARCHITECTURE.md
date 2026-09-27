@@ -59,12 +59,12 @@ tau2 grades a conversation by replaying every state-changing tool call recorded 
 | Purpose | Stop an action whose prerequisite is not met | Surface information the agent already has but ignored |
 | Effect | Block, private reason, regenerate (≤3), then fixed refusal; a blocked call is never released | Withhold the draft once, add a note, regenerate |
 | Evidence | Declared per rule: **observed** (the agent's own conversation + static tool types) or **environment_db** (prototype) | The agent's own conversation + static list of discoverable names |
-| Rules / checks | `write_requires_logged_verification`, `verification_time_from_clock` (observed); `rewards_update_requires_approved_dispute` (database prototype) | `locked_named_tool_before_denial_or_transfer` |
-| Scope | Checks only the named prerequisite; passing is not full authorization | Fires at most once per conversation |
+| Rules / checks | `write_requires_verification_log` (a verification-**log** prerequisite: `log_verification` accepts invented identities, so this is not identity enforcement), `verification_time_from_clock` (observed); `rewards_update_requires_approved_dispute` (database prototype) | `locked_named_tool_before_denial_or_transfer` |
+| Scope | Checks only the named prerequisite; passing is not full authorization. **Unprotected paths** (by design, listed in `guard.RULES`): reads of customer data; tools handed to the customer and the customer's own writes; writes to another customer's resource than the one logged. Missing tool metadata is a configuration error, not an allow | Fires at most once per conversation |
 
 **Why one rule is database-backed.** No agent tool can read `cash_back_disputes`: only the customer's submit tool writes it, and its result is routed to the customer. An observed-evidence version could never allow the legitimate flow (dev task_028). Runs using it must disclose the extra information channel.
 
-**Why nudges must run with permission rules.** Offline replay over 19 live conversations: the pre-send check would fire in 13; its first-named tool is one the task needs in 7; in 3 it names only irrelevant tools, two of them the rewards write. Surfacing a write tool without an enforced prerequisite is a harm path.
+**Why nudges must run with permission rules.** Offline replay over 19 live conversations: the pre-send check would fire in 13; 12 of those firings name at least one write tool the reference does not use, and in 3 no named tool appears in the reference (two name the rewards write). Reference-name overlap (first-named tool in the reference in 7) is not correctness at that step; see the applicability review. Surfacing a write tool without an enforced prerequisite is a harm path.
 
 ### Evaluation side
 
@@ -81,7 +81,7 @@ tau2 grades a conversation by replaying every state-changing tool call recorded 
 | Decision | Evidence |
 |---|---|
 | Keep the benchmark unchanged; changes are harness-side and flagged | F001: even a benign-looking tool listing leaked the answer key; any environment change needs the same scrutiny |
-| Advise at the failure signature instead of standing instructions | AgentTether (2607.06273, τ-bench Banking): one-shot fixes are followed less than half the time, so check per turn; S003: a standing "search before denying" instruction cost +45% and did not change success; Meta-Harness (2603.28052, App. A.2): additive information beat prompt rewrites |
+| Advise at the failure signature instead of standing instructions | AgentTether (2607.06273, τ-bench Banking): one-shot fixes are followed less than half the time, and Reflexion matched blind retry (22/83 each), so measure following and value beyond an extra attempt; S003: a standing "search before denying" instruction cost +45% and did not change success; Meta-Harness (2603.28052, App. A.2): additive information beat prompt rewrites |
 | Enforcement blocks; capability hints advise | Gated vs advisory enforcement (2609.25686): an advisory arm let violating writes through under user pressure; recovery-tool lists were the active ingredient in Outcome Monitors (2608.19303) |
 | Separate enforcement from capability | S003 variant-arm unauthorized write; T001: the environment executes writes with no verification; ChatGPT review; PCAS/FORGE (2602.16708) |
 | Prefer observed evidence; mark database access | ChatGPT review; our finding that the rewards prerequisite is unobservable by the agent |

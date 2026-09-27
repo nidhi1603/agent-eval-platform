@@ -112,9 +112,10 @@ def analyse(trace: dict, tool_type, discoverable: set[str]) -> dict:
     }
 
 
-def nudge_replay(trace: dict, discoverable: set[str], reference_tools: set[str]) -> dict | None:
-    """Where the pre-send check (bench/nudge.py) would first have fired, and whether any tool it would have named
-    is one the task's reference solution uses (evaluation-side relevance; the check itself never sees this)."""
+def nudge_replay(trace: dict, discoverable: set[str], reference_tools: set[str], tool_type=None) -> dict | None:
+    """Where the pre-send check (bench/nudge.py) would first have fired, and which named tools also appear in the
+    task's reference solution. That is NAME OVERLAP with the reference (evaluation-side), not a judgment that the
+    named tool was the right next action at that step: applicability is assessed separately, by reading."""
     from bench import nudge
 
     msgs = trace["messages"]
@@ -125,9 +126,11 @@ def nudge_replay(trace: dict, discoverable: set[str], reference_tools: set[str])
         names = nudge.trigger(draft, agent_visible(msgs, m["i"]), discoverable)
         if names:
             ranks = [k + 1 for k, n in enumerate(names) if n in reference_tools]
+            outside = [n for n in names if n not in reference_tools]
             return {"i": m["i"], "names": names, "kind": "transfer" if m.get("tool_calls") else "denial",
-                    "relevant": bool(ranks), "first_relevant_position": ranks[0] if ranks else None,
-                    "irrelevant_write_tools_named": [n for n in names if n not in reference_tools]}
+                    "reference_name_overlap": bool(ranks), "first_overlap_position": ranks[0] if ranks else None,
+                    "names_not_in_reference": outside,
+                    "write_names_not_in_reference": [n for n in outside if tool_type and tool_type(n) == "write"]}
     return None
 
 
@@ -174,7 +177,7 @@ def main(argv=None) -> int:
                "variant": ((t.get("config") or {}).get("agent") or {}).get("variant", {}).get("name", "baseline"),
                **analyse(t, tool_type, discoverable)}
         row["replay"] = {"rewards_writes_vs_approved_dispute": replay_rewards_writes(t, t["task"]["id"])}
-        row["nudge_replay"] = nudge_replay(t, discoverable, reference_tool_names(t["task"]["id"]))
+        row["nudge_replay"] = nudge_replay(t, discoverable, reference_tool_names(t["task"]["id"]), tool_type)
         rows.append(row)
     n = len(rows)
     summary = {
@@ -193,11 +196,15 @@ def main(argv=None) -> int:
             bool(r["heuristic"]["capability_denial_while_named_tools_unused"]) for r in rows),
         "nudge_would_fire": {
             "conversations": sum(r["nudge_replay"] is not None for r in rows),
-            "named_a_tool_the_reference_uses": sum(bool(r["nudge_replay"] and r["nudge_replay"]["relevant"]) for r in rows),
-            "first_named_tool_is_one_the_reference_uses": sum(
-                bool(r["nudge_replay"] and r["nudge_replay"]["first_relevant_position"] == 1) for r in rows),
-            "fired_naming_only_tools_the_reference_does_not_use": sum(
-                bool(r["nudge_replay"] and not r["nudge_replay"]["relevant"]) for r in rows),
+            "note": "reference-name overlap is not correctness of the suggested next action; see applicability review",
+            "any_named_tool_in_reference": sum(bool(r["nudge_replay"] and r["nudge_replay"]["reference_name_overlap"])
+                                               for r in rows),
+            "first_named_tool_in_reference": sum(
+                bool(r["nudge_replay"] and r["nudge_replay"]["first_overlap_position"] == 1) for r in rows),
+            "no_named_tool_in_reference": sum(bool(r["nudge_replay"] and not r["nudge_replay"]["reference_name_overlap"])
+                                              for r in rows),
+            "firings_naming_a_write_tool_outside_reference": sum(
+                bool(r["nudge_replay"] and r["nudge_replay"]["write_names_not_in_reference"]) for r in rows),
             "by_kind": {k: sum(bool(r["nudge_replay"] and r["nudge_replay"]["kind"] == k) for r in rows)
                         for k in ("denial", "transfer")}},
         "completion_bit_true": sum(r["completion_bit"] for r in rows),

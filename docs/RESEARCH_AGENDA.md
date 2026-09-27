@@ -10,7 +10,7 @@ Our measured failures: (F1) found a discoverable tool, never unlocked it (unlock
 
 ### Build now (zero cost) — done in this round
 
-| Paper | Mechanism taken | Addresses | Implemented as |
+| Paper | Mechanism it inspired (our versions are not implementations of these methods) | Addresses | Implemented as |
 |---|---|---|---|
 | **Reflexion** (Shinn, 2303.11366) + **Voyager** (Wang, 2305.16291) | Deterministic trigger decides *when* to reflect / verify, instead of always | F1, F2 | `bench/nudge.py`: pre-send check at the denial/transfer signature, once per conversation |
 | **Meta-Harness** (Lee, 2603.28052, App. A.2) | Additive information beat prompt/control-flow edits (6 of 7 early edits regressed) | F1, F2 | The nudge adds only names already in context; no standing instruction |
@@ -29,7 +29,7 @@ Our measured failures: (F1) found a discoverable tool, never unlocked it (unlock
 |---|---|---|
 | **How Strongly Should Task State Influence an LLM Agent?** (Zhang, 2609.25686) | τ²-airline, Qwen3-235B: gated deny rules raise pass^1 0.39→0.54, wrongful-write episodes 54%→35%; replaying gold writes blocks 0/49; an **advisory** warn-once arm let 8 violating writes through under user pressure; silent refusals read as completed work unless the block notice arrives in the same turn (§5.5) | Confirms our split: **enforcement blocks, capability hints advise**. Our block reason reaches the model in the same turn, before it can reply. Next zero-cost step: replay the reference writes of all dev tasks through the observed rules to measure over-blocking |
 | **Outcome Monitors** (Panthi, 2608.19303) | A nonbinding receipt that lists the **recovery tools available** raised τ-bench retail +12–14 points; removing the tool list erased the gain | Direct support for the pre-send check's design (it lists tools already seen) |
-| **AgentTether** (Zhao, 2607.06273) | τ-bench **Banking** (97 tasks): 94% of failures behavioural; root cause a median 4 steps before failure; one-shot fix messages followed less than half the time; **Reflexion gave no gain on Banking** | Caution for our Reflexion-inspired check: measure whether the note is *followed*, not only whether it fires; prefer per-turn checks over preambles |
+| **AgentTether** (Zhao, 2607.06273) | τ-bench **Banking** (97 tasks): 94% of failures behavioural; root cause a median 4 steps before failure; one-shot fix messages followed less than half the time; on Banking, **Reflexion repaired 22/83 initially failed tasks, the same as blind retry (22/83)**, i.e. no gain over retry (Qwen3.7-max; different setup from ours) | Caution for our Reflexion-inspired check: measure whether the note is *followed*, and whether it adds value beyond an extra attempt; prefer per-turn checks over preambles |
 | **LedgerAgent** (Uddin, 2606.20529) | Hand-written predicates with allow/revise/block, incl. argument grounding (a value must come from observed state); +12–15 pass^1 on τ² retail/airline, no extra model calls | Generalise `verification_time_from_clock` to an argument-provenance rule for IDs; "revise" rather than hard block |
 | **PolicyGuard** (Kang, 2606.29225) | Dialogue-grounded verifier with conversation-specific remediation; a gpt-5.4-mini agent 0.20→0.36 pass^4 on τ²-airline; argument-only guards starved legitimate writes | Block messages must name the missing prerequisite and next step (ours do); an LLM verifier is a small-budget option for rules we cannot make deterministic |
 | **Fabrication After Tool Failure** (Sethi, 2609.14758) | One failure mode is declining while citing an invented capability limit (our F2); a forced status line cut dishonest answers 14.1%→0.87% | Candidate later package: a "capability check" line before any denial, detectable by regex |
@@ -71,8 +71,9 @@ Our measured failures: (F1) found a discoverable tool, never unlocked it (unlock
 ## Updated experiment protocol (additions)
 
 1. **Acceptance gate (OpenJarvis §3.3).** A harness change is adopted only if its target failure improves at its known failure points *and* no other measured failure or harm count gets worse. S003 would have been rejected here before full runs.
-2. **"No claim" is a pre-registered outcome** (2608.30916). With ≤6 tasks, tasks are clusters; use t-based bounds, never Gaussian; no superiority claim from one small comparison.
-3. **Offline replay before any live test.** Every new check is first replayed over all saved conversations to count firings, relevance and harm paths (done for the nudge: 13 fires, 7 top-1 relevant, 3 irrelevant-only).
+2. **"No claim" is a pre-registered outcome** (2608.30916). No superiority claim from one small comparison. When tasks are *sampled*, treat them as clusters and prefer t-based to Gaussian bounds. For a few *fixed* diagnostic prefixes (D001), report per-case outcomes and repeated-attempt variability only; repeated attempts at the same prefix are not additional independent tasks.
+3. **Offline replay before any live test.** Every new check is first replayed over all saved conversations to count firings and harm paths, and its firing points are reviewed for applicability by reading (done for the nudge: 13 firings; the first-named tool appears in the reference in 7 and no named tool does in 3, which is *reference-name overlap*, not correctness; 12 of 13 firings would name a write tool the reference does not use; applicability review in `experiments/N001_applicability_review.md`).
+6. **Guard validation uses complete scripted conversations**, not raw reference replay: the dev references are grading expectations, not complete conversations (26/30 log a verification, 0/30 read the clock), so replaying them through the clock rule would report false blocks that say nothing about compliant conversations.
 4. **Final-state, not historical, credit** for any partial-credit metric (2609.29578).
 5. **State-grounded labels anchor LLM-judge labels** (2606.09863): judges anchor on confident closings.
 
