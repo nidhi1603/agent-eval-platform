@@ -3,7 +3,8 @@
 The defect: `call_discoverable_agent_tool` writes a READ call to the `agent_discoverable_tools` table
 only when the tool is in the task's reference trajectory (`read_log_allowlist`, derived from the
 answer key), and the agent-visible `list_discoverable_agent_tools` prints that table. So the listing
-reveals whether a read the agent made is part of the reference solution.
+reveals whether a read tool the agent called is named in the reference-derived allowlist (tool-name
+membership, not argument or position correctness).
 
 The fix separates the two roles of that table:
 - grading keeps the table exactly as tau2 writes it (the call path is unchanged; we only observe it);

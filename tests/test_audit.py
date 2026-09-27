@@ -51,6 +51,15 @@ def test_reproducer_leaky_listing_depends_on_the_answer_key(config, task_085):
     assert _read_then_list(real) != _read_then_list(blind)
 
 
+def test_standalone_reproducer_detects_the_defect():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("repro", pins.REPO_ROOT / "repro" / "tau2_listing_allowlist.py")
+    repro = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(repro)
+    assert repro.main() == 1  # tau2-only reproducer: listings differ when only read_log_allowlist changes
+
+
 def test_fix_removes_the_dependency_and_leaves_grading_state_and_schemas_unchanged(config, task_085):
     before = fresh_env(config, task_085)
     listing_before = _read_then_list(before)

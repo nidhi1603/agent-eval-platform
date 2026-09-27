@@ -14,9 +14,11 @@ Data: `results/audit_dev_split.json`.
 - `call_discoverable_agent_tool` writes a discoverable **read** call to the `agent_discoverable_tools` table only if that tool is in `read_log_allowlist`.
 - `read_log_allowlist` comes from the task's reference actions (`runner/build.py::_derive_read_log_allowlist`).
 - The agent-visible `list_discoverable_agent_tools` prints that table.
-- Result: after an identical call with an identical result, the listing differs depending on whether that read is in the reference solution.
+- Result: after an identical call with an identical result, the listing differs depending on whether that read tool's **name** is in the reference-derived allowlist. This is tool-name membership, not correctness of arguments or position. One listing can reveal it for several previously called tools.
 
-**Reproducer** (`tests/test_audit.py::test_reproducer_leaky_listing_depends_on_the_answer_key`):
+**Standalone reproducer:** `repro/tau2_listing_allowlist.py`. It uses only the tau2 API and varies only `read_log_allowlist`; exit code 1 means the defect is present. Also tested in `tests/test_audit.py::test_standalone_reproducer_detects_the_defect`.
+
+**Reproducer in the audit harness** (`tests/test_audit.py::test_reproducer_leaky_listing_depends_on_the_answer_key`):
 - Setup: task_085, unlock and call `get_all_user_accounts_by_user_id_3847` with `{"user_id": "f7d3a82c91"}`, then list.
 - With the real task, the listing shows "Found 1 record(s)". With the answer key emptied, it shows "No records found".
 

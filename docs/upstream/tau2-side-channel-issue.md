@@ -1,4 +1,4 @@
-# DRAFT (not filed): banking_knowledge — `list_discoverable_agent_tools` reveals reference-trajectory membership
+# DRAFT (not filed): banking_knowledge — `list_discoverable_agent_tools` reveals reference-derived tool membership
 
 Status: draft for review. Not submitted; filing is Nidhi's decision.
 
@@ -9,7 +9,13 @@ Status: draft for review. Not submitted; filing is Nidhi's decision.
 (`runner/build.py::_derive_read_log_allowlist`, passed as `read_log_allowlist`;
 `domains/banking_knowledge/tools.py`, the `underlying_mutates or agent_tool_name in self._read_log_allowlist`
 branch). The agent-visible tool `list_discoverable_agent_tools` lists that table. After making a
-discoverable read, an agent can therefore learn whether that read is part of the reference solution.
+discoverable read, an agent can therefore learn whether that read tool's name appears in the reference-derived
+allowlist. This is tool-name membership: it says nothing about whether the arguments or the position in the
+conversation match the reference. Because the listing prints every logged record, one listing can reveal this
+membership for several previously called tools.
+
+**Runnable reproducer** (tau2 API only, no LLM calls or keys): `repro/tau2_listing_allowlist.py` in
+<LINK AT A SPECIFIC COMMIT: to be added once the repository is published>. Exit code 1 means the listings differ.
 
 **Reproduction** (no LLM calls):
 1. Build the environment for `task_085` with `retrieval_variant="bm25"` twice: once with
@@ -23,8 +29,8 @@ discoverable read, an agent can therefore learn whether that read is part of the
 
 **Expected.** Agent-visible outputs do not depend on the task's evaluation criteria.
 
-**Impact.** Small per call: one bit about a read the agent has already made. But the channel runs from the answer key
-to the agent. We have not tested whether any agent or optimized harness uses it.
+**Impact.** The listing exposes reference-derived tool membership to the agent. Whether agents exploit it, and
+any effect on scores, have not been tested or measured.
 
 **Scope measured locally** (30 tasks of our development split, `bm25`, no LLM calls; reference-constructed probes, i.e. replaying each task's
 reference actions against environments built from the task and from a copy with its evaluation criteria

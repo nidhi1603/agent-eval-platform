@@ -418,7 +418,7 @@ def test_batch_shares_one_allocation_and_records_every_scheduled_task(monkeypatc
         exposed = [{"tool": "list_discoverable_agent_tools"}] if opts.task_id == "b" else []
         trace = {"run_id": opts.task_id, "execution": {"finished": spent == 0.45}, "evaluation": {"reward": 0.0},
                  "spend": {"incurred": {"upper_bound_usd": spent}}, "persisted": True,
-                 "answer_independence": {"conclusive": True,
+                 "answer_independence": {"conclusive": opts.task_id != "c",  # c: nondeterministic outputs
                                          "agent_visible_outputs_depending_on_hidden_reference": exposed}}
         return trace, tmp_path / f"{opts.task_id}.json"
 
@@ -433,5 +433,8 @@ def test_batch_shares_one_allocation_and_records_every_scheduled_task(monkeypatc
     # exposed runs keep their official outcome and are counted, not dropped
     assert [r.get("answer_dependent_outputs_seen") for r in summary["results"]] == [0, 1, 0, None]
     assert summary["exposed_runs"] == 1 and summary["results"][1]["official_reward"] == 0.0
+    # an inconclusive diagnostic is unknown, not "no exposure"; a not-run task has no status
+    assert [r.get("exposure_status") for r in summary["results"]] == ["not_observed", "exposed", "unknown", None]
+    assert summary["exposure_unknown_runs"] == 1
     with pytest.raises(SystemExit):
         batch.run_batch(plan, 2.0)  # the approval must match the committed plan
