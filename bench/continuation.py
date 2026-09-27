@@ -98,7 +98,8 @@ def underlying(call: dict) -> str:
     return call["name"]
 
 
-def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds: int = 8) -> dict:
+def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds: int = 8,
+                  guard_rules: tuple = (), nudges: tuple = ()) -> dict:
     """Run one continuation. The caller installs spending control (bench.budget.install)."""
     from tau2.data_model.message import MultiToolMessage
     from tau2.data_model.simulation import TextRunConfig
@@ -114,7 +115,15 @@ def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds
     seen = agent_visible(trace["messages"], end)
     assert seen and seen[-1]["role"] in ("user", "tool"), "a prefix must end with the customer's or a tool's message"
     agent = agent_mod.factory(tools=env.get_tools(), domain_policy=env.get_policy(), variant=variant,
-                              llm=llm, llm_args=dict(llm_args))
+                              guard_rules=tuple(guard_rules), nudges=tuple(nudges), llm=llm, llm_args=dict(llm_args))
+    if guard_rules or nudges:
+        from bench import guard
+
+        agent.guard_toolkit = env.tools
+        agent.agent_tool_names = frozenset(env.tools.get_discoverable_tools())
+        agent.discoverable_names = agent.agent_tool_names | frozenset(env.user_tools.get_discoverable_tools())
+        if any(guard.RULES[r]["evidence"] == "environment_db" for r in guard_rules):
+            agent.guard_db = env.tools.db
     history = to_tau2(seen)
     state = agent.get_init_state(history[:-1])
     incoming = history[-1]
@@ -139,7 +148,8 @@ def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds
             context += json.dumps(call["result"])
             results.append(res)
         incoming = results[0] if len(results) == 1 else MultiToolMessage(role="tool", tool_messages=results)
-    return {"case": case["id"], "variant": variant, "calls": calls, "final_text": final_text,
+    return {"case": case["id"], "variant": variant, "guard_rules": list(guard_rules), "nudges": list(nudges),
+            "harness_events": getattr(agent, "events", []), "calls": calls, "final_text": final_text,
             "rounds": rounds, "stopped": "text" if final_text is not None else "max_rounds",
             "score": score(case, calls, final_text)}
 
@@ -219,8 +229,11 @@ def main(argv=None) -> int:
                 continue
             case = cases[item["case"]]
             try:
+                arm = plan.get("arms", {}).get(item.get("arm"), {})
                 r = continue_case(case, item["variant"], plan["settings"]["agent_model"], plan["settings"]["agent_args"],
-                                  plan["settings"].get("max_rounds", 8))
+                                  plan["settings"].get("max_rounds", 8), tuple(arm.get("guard_rules", ())),
+                                  tuple(arm.get("nudges", ())))
+                r["arm"] = item.get("arm")
                 r["sample"] = item.get("sample", 0)
             except Exception as e:  # noqa: BLE001 - record, never retry
                 r = {"case": item["case"], "variant": item["variant"], "sample": item.get("sample", 0),

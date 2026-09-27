@@ -17,10 +17,10 @@ PLAN = json.loads((REPO_ROOT / "experiments" / "D001_plan.json").read_text())
 CASES = {c["id"]: c for c in PLAN["cases"]}
 
 
-def _run(case_id, agent_steps, tmp_path, variant="baseline"):
+def _run(case_id, agent_steps, tmp_path, variant="baseline", **harness):
     budget = Budget(1.0, FAKE_PRICES, tmp_path / f"{case_id}_{variant}.jsonl")
     with install(budget, Limits(), send=ScriptedLLM({"agent": agent_steps})):
-        return continuation.continue_case(CASES[case_id], variant, AGENT_MODEL, {})
+        return continuation.continue_case(CASES[case_id], variant, AGENT_MODEL, {}, **harness)
 
 
 def test_agent_view_excludes_the_customers_own_tool_traffic():
@@ -120,3 +120,19 @@ def test_m1_valid_next_step_is_recorded(tmp_path):
     r = _run("M1", [{"call": "give_discoverable_user_tool", "args": {"discoverable_tool_name": "submit_cash_back_dispute_0589"}},
                     {"say": "I've given you the dispute tool."}], tmp_path)
     assert r["score"]["forbidden_proposed"] == [] and r["score"]["valid_next_step_tool_used"]
+
+
+def test_continuations_can_run_with_the_pre_send_check_and_permission_rules(tmp_path):
+    from bench import guard
+
+    tool = "get_all_user_accounts_by_user_id_3847"
+    steps = [{"say": "I don't have access to the internal tool referenced in the KB."},  # the saved failure, redrafted
+             {"call": "unlock_discoverable_agent_tool", "args": {"agent_tool_name": tool}},
+             {"call": "call_discoverable_agent_tool",
+              "args": {"agent_tool_name": tool, "arguments": json.dumps({"user_id": "lm83h7k2p5"})}},
+             {"say": "I found your accounts."}]
+    r = _run("P1", steps, tmp_path, nudges=("locked_named_tool_before_denial_or_transfer",),
+             guard_rules=guard.OBSERVED_RULES)
+    assert [e["event"] for e in r["harness_events"]] == ["nudged"]
+    assert r["harness_events"][0]["names"][0] == tool  # the needed tool is named first
+    assert r["score"]["success"] and r["final_text"] == "I found your accounts."
