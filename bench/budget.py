@@ -87,10 +87,19 @@ class Price:
     input_per_mtok: float
     output_per_mtok: float
     source: str
+    cached_input_per_mtok: float | None = None  # only for the cache-aware estimate; budgeting ignores it
 
     def __post_init__(self):
         finite(self.input_per_mtok, "input price")
         finite(self.output_per_mtok, "output price")
+        if self.cached_input_per_mtok is not None:
+            finite(self.cached_input_per_mtok, "cached input price")
+
+    def cost_with_cache(self, input_tokens: int, cached_tokens: int, output_tokens: int) -> float | None:
+        if self.cached_input_per_mtok is None:
+            return None
+        return ((input_tokens - cached_tokens) * self.input_per_mtok + cached_tokens * self.cached_input_per_mtok
+                + output_tokens * self.output_per_mtok) / 1e6
 
     def cost(self, input_tokens: float, output_tokens: float) -> float:
         return (input_tokens * self.input_per_mtok + output_tokens * self.output_per_mtok) / 1e6
@@ -99,7 +108,8 @@ class Price:
 def load_prices(path: Path = PRICES_FILE) -> dict[str, Price]:
     """Prices as recorded by a person, with source URL and date. The code checks their form, not their truth."""
     entries = json.loads(path.read_text())["models"]
-    return {m: Price(e["input_per_mtok"], e["output_per_mtok"], f"{e['source']} (recorded {e['checked_on']})")
+    return {m: Price(e["input_per_mtok"], e["output_per_mtok"], f"{e['source']} (recorded {e['checked_on']})",
+                     e.get("cached_input_per_mtok"))
             for m, e in entries.items()}
 
 
@@ -138,7 +148,9 @@ class Call:
     status: str = "in_flight"  # -> ok | failed | usage_unresolved | bound_violation
     input_tokens: int | None = None
     output_tokens: int | None = None
-    cost_usd: float | None = None  # usage x price when known; else None
+    cost_usd: float | None = None  # usage x full input price (conservative; used for budgeting)
+    cached_input_tokens: int | None = None  # as reported by the provider, when present
+    cost_with_cache_usd: float | None = None  # expected bill if cached tokens are charged at the cached rate
     provider_model: str | None = None
     error: str | None = None
     duration_s: float | None = None
@@ -197,7 +209,12 @@ class Budget:
             return
         with self._lock:
             call.input_tokens, call.output_tokens, call.provider_model = inp, out, provider_model
-            call.cost_usd = self.price(call.model).cost(inp, out)
+            price = self.price(call.model)
+            call.cost_usd = price.cost(inp, out)
+            cached = _cached_tokens(usage)
+            if cached is not None and 0 <= cached <= inp:
+                call.cached_input_tokens = cached
+                call.cost_with_cache_usd = price.cost_with_cache(inp, cached, out)
             call.duration_s = round(time.perf_counter() - started, 3)
             violated = inp > call.input_token_bound or out > call.output_token_bound
             call.status = "bound_violation" if violated else "ok"
@@ -225,7 +242,9 @@ class Budget:
                 by_role[c.role] = round(by_role.get(c.role, 0.0) + (c.cost_usd if c.status == "ok" else c.reserved_usd), 6)
             return {
                 "cap_usd": self.cap_usd,
-                "usage_based_estimate_usd": round(usage_based, 6),
+                "usage_based_estimate_usd": round(usage_based, 6),  # full input price: conservative
+                "cache_aware_estimate_usd": (round(sum(c.cost_with_cache_usd for c in ok), 6)
+                                             if ok and all(c.cost_with_cache_usd is not None for c in ok) else None),
                 "unresolved_reservations_usd": round(held, 6),
                 "upper_bound_usd": round(usage_based + held, 6),
                 "provider_reconciled_usd": None,  # not available to the code; compare with the provider dashboard
@@ -254,6 +273,15 @@ def _token_count(usage, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise ValueError(f"{field} must be a non-negative integer, got {value!r}")
     return value
+
+
+def _cached_tokens(usage) -> int | None:
+    """prompt_tokens_details.cached_tokens, if the provider reported it as a non-negative int."""
+    details = usage.get("prompt_tokens_details") if isinstance(usage, dict) else getattr(usage, "prompt_tokens_details", None)
+    if details is None:
+        return None
+    value = details.get("cached_tokens") if isinstance(details, dict) else getattr(details, "cached_tokens", None)
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
 def check_llm_args(args: dict, who: str) -> dict:

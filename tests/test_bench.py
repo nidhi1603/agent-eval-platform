@@ -394,3 +394,38 @@ def test_diagnostic_can_be_rerun_from_a_saved_run(tmp_path):
     trace, run_dir = scripted_run(tmp_path, script="task_085_side_channel.json", task_id="task_085")
     again = recheck(run_dir)
     assert [d["tool"] for d in again["agent_visible_outputs_depending_on_hidden_reference"]] == ["list_discoverable_agent_tools"]
+
+
+def test_cache_aware_estimate_reproduces_the_s001_call():
+    # S001 call 3: gpt-5-mini, prompt 6157 (2560 cached), completion 250; tau2 recorded $0.001463
+    b = B.Budget(1.0, {"gpt-5-mini": B.Price(0.25, 2.0, "test", cached_input_per_mtok=0.025)})
+    call = b.reserve("chat", "gpt-5-mini", 1, 30_000, 4096)
+    b.settle_ok(call, {"prompt_tokens": 6157, "completion_tokens": 250,
+                       "prompt_tokens_details": {"cached_tokens": 2560}}, "gpt-5-mini-2025-08-07", started=0.0)
+    assert call.cost_with_cache_usd == pytest.approx(0.001463, abs=1e-6)
+    assert call.cost_usd > call.cost_with_cache_usd  # budgeting keeps the conservative full-price figure
+    assert b.summary()["cache_aware_estimate_usd"] == pytest.approx(0.001463, abs=1e-6)
+
+
+def test_batch_shares_one_allocation_and_records_every_scheduled_task(monkeypatch, tmp_path):
+    from bench import batch
+
+    caps = []
+
+    def fake_run(opts):
+        caps.append(opts.budget_usd)
+        spent = min(0.45, opts.budget_usd)  # each run uses up to $0.45 of upper-bound spend
+        trace = {"run_id": opts.task_id, "execution": {"finished": spent == 0.45}, "evaluation": {"reward": 0.0},
+                 "spend": {"incurred": {"upper_bound_usd": spent}}, "persisted": True}
+        return trace, tmp_path / f"{opts.task_id}.json"
+
+    monkeypatch.setattr(batch, "run", fake_run)
+    plan = {"batch_id": "T", "tasks": ["a", "b", "c", "d"], "budget_usd_total": 1.0,
+            "settings": {"agent_model": "m", "agent_args": {}, "user_model": "u", "user_args": {},
+                         "retrieval_config": "bm25", "seed": 300, "max_steps": 200}}
+    summary = batch.run_batch(plan, 1.0)
+    assert caps == [1.0, 0.55, pytest.approx(0.1)]  # each cap = allocation minus earlier upper-bound spend
+    assert [r["status"] for r in summary["results"]] == ["finished", "finished", "interrupted_or_failed", "not_run"]
+    assert summary["spend_upper_bound_usd"] <= 1.0 and summary["scheduled"] == 4
+    with pytest.raises(SystemExit):
+        batch.run_batch(plan, 2.0)  # the approval must match the committed plan
