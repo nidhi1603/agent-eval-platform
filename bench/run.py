@@ -73,6 +73,7 @@ class RunOptions:
     scripted: Path | None = None
     out_dir: Path = REPO_ROOT / "runs" / "local"
     env_fixes: tuple[str, ...] = ()  # opt-in environment changes (bench/fixes.py); disclosed in every trace
+    agent_variant: str = "baseline"  # harness instruction variant (bench/variants/); recorded with its sha256
 
 
 def run(opts: RunOptions) -> tuple[dict, Path]:
@@ -124,13 +125,13 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
 
         from bench import independence
 
-        agent.register()
+        agent_name = agent.register(opts.agent_variant)
         task = get_tasks(pins.DOMAIN, task_ids=[opts.task_id])[0]
         trace["task"] = {"id": task.id, "split": "dev",
                          "reward_basis": [str(b.value) for b in task.evaluation_criteria.reward_basis],
                          "sha256": _sha256(pins.tasks_dir() / f"{task.id}.json")}
         config = TextRunConfig(
-            domain=pins.DOMAIN, agent=agent.AGENT_NAME,
+            domain=pins.DOMAIN, agent=agent_name,
             llm_agent=opts.agent_model, llm_args_agent=dict(opts.agent_llm_args),
             llm_user=opts.user_model, llm_args_user=dict(opts.user_llm_args),
             max_steps=opts.max_steps, max_errors=opts.max_errors, seed=opts.seed, timeout=opts.timeout_s,
@@ -148,7 +149,7 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
                 env_stack.enter_context(fixes.listing_from_agent_state())
             with role("environment_setup"):  # a fresh environment (fresh DB) is built for every run
                 orchestrator = build_text_orchestrator(config, task, seed=opts.seed)
-            trace["agent_inputs"] = _audit_agent_inputs(orchestrator, task, config)
+            trace["agent_inputs"] = _audit_agent_inputs(orchestrator, task, config, opts.agent_variant)
             if not trace["agent_inputs"]["passed"]:
                 raise ConfigError("agent input integrity check failed; see agent_inputs")
             with role("environment"):  # tool calls and grading replays; agent/user/grader tag themselves
@@ -209,7 +210,9 @@ def _config_record(opts: RunOptions) -> dict:
     return {
         "domain": pins.DOMAIN,
         "task_id": opts.task_id,
-        "agent": {"implementation": f"{agent.AGENT_NAME} (tau2 LLMAgent, unmodified prompt)",
+        "agent": {"implementation": ("tau2 LLMAgent, unmodified prompt" if opts.agent_variant == "baseline" else
+                                     f"tau2 LLMAgent + frozen instruction variant {opts.agent_variant!r} appended to the policy"),
+                  "variant": _variant_record(opts.agent_variant),
                   "model_requested": opts.agent_model, "llm_args": opts.agent_llm_args},
         "user_simulator": {"implementation": "tau2 user_simulator", "model_requested": opts.user_model,
                            "llm_args": opts.user_llm_args},
@@ -225,6 +228,12 @@ def _config_record(opts: RunOptions) -> dict:
         "environment_patches": list(opts.env_fixes),  # non-empty = modified benchmark environment
         "evaluation": "tau2 evaluate_simulation, EvaluationType.ALL (reward = product over the task's reward_basis)",
     }
+
+
+def _variant_record(name: str) -> dict:
+    from bench import variants
+
+    return variants.record(name)
 
 
 def _provenance(opts: RunOptions, run_dir: Path) -> dict:
@@ -280,20 +289,24 @@ def _isolate_embedding_cache(cache_dir: Path) -> None:
     embeddings_cache._global_cache = embeddings_cache.EmbeddingsCache(cache_dir=str(cache_dir))
 
 
-def _audit_agent_inputs(orchestrator, task, config) -> dict:
+def _audit_agent_inputs(orchestrator, task, config, variant: str = "baseline") -> dict:
     """Gate: the agent was built without the task, and its complete system prompt and tool schemas are
     byte-identical to an agent built from a copy of the task with the answer key emptied (reference
     actions, NL assertions, communicate info, required documents). The string scan is a diagnostic."""
     from tau2.data_model.tasks import Task
 
-    from bench import independence
+    from bench import independence, variants
 
     from tau2.agent.llm_agent import LLMAgent
 
     a = orchestrator.agent
     schemas = [t.openai_schema for t in a.tools]
     blind_env = independence.fresh_env(config, independence.blind_copy(task))
-    blind_agent = LLMAgent(tools=blind_env.get_tools(), domain_policy=blind_env.get_policy(), llm=a.llm)
+    blind_agent = LLMAgent(tools=blind_env.get_tools(), llm=a.llm,
+                           domain_policy=variants.apply(blind_env.get_policy(), variant))
+    # the variant's text is present exactly when a variant is used, and the official policy is otherwise untouched
+    variant_applied = (variants.apply(blind_env.get_policy(), variant) == a.domain_policy
+                       and (variant == variants.BASELINE) == (a.domain_policy == blind_env.get_policy()))
     blind_schemas = [t.openai_schema for t in blind_agent.tools]
     policy_same = a.system_prompt == blind_agent.system_prompt  # the complete system prompt, not only the policy
     schemas_same = json.dumps(schemas, sort_keys=True) == json.dumps(blind_schemas, sort_keys=True)
@@ -313,7 +326,9 @@ def _audit_agent_inputs(orchestrator, task, config) -> dict:
                         "interpretation": ("these inputs are unchanged when the answer key is emptied; "
                                            "inspect where the overlapping values come from") if scan["findings"]
                         and policy_same and schemas_same else None},
-        "passed": ("task" in agent.last_build.get("withheld", []) and policy_same and schemas_same and not task_refs),
+        "variant_applied_as_recorded": variant_applied,
+        "passed": ("task" in agent.last_build.get("withheld", []) and policy_same and schemas_same and not task_refs
+                   and variant_applied),
     }
 
 
@@ -392,6 +407,7 @@ def main(argv=None) -> int:
     p.add_argument("--agent-args", type=json.loads, default={"temperature": 0.0})
     p.add_argument("--user-args", type=json.loads, default=dict(OFFICIAL_USER_ARGS))
     p.add_argument("--retrieval-config", default="alltools")
+    p.add_argument("--agent-variant", default="baseline", help="bench/variants/<name>.md, or baseline")
     p.add_argument("--max-steps", type=int, default=200)
     p.add_argument("--max-errors", type=int, default=10)
     p.add_argument("--seed", type=int, default=300)
@@ -411,7 +427,7 @@ def main(argv=None) -> int:
         agent_llm_args=a.agent_args, user_llm_args=a.user_args, retrieval_config=a.retrieval_config,
         max_steps=a.max_steps, max_errors=a.max_errors, seed=a.seed, timeout_s=a.timeout_s,
         budget_usd=a.budget_usd, limits=Limits(max_output_tokens=a.max_output_tokens, max_attempts=a.max_attempts),
-        scripted=a.scripted, out_dir=a.out_dir,
+        scripted=a.scripted, out_dir=a.out_dir, agent_variant=a.agent_variant,
     )
     trace, path = run(opts)
     spend = (trace.get("spend") or {}).get("incurred") or {}

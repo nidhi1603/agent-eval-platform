@@ -81,3 +81,14 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - The most common observed pattern is a negative conclusion without an adequate search ("not documented", "no tool", "can't do that here"): 5/6 traces, and the first error in 3/6.
   - Discoverable agent tools were not unlocked when needed in 3/6.
   - First-error categories are mixed; n = 6, so these are counts, not rates.
+
+### S003: paired instruction comparison (planned; not run)
+- **Question:** does one frozen instruction (`bench/variants/denial_check_v1.md`) reduce unsupported denials, and does official success change?
+  - Scope: exploratory, 6 tasks × 2 arms × 1 attempt.
+- **Tasks:** `task_031`, `task_019`, `task_094`, `task_095`, `task_066`, `task_087`. Chosen by sha256 from the dev tasks that were unused for S002 analysis and prompt design. F001 probed all dev tasks, so these are not "unseen".
+- **Order:** balanced, pre-specified, with each task's two arms run back to back.
+- **Settings:** identical to S002; the benchmark is unchanged.
+- **Measures:**
+  - Primary: official reward per pair.
+  - Secondary: unsupported denials, harms (unnecessary actions, delayed transfers) and cost, labelled from a blinded export.
+- **Forecast:** about $1.20. Allocation awaiting approval (recommended $1.50). Full plan: `experiments/S003_plan.json`.

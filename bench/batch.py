@@ -38,28 +38,43 @@ def _exposure_status(trace: dict) -> str:
     return "not_observed"
 
 
+def schedule(plan: dict) -> list[dict]:
+    """The ordered list of runs. A plain plan lists tasks (one baseline run each); a paired plan lists
+    runs as {task_id, arm}, with each arm's settings overrides in plan["arms"]."""
+    if "runs" in plan:
+        unknown = {r["arm"] for r in plan["runs"]} - set(plan["arms"])
+        if unknown:
+            raise SystemExit(f"runs reference undefined arms {sorted(unknown)}")
+        return [dict(r) for r in plan["runs"]]
+    return [{"task_id": t, "arm": None} for t in plan["tasks"]]
+
+
 def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None) -> dict:
     if abs(approved_usd - plan["budget_usd_total"]) > 1e-9:
         raise SystemExit(f"approved ${approved_usd} does not match the plan's ${plan['budget_usd_total']}")
-    s = plan["settings"]
     spent_upper = 0.0
     rows = []
-    for task_id in plan["tasks"]:
+    for item in schedule(plan):
+        task_id, arm = item["task_id"], item["arm"]
+        s = {**plan["settings"], **(plan["arms"][arm] if arm else {})}
         remaining = round(approved_usd - spent_upper, 6)
         if remaining <= 0:
-            rows.append({"task_id": task_id, "status": "not_run", "reason": "batch allocation exhausted"})
+            rows.append({"task_id": task_id, "arm": arm, "status": "not_run", "reason": "batch allocation exhausted"})
             continue
         opts = RunOptions(
             task_id=task_id, agent_model=s["agent_model"], agent_llm_args=dict(s["agent_args"]),
             user_model=s["user_model"], user_llm_args=dict(s["user_args"]),
             retrieval_config=s["retrieval_config"], seed=s["seed"], max_steps=s["max_steps"],
-            budget_usd=remaining, limits=Limits(), **({"out_dir": out_dir} if out_dir else {}),
+            budget_usd=remaining, limits=Limits(), agent_variant=s.get("agent_variant", "baseline"),
+            **({"out_dir": out_dir} if out_dir else {}),
         )
         trace, path = run(opts)
         spend = (trace.get("spend") or {}).get("incurred") or {}
         spent_upper += spend.get("upper_bound_usd") or 0.0
         rows.append({
             "task_id": task_id,
+            "arm": arm,
+            "agent_variant": (((trace.get("config") or {}).get("agent") or {}).get("variant") or {}),
             "status": "finished" if trace.get("execution", {}).get("finished") else "interrupted_or_failed",
             "run_id": trace.get("run_id"),
             "official_reward": (trace.get("evaluation") or {}).get("reward"),
@@ -79,11 +94,12 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None) -> d
             "trace": str(path),
         })
     return {
+        "pairs": _pairs(rows) if "runs" in plan else None,
         "batch_id": plan["batch_id"],
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "approved_usd": approved_usd,
         "spend_upper_bound_usd": round(spent_upper, 6),
-        "scheduled": len(plan["tasks"]),
+        "scheduled": len(rows),
         "by_status": {st: sum(r["status"] == st for r in rows) for st in {r["status"] for r in rows}},
         "results": rows,
         "exposed_runs": sum(r.get("exposure_status") == "exposed" for r in rows),
@@ -91,6 +107,28 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None) -> d
         "note": ("Exploratory sample; first consequential errors are labelled by reading each trace, not by this script. "
                  "Every scheduled trial keeps its official outcome; exposed runs are reported, not removed."),
     }
+
+
+def _pairs(rows: list[dict]) -> list[dict]:
+    """Per task, the outcome of each arm, and a paired classification. Incomplete pairs are kept and
+    labelled, never dropped. Only official rewards are compared here; behaviour is read from traces."""
+    by_task: dict[str, dict] = {}
+    for r in rows:
+        by_task.setdefault(r["task_id"], {})[r["arm"]] = r
+    out = []
+    for task_id, arms in by_task.items():
+        rewards = {a: (r.get("official_reward") if r["status"] == "finished" else None) for a, r in arms.items()}
+        names = sorted(arms)
+        if len(names) != 2 or any(v is None for v in rewards.values()):
+            kind = "incomplete pair"
+        else:
+            base = next((n for n in names if n == "baseline"), names[0])
+            other = next(n for n in names if n != base)
+            b, o = rewards[base] >= 1.0, rewards[other] >= 1.0
+            kind = {(False, True): "improved", (True, False): "regressed",
+                    (True, True): "both pass", (False, False): "both fail"}[(b, o)]
+        out.append({"task_id": task_id, "rewards": rewards, "pair": kind})
+    return out
 
 
 def main(argv=None) -> int:
@@ -104,8 +142,10 @@ def main(argv=None) -> int:
     out.write_text(json.dumps(summary, indent=2, default=str) + "\n")
     print(json.dumps({k: summary[k] for k in ("batch_id", "spend_upper_bound_usd", "by_status")}, indent=2))
     for r in summary["results"]:
-        print(r["task_id"], r["status"], r.get("official_reward"), r.get("termination_reason"),
+        print(r["task_id"], r.get("arm"), r["status"], r.get("official_reward"), r.get("termination_reason"),
               (r.get("attribution") or {}).get("cause"), r.get("spend_upper_bound_usd"))
+    for pr in summary.get("pairs") or []:
+        print("pair", pr["task_id"], pr["pair"], pr["rewards"])
     print("results:", out)
     return 0
 

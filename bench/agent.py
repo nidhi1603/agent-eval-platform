@@ -22,9 +22,12 @@ FORBIDDEN_RETRIEVAL_CONFIGS = {"golden_retrieval"}
 last_build: dict = {}
 
 
-def factory(tools, domain_policy, **kwargs):
-    """Registered with tau2. Builds the standard tau2 LLMAgent (variant A) from allowlisted inputs only."""
+def factory(tools, domain_policy, variant: str = "baseline", **kwargs):
+    """Registered with tau2. Builds the standard tau2 LLMAgent from allowlisted inputs only. A non-baseline
+    variant appends its frozen instruction text (bench/variants/) to the domain policy; nothing else changes."""
     from tau2.agent.llm_agent import LLMAgent
+
+    from bench import variants
 
     received = sorted(["tools", "domain_policy", *kwargs])
     last_build.clear()
@@ -32,16 +35,25 @@ def factory(tools, domain_policy, **kwargs):
         "allowlist": list(ALLOWED_AGENT_INPUTS),
         "received": received,
         "withheld": [k for k in received if k not in ALLOWED_AGENT_INPUTS],
+        "variant": variants.record(variant),
     })
-    return LLMAgent(tools=tools, domain_policy=domain_policy, llm=kwargs["llm"],
+    return LLMAgent(tools=tools, domain_policy=variants.apply(domain_policy, variant), llm=kwargs["llm"],
                     llm_args=deepcopy(kwargs.get("llm_args") or {}))
 
 
-def register() -> None:
+def register(variant: str = "baseline") -> str:
+    """Register the factory for one variant with tau2 and return its agent name."""
+    from functools import partial
+
     from tau2.registry import registry
 
-    if AGENT_NAME not in registry.get_agents():
-        registry.register_agent_factory(factory, AGENT_NAME)
+    from bench import variants
+
+    variants.text(variant)  # unknown variants fail here, before anything is built
+    name = AGENT_NAME if variant == variants.BASELINE else f"aep_{variant}"
+    if name not in registry.get_agents():
+        registry.register_agent_factory(partial(factory, variant=variant), name)
+    return name
 
 
 def forbidden_strings(task) -> dict[str, set[str]]:

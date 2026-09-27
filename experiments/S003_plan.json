@@ -1,0 +1,112 @@
+{
+  "batch_id": "S003",
+  "purpose": "Small exploratory paired comparison: does one frozen instruction (denial_check_v1) reduce unsupported denials, and does official success change? Not a reliability estimate; one attempt per arm; not leaderboard-comparable (bm25).",
+  "hypothesis": "Adding denial_check_v1 reduces unsupported denials of products/capabilities (the most common S002 pattern) without adding unnecessary actions or delaying required transfers.",
+  "selection_rule": "dev split minus the 7 tasks used for S001/S002 failure analysis and prompt design; sort by sha256('S003:' + task_id); take the first 6. These tasks were unused for S002 analysis and prompt design, but F001 exercised reference-derived probes on all 30 dev tasks, so they are not 'unseen'.",
+  "tasks": [
+    "task_031",
+    "task_019",
+    "task_094",
+    "task_095",
+    "task_066",
+    "task_087"
+  ],
+  "arm_order_rule": "balanced: the 3 tasks with the smallest sha256('S003-order:' + task_id) run the variant first, the other 3 run baseline first; a task's two arms run back to back. (A first draft used hash parity, which happened to put the variant first for all 6 tasks, a 1-in-64 draw that would confound arm with order, e.g. provider prompt caching on the second run. It was replaced before anything ran.)",
+  "runs": [
+    {
+      "task_id": "task_031",
+      "arm": "denial_check_v1"
+    },
+    {
+      "task_id": "task_031",
+      "arm": "baseline"
+    },
+    {
+      "task_id": "task_019",
+      "arm": "baseline"
+    },
+    {
+      "task_id": "task_019",
+      "arm": "denial_check_v1"
+    },
+    {
+      "task_id": "task_094",
+      "arm": "denial_check_v1"
+    },
+    {
+      "task_id": "task_094",
+      "arm": "baseline"
+    },
+    {
+      "task_id": "task_095",
+      "arm": "denial_check_v1"
+    },
+    {
+      "task_id": "task_095",
+      "arm": "baseline"
+    },
+    {
+      "task_id": "task_066",
+      "arm": "baseline"
+    },
+    {
+      "task_id": "task_066",
+      "arm": "denial_check_v1"
+    },
+    {
+      "task_id": "task_087",
+      "arm": "baseline"
+    },
+    {
+      "task_id": "task_087",
+      "arm": "denial_check_v1"
+    }
+  ],
+  "arms": {
+    "baseline": {
+      "agent_variant": "baseline"
+    },
+    "denial_check_v1": {
+      "agent_variant": "denial_check_v1"
+    }
+  },
+  "intervention": {
+    "name": "denial_check_v1",
+    "file": "bench/variants/denial_check_v1.md",
+    "sha256": "2f075307f956bf7bafc21d7076e399aa33a599d05c887477e8d9983c0dce558b",
+    "chars": 957
+  },
+  "trials_per_arm": 1,
+  "settings": {
+    "agent_model": "gpt-5-mini",
+    "agent_args": {
+      "reasoning_effort": "low"
+    },
+    "user_model": "gpt-5.2",
+    "user_args": {
+      "reasoning_effort": "low"
+    },
+    "retrieval_config": "bm25",
+    "seed": 300,
+    "max_steps": 200
+  },
+  "settings_note": "identical to S002 in both arms; tau2 v1.0.1 unchanged; matching seeds organise the comparison but do not make conversations identical once the agent's replies differ",
+  "budget_usd_total": null,
+  "budget_rule": "one allocation for all 12 runs, in the order listed; each run's cap = total minus upper-bound spend of earlier runs; runs that cannot be admitted are recorded as not_run; incomplete pairs are reported, never dropped",
+  "forecast_usd": {
+    "full_price_estimate": 1.2,
+    "basis": "S002 mean $0.100 per rollout x 12; the variant may add searches and lengthen conversations, so this is a forecast, not a ceiling"
+  },
+  "outcomes": {
+    "primary": "official reward per pair: improved (baseline fails, variant passes) / regressed / both pass / both fail / incomplete pair",
+    "secondary_prespecified": [
+      "unsupported denials: agent messages asserting that a product, feature, document, procedure or capability does not exist, is not documented, or cannot be done, with no targeted KB search for that item earlier in the conversation (labelled from traces)",
+      "harms: unnecessary or unauthorised actions, and required transfers that were delayed or skipped",
+      "cost per run (full-price and cache-aware estimates) and conversation length"
+    ],
+    "labelling": "secondary outcomes are labelled from exported conversations with arm and config removed and order shuffled, before unblinding; blinding is partial because the variant can change visible behaviour",
+    "not_evidence": "more searching by itself is not evidence of better service"
+  },
+  "no_retries": "no run is repeated, whatever its outcome",
+  "status": "planned; tasks, order and instruction frozen; allocation awaiting Nidhi's approval (recommended $1.50)"
+}

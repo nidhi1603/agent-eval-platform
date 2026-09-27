@@ -125,6 +125,9 @@ def research_eligibility(trace: dict) -> dict:
         flags.append("answer-independence check inconclusive (nondeterministic outputs or check error)")
     if indep and indep.get("replay_matches_recorded") is False:
         flags.append("environment replay did not reproduce the recorded tool outputs")
+    variant = ((trace.get("config", {}).get("agent") or {}).get("variant") or {}).get("name")
+    if variant and variant != "baseline":
+        flags.append(f"agent instruction variant: {variant} (harness change; benchmark unchanged)")
     if trace.get("config", {}).get("environment_patches"):
         flags.append(f"modified benchmark environment: {trace['config']['environment_patches']}")
     if trace.get("config", {}).get("retrieval_config") != "alltools":
