@@ -1,9 +1,7 @@
 """Action-time permission checks at the agent's proposal step (a harness change; the benchmark is unchanged).
 
-Why at the proposal step and not at execution: tau2 grades the database by replaying every mutating
-tool call recorded in the trajectory (Environment.set_state, strict by default: a replayed call whose
-output differs from the recorded one raises). A write blocked at execution would still be recorded,
-then re-executed during grading. So a blocked proposal must never enter the trajectory. GuardedLLMAgent
+Context: tau2 grades the database by replaying every mutating tool call recorded in the trajectory
+(Environment.set_state, strict by default: a replayed call whose output differs from the recorded one raises). GuardedLLMAgent
 checks each proposed tool call before returning the message; if one is blocked, the model privately sees
 its attempt and the reason, and generates again. The blocked proposal is logged in `events`, not in the
 conversation.
@@ -11,6 +9,17 @@ conversation.
 Evidence comes from the environment's system of record (its database), never from anything the agent
 or the user says: an agent message claiming "approved" cannot satisfy a rule. The database is not the
 answer key; rules never read the task's evaluation criteria.
+
+Status: a DATABASE-BACKED PROTOTYPE. Reading the environment's records gives the combined agent-and-harness
+system an information channel the agent's own tools do not have (an allow/deny result can reveal something
+about an unseen dispute), so results with this guard are not directly comparable to a baseline without
+disclosing that access. An observed-evidence guard (using only tool results the conversation obtained) is
+the preferred design for a main comparison. The rule checks ONE prerequisite; it does not establish that
+the amount is correct, that the transaction belongs to the customer, or that other policy requirements hold.
+
+Placement, stated precisely: proposals are intercepted before they enter the benchmark trajectory, so the
+unchanged replay evaluator receives only actions actually submitted to the environment. Other enforcement
+designs could work with consistent replay instrumentation; this is a practical choice, not the only one.
 
 One reviewed rule so far:
   rewards_update_requires_approved_dispute
@@ -90,14 +99,14 @@ def make_guarded_agent_class():
 
         def _generate_next_message(self, message, state):
             proposal = super()._generate_next_message(message, state)
-            for _ in range(MAX_CONSECUTIVE_BLOCKS):
+            for attempt in range(MAX_CONSECUTIVE_BLOCKS + 1):  # the original proposal plus up to 3 regenerations
                 decisions = [(tc, check(tc, self.guard_db, self.guard_rules)) for tc in proposal.tool_calls or []]
                 blocked = [(tc, d) for tc, d in decisions if not d.allowed]
                 if not blocked:
-                    return proposal
+                    return proposal  # every returned proposal has been checked
                 for tc, d in blocked:
-                    self.events.append({"event": "blocked", "rule": d.rule, "tool_call": tc.name,
-                                        "arguments": tc.arguments, "turn_messages_seen": len(state.messages)})
+                    self.events.append({"event": "blocked", "attempt": attempt, "rule": d.rule, "reason": d.reason,
+                                        "tool_call": tc.name, "arguments": tc.arguments})
                 # Private feedback: visible to the model on its next generation, never part of the trajectory.
                 state.messages.append(proposal)
                 for tc, d in decisions:
@@ -105,9 +114,13 @@ def make_guarded_agent_class():
                         id=tc.id, role="tool", requestor="assistant", error=not d.allowed,
                         content=d.reason if not d.allowed else
                         "Not executed: another tool call in the same message was blocked by a policy check."))
+                if attempt == MAX_CONSECUTIVE_BLOCKS:
+                    break
                 # llm_agent's own `generate`, looked up at call time, so the budget meters and tags it as "agent"
-                proposal = llm_agent_module.generate(model=self.llm, tools=self.tools, messages=state.system_messages + state.messages,
-                                    call_name="agent_response", **self.llm_args)
+                proposal = llm_agent_module.generate(model=self.llm, tools=self.tools,
+                                                     messages=state.system_messages + state.messages,
+                                                     call_name="agent_response", **self.llm_args)
+            # A blocked call is never released: after repeated blocks the agent sends this text instead.
             self.events.append({"event": "fallback_after_repeated_blocks", "rule": None})
             return AssistantMessage(role="assistant", content=(
                 "I'm not able to complete that action right now because a required policy condition is not met."))

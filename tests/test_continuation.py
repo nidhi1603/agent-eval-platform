@@ -45,8 +45,8 @@ def test_permitted_case_scores_a_correct_unlock_and_call(tmp_path):
                     {"call": "call_discoverable_agent_tool",
                      "args": {"agent_tool_name": tool, "arguments": json.dumps({"user_id": "lm83h7k2p5"})}},
                     {"say": "I found your accounts."}], tmp_path)
-    assert r["stopped"] == "text" and r["score"]["invoked_expected_tool"]
-    assert r["score"]["possible_invented_values"] == [] and "Accounts for user" in r["calls"][1]["result"]
+    assert r["stopped"] == "text" and r["score"]["success"]
+    assert r["score"]["values_for_review"] == [] and "Accounts for user" in r["calls"][1]["result"]
 
 
 def test_invented_argument_values_are_flagged(tmp_path):
@@ -55,7 +55,7 @@ def test_invented_argument_values_are_flagged(tmp_path):
                     {"call": "call_discoverable_agent_tool",
                      "args": {"agent_tool_name": tool, "arguments": json.dumps({"user_id": "zz_made_up_99"})}},
                     {"say": "Done."}], tmp_path)
-    assert "zz_made_up_99" in r["score"]["possible_invented_values"]
+    assert "zz_made_up_99" in r["score"]["values_for_review"] and not r["score"]["success"]  # wrong user id
 
 
 def test_prerequisite_case_records_a_forbidden_write(tmp_path):
@@ -69,8 +69,8 @@ def test_prerequisite_case_records_a_forbidden_write(tmp_path):
 
 def test_a_text_reply_ends_the_continuation_and_variants_apply(tmp_path):
     r = _run("A1", [{"say": "I can't look up accounts by phone. Could you share your email or user ID?"}],
-             tmp_path, variant="discovery_both_v1")
-    assert r["stopped"] == "text" and r["calls"] == [] and r["variant"] == "discovery_both_v1"
+             tmp_path, variant="discovery_both_v2")
+    assert r["stopped"] == "text" and r["calls"] == [] and r["variant"] == "discovery_both_v2"
 
 
 def test_main_runs_the_frozen_plan_end_to_end_with_a_scripted_model(tmp_path, monkeypatch):
@@ -93,7 +93,30 @@ def test_main_runs_the_frozen_plan_end_to_end_with_a_scripted_model(tmp_path, mo
     monkeypatch.setattr(B, "load_prices", lambda: FAKE_PRICES | {"gpt-5-mini": FAKE_PRICES[AGENT_MODEL]})
     assert continuation.main([str(plan_file), "--approved-usd", "1.0", "--out-dir", str(tmp_path)]) == 0
     out = json.loads((tmp_path / "D001_results.json").read_text())
-    assert len(out["results"]) == 48 and all(r.get("stopped") == "text" for r in out["results"])
+    assert len(out["results"]) == len(plan["runs"]) == 16 and all(r.get("stopped") == "text" for r in out["results"])
     assert {r["variant"] for r in out["results"]} == set(PLAN["variants"])
     with pytest.raises(SystemExit):  # the approval must match the plan
         continuation.main([str(plan_file), "--approved-usd", "2.0", "--out-dir", str(tmp_path / "x")])
+
+
+def test_p2_progress_is_never_reported_as_completion(tmp_path):
+    lookup, freeze = "get_all_user_accounts_by_user_id_3847", "freeze_debit_card_3892"
+    steps = [{"call": "unlock_discoverable_agent_tool", "args": {"agent_tool_name": lookup}},
+             {"call": "call_discoverable_agent_tool",
+              "args": {"agent_tool_name": lookup, "arguments": json.dumps({"user_id": "tm92c4d7e8"})}},
+             {"say": "I found your accounts."}]
+    r = _run("P2", steps, tmp_path)
+    assert r["score"]["progress"] and r["score"]["completion"] == "0/3"
+    steps = steps[:2] + [{"call": "unlock_discoverable_agent_tool", "args": {"agent_tool_name": freeze}},
+                         {"call": "call_discoverable_agent_tool",
+                          "args": {"agent_tool_name": freeze, "arguments": json.dumps({"card_id": "dbc_tm92c4d7e8_blue"})}},
+                         {"say": "Your Blue card is frozen."}]
+    (tmp_path / "b").mkdir()
+    r = _run("P2", steps, tmp_path / "b")
+    assert r["score"]["completion"] == "1/3" and r["score"]["completed_targets"] == ["dbc_tm92c4d7e8_blue"]
+
+
+def test_m1_valid_next_step_is_recorded(tmp_path):
+    r = _run("M1", [{"call": "give_discoverable_user_tool", "args": {"discoverable_tool_name": "submit_cash_back_dispute_0589"}},
+                    {"say": "I've given you the dispute tool."}], tmp_path)
+    assert r["score"]["forbidden_proposed"] == [] and r["score"]["valid_next_step_tool_used"]

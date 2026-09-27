@@ -1,4 +1,15 @@
-# G001: a proposal-time permission check for the rewards write (2026-09-27, $0)
+# G001: a database-backed prototype check for one rewards-write prerequisite (2026-09-27, $0)
+
+**Status: prototype, kept separate from the main comparison, off in every D001 arm.**
+- It reads the environment's dispute records directly. That gives the combined agent-and-harness system an information channel the agent's own tools do not have: even an allow/deny result can reveal something about an unseen dispute.
+- This is not answer-key leakage, since environment state and grading answers are different things. But "never reads evaluation criteria" does not establish equal information access.
+- Results with this guard are not comparable to a baseline unless that access is disclosed and justified.
+- The preferred design for a main comparison is an **observed-evidence guard**, using only tool results the conversation actually obtained.
+
+The rule checks **one prerequisite**, an approved dispute. It does not establish:
+- that the proposed amount is correct;
+- that the transaction belongs to the customer;
+- that other policy requirements hold.
 
 A separate change from the discovery instructions, so that improved tool use and enforcement can be told apart. Code: `bench/guard.py`. Tests: `tests/test_guard.py`.
 
@@ -11,17 +22,16 @@ A separate change from the discovery instructions, so that improved tool use and
 - It never reads the task's evaluation criteria.
 - It is re-checked on every call, never cached as "authorized".
 
-## Where the check sits, and why
+## Where the check sits
 
-tau2 grades the database by **replaying every state-changing tool call recorded in the conversation** (`Environment.set_state`). In strict mode, grading raises an error if a replayed result differs from the recorded one.
+tau2 grades the database by replaying every state-changing tool call recorded in the conversation (`Environment.set_state`). In strict mode, grading raises an error if a replayed result differs from the recorded one.
 
-So a check at *execution* time would fail. A blocked write would still be in the recorded conversation, and grading would re-execute it or raise an error.
+**We intercept proposals before they enter the benchmark trajectory,** so the unchanged replay evaluator receives only actions actually submitted to the environment. Other enforcement designs could work with consistent replay instrumentation; proposal interception is a practical choice here, not the only possible one.
 
-The check therefore sits at the agent's *proposal* step:
-1. The agent's proposed tool calls are checked before the message is returned.
-2. If one is blocked, the model sees its attempt and the reason privately, and generates again (up to 3 times).
-3. The blocked proposal never enters the conversation, so grading stays consistent.
-4. Blocked proposals are logged in `trace.guard.events`, and runs are flagged "agent proposal guard (harness change; benchmark unchanged)".
+**How a block works:**
+1. If a proposed call is blocked, the model sees its attempt and the reason privately, and generates again. Up to 3 regenerations are allowed, and **every proposal is checked, including the last**.
+2. After repeated blocks, a fixed refusal text is sent instead. **A blocked call is never released.**
+3. Blocked proposals are absent from the official trajectory. They are fully recorded in the research trace (`trace.guard.events`: attempt number, rule, reason, tool call, arguments), and the regeneration calls are metered as agent calls in the spend ledger.
 
 ## Verified (zero cost)
 
@@ -31,6 +41,8 @@ The check therefore sits at the agent's *proposal* step:
 | Dev task_028: disputes submitted and auto-approved, then the reference update | **Allowed**. The same write for a transaction without an approved dispute is still blocked |
 | A dispute record that is only SUBMITTED | Blocked. Once changed to RESOLVED/APPROVED it is allowed (re-read per call) |
 | Other tools | Not affected |
+| Retries exhausted: the model proposes the blocked write 4 times | 4 blocked events (attempts 0–3), then the fallback text; the write never executes and is not in the trajectory; grading completes |
+| A valid proposal after 2 blocks | Checked and returned; exactly 4 agent calls metered (unlock, blocked, blocked retry, text retry) |
 | Full scripted conversation (task_028), guard on vs off | Off: the write executes and appears in the trajectory. On: blocked, logged, absent from the trajectory; official evaluation completes; input gate passes |
 
 ## Limits

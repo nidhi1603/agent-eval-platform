@@ -97,7 +97,7 @@ def test_blind_export_hides_the_arm(tmp_path):
 def test_worked_example_is_derived_from_a_real_execution():
     from bench import discovery_example as ex
 
-    frozen = variants.text("discovery_example_v1")
+    frozen = variants.text("discovery_example_v2")
     assert frozen.strip() == ex.build().strip()  # the frozen file is exactly a fresh build
     real_unlock, real_call = ex.real_outputs()
     for real in (real_unlock, real_call):
@@ -107,5 +107,5 @@ def test_worked_example_is_derived_from_a_real_execution():
 
 
 def test_combined_variant_is_exactly_interface_plus_example():
-    both = variants.text("discovery_both_v1")
-    assert both == variants.text("discovery_interface_v1").rstrip() + "\n\n" + variants.text("discovery_example_v1")
+    both = variants.text("discovery_both_v2")
+    assert both == variants.text("discovery_interface_v2").rstrip() + "\n\n" + variants.text("discovery_example_v2")

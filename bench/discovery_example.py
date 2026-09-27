@@ -4,7 +4,7 @@ The protocol shown (unlock response format, JSON-string arguments, call result s
 running a real discoverable tool in a disposable environment (dev task_047's initial state; no reference
 solution is used), then replacing the real tool name, identifiers and domain wording with neutral
 placeholders so the example cannot hint at which real tool any task needs. `tests/test_variants.py` checks
-that the frozen file equals a fresh build, and that reversing the substitutions reproduces the real outputs.
+that the frozen file (discovery_example_v2.md; v1 is kept, unused, for the record) equals a fresh build, and that reversing the substitutions reproduces the real outputs.
 
     uv run --extra bench python -m bench.discovery_example   # prints the example
 """
@@ -79,7 +79,7 @@ Result:
 {called.strip()}
 ```
 
-Step 4. Use the result to continue the procedure, and tell the customer what you found. If the result had been an error, you would correct the arguments rather than report success.
+Step 4. Use the result to continue the procedure, and tell the customer what you found. If the result had been an error, you would read it and respond to its cause (fix malformed arguments; do not treat a permission failure or an unavailable operation as an argument problem), and you would not report success.
 """
 
 

@@ -114,12 +114,17 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - a full scripted conversation keeps blocked calls out of the trajectory and grading still completes.
 - Details: `experiments/G001_rewards_guard.md`.
 
-### D001: tool-discovery diagnostic (planned; not run)
+### D001: tool-discovery diagnostic pilot (planned; not run; revised per review before any run)
 - **Design:** agent-only continuations from 4 saved failure points:
-  - P1, P2: permitted tool;
-  - M1: prerequisite missing;
-  - A1: unavailable capability plus missing information.
-- **Variants (2x2), all fixed files:** baseline / interface description / validated worked example / both. The example is generated from a real execution with neutral placeholder names, and a test checks it.
-- **Samples:** 3 per cell, 48 continuations. No customer simulator, no tau2 grading. The guard is not used in any arm.
-- **Forecast:** about $0.85 full price. Allocation awaiting approval ($1.20 recommended; $0.50 for 1 sample).
+  - P1: permitted; success = correct tool, correct user_id, succeeded;
+  - P2: permitted; lookup progress is reported separately from freeze completion (k/3);
+  - M1: prerequisite missing; forbidden write proposed/executed, and valid next step;
+  - A1: unavailable capability plus missing information, read.
+- **Four instruction packages (2x2), v2 files:** none / interface description / validated worked example / both.
+  - v2 corrects B's "genuinely unavailable" conclusion and the error-handling sentence.
+  - v1 was never run.
+  - Each package mixes interface information with behavioural guidance, so differences are attributed to packages, not to interface knowledge alone.
+- **Size:** 16 runs, 1 sample, Latin-square order. The G001 guard is off in all arms.
+- **Stopping rule:** if nothing improves, read the traces before buying repetitions; confirmation needs new contexts and a new approval.
+- **Forecast:** about $0.30 full price. Allocation awaiting approval ($0.50).
 - Plan: `experiments/D001_plan.json`.

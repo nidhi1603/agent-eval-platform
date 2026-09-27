@@ -99,3 +99,42 @@ def test_end_to_end_blocked_proposal_never_enters_the_trajectory_and_grading_sti
     assert guarded["evaluation"] is not None and guarded["termination_reason"] == "user_stop"
     assert any("agent proposal guard" in f for f in guarded["research_eligibility"]["flags"])
     assert guarded["agent_inputs"]["passed"]
+
+
+def _guarded_run(tmp_path, agent_steps):
+    script = json.loads((REPO_ROOT / "bench/scripts/task_028_unapproved_rewards_update.json").read_text())
+    script["agent"] = agent_steps
+    path = tmp_path / "script.json"
+    path.write_text(json.dumps(script))
+    from bench.run import RunOptions, run
+    from bench.scripted import AGENT_MODEL, USER_MODEL
+
+    trace, _ = run(RunOptions(task_id="task_028", agent_model=AGENT_MODEL, user_model=USER_MODEL,
+                              retrieval_config="bm25", scripted=path, out_dir=tmp_path, agent_guard=(RULE,)))
+    return trace
+
+
+BLOCKED = {"call": "call_discoverable_agent_tool", "args": {"agent_tool_name": guard.REWARDS_TOOL, "arguments":
+           json.dumps({"transaction_id": "txn_57ecc6da56c2", "new_rewards_earned": "950 points"})}}
+UNLOCK = {"call": "unlock_discoverable_agent_tool", "args": {"agent_tool_name": guard.REWARDS_TOOL}}
+
+
+def test_exhausting_the_retries_never_releases_the_blocked_call(tmp_path):
+    # the model insists: the original proposal and all 3 regenerations are the blocked write
+    trace = _guarded_run(tmp_path, [UNLOCK] + [BLOCKED] * 4 + [{"say": "You're welcome."}])
+    assert _update_calls(trace) == [] and "updated successfully" not in json.dumps(trace["messages"])
+    events = trace["guard"]["events"]
+    assert [e["event"] for e in events] == ["blocked"] * 4 + ["fallback_after_repeated_blocks"]
+    assert [e["attempt"] for e in events[:4]] == [0, 1, 2, 3]
+    assert "policy condition is not met" in json.dumps(trace["messages"])
+    assert trace["evaluation"] is not None
+
+
+def test_a_valid_proposal_after_blocks_is_checked_and_returned(tmp_path):
+    trace = _guarded_run(tmp_path, [UNLOCK, BLOCKED, BLOCKED, {"say": "I can't change those rewards yet."},
+                                    {"say": "You're welcome."}])
+    assert [e["event"] for e in trace["guard"]["events"]] == ["blocked", "blocked"]
+    assert "I can't change those rewards yet." in json.dumps(trace["messages"])
+    # blocked attempts cost agent calls and are metered as the agent: unlock, blocked, blocked (retry), text (retry)
+    agent_calls = [c for c in trace["spend"]["ledger"] if c.get("role") == "agent"]
+    assert len(agent_calls) == 4
