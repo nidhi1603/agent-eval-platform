@@ -92,3 +92,8 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - Primary: official reward per pair.
   - Secondary: unsupported denials, harms (unnecessary actions, delayed transfers) and cost, labelled from a blinded export.
 - **Forecast:** about $1.20. Allocation awaiting approval (recommended $1.50). Full plan: `experiments/S003_plan.json`.
+- **S003 result (run 2026-09-27):**
+  - All 12 finished; spend $1.118 full-price estimate. **0 improved, 0 regressed, 6 both fail.**
+  - Unsupported denials: 4/6 baseline vs 2/6 variant (2 pairs lower, 0 higher; anecdotal at n = 6). One harm in each arm; the variant's was an unauthorized write.
+  - The variant cost +45% (full price). Post-hoc: denials contradicting just-retrieved tool documents suggest the discoverable-tool mechanism, not search, is the bottleneck.
+  - Details: `experiments/S003_findings.md`.
