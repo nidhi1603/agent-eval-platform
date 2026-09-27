@@ -97,3 +97,10 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - Unsupported denials: 4/6 baseline vs 2/6 variant (2 pairs lower, 0 higher; anecdotal at n = 6). One harm in each arm; the variant's was an unauthorized write.
   - The variant cost +45% (full price). Post-hoc: denials contradicting just-retrieved tool documents suggest the discoverable-tool mechanism, not search, is the bottleneck.
   - Details: `experiments/S003_findings.md`.
+- **S003 decision:** `denial_check_v1` is retired as a candidate default. There was no observed success improvement, and cost rose (+45% full price, +24% cache-aware). The secondary metric measures search compliance, not denial correctness.
+
+### T001: offline tool-discovery check (2026-09-27, $0)
+- **Usage:** across 19 live traces, the agent unlocked a discoverable tool in only 2, even though tool names appeared in results it received in 16. It made no failed attempts.
+- **Replay:** from the exact saved states where it said it could not act (S003 task_095 msg 26; S002 task_080 msg 22), the documented unlock-and-call sequence **works**. Unlocking returns the parameters, and the calls return accounts and cards and freeze the card.
+- **Authorization:** writes execute with no identity verification. Authorization is enforced by the written policy only, not the interface.
+- **Conclusion:** not a broken integration; the model did not use a working interface. Details: `experiments/T001_tool_discovery_check.md`. Test: `tests/test_tool_discovery.py`.
