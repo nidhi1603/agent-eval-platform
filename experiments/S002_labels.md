@@ -3,7 +3,7 @@
 Batch: 6 pre-registered dev tasks, 1 trial each, run 2026-09-27.
 - Models: gpt-5-mini agent (reasoning_effort low), gpt-5.2 user simulator.
 - Setup: bm25, unchanged tau2 v1.0.1, $1 approved.
-- Results: `experiments/S002_results.json`. Traces: `runs/local/20260927T06*_live_*/trace.json`.
+- Results: `experiments/S002_results.json`. Traces: `results/S002/<task>/trace.json` (copied from `runs/local/`).
 
 **Outcome:** 6 of 6 finished, **0 of 6 rewarded**. Every run was ended by the user simulator and attributed to the agent by the official evaluator.
 - Exposure: `not_observed` in all 6. The diagnostic was conclusive, and the agent never called `list_discoverable_agent_tools`.
