@@ -1,6 +1,6 @@
-# DRAFT (not filed): banking_knowledge — `list_discoverable_agent_tools` reveals reference-derived tool membership
+# FILED as https://github.com/sierra-research/tau2-bench/issues/574 (2026-09-27): banking_knowledge — `list_discoverable_agent_tools` reveals reference-derived tool membership
 
-Status: draft for review. Not submitted; filing is Nidhi's decision.
+Status: filed by Nidhi's authorization. The filed text adds pinned links to the reproducer and fix at commit 8f60cae, and a Related section (#329, #405, #502).
 
 **Version:** tau2-bench v1.0.1, commit `b7ea9074c1cba482b30687fecdb5c8425fd6f619`.
 
