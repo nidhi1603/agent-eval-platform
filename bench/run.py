@@ -72,6 +72,7 @@ class RunOptions:
     limits: Limits = field(default_factory=Limits)
     scripted: Path | None = None
     out_dir: Path = REPO_ROOT / "runs" / "local"
+    env_fixes: tuple[str, ...] = ()  # opt-in environment changes (bench/fixes.py); disclosed in every trace
 
 
 def run(opts: RunOptions) -> tuple[dict, Path]:
@@ -135,7 +136,16 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
             max_steps=opts.max_steps, max_errors=opts.max_errors, seed=opts.seed, timeout=opts.timeout_s,
             retrieval_config=opts.retrieval_config,
         )
-        with install(budget, opts.limits, send=send, embedder_cls=embedder_cls):
+        from contextlib import ExitStack
+
+        from bench import fixes
+
+        unknown = set(opts.env_fixes) - {fixes.FIX_NAME}
+        if unknown:
+            raise ConfigError(f"unknown env_fixes {sorted(unknown)}")
+        with ExitStack() as env_stack, install(budget, opts.limits, send=send, embedder_cls=embedder_cls):
+            if fixes.FIX_NAME in opts.env_fixes:
+                env_stack.enter_context(fixes.listing_from_agent_state())
             with role("environment_setup"):  # a fresh environment (fresh DB) is built for every run
                 orchestrator = build_text_orchestrator(config, task, seed=opts.seed)
             trace["agent_inputs"] = _audit_agent_inputs(orchestrator, task, config)
@@ -212,6 +222,7 @@ def _config_record(opts: RunOptions) -> dict:
         "budget_usd": opts.budget_usd,
         "limits": asdict(opts.limits),
         "scripted": str(opts.scripted) if opts.scripted else None,
+        "environment_patches": list(opts.env_fixes),  # non-empty = modified benchmark environment
         "evaluation": "tau2 evaluate_simulation, EvaluationType.ALL (reward = product over the task's reward_basis)",
     }
 

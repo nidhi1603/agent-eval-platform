@@ -1,6 +1,6 @@
 # DRAFT (not filed): banking_knowledge — `list_discoverable_agent_tools` reveals reference-trajectory membership
 
-Status: draft for review. Not submitted; filing is a decision for the repository owner.
+Status: draft for review. Not submitted; filing is Nidhi's decision.
 
 **Version:** tau2-bench v1.0.1, commit `b7ea9074c1cba482b30687fecdb5c8425fd6f619`.
 
@@ -25,6 +25,15 @@ discoverable read, an agent can therefore learn whether that read is part of the
 
 **Impact.** Small: one bit about a read the agent has already made. But it is a channel from the answer
 key to the agent, so an optimized harness could exploit it (for example, by probing reads).
+
+**Scope measured locally** (30 tasks of our development split, `bm25`, no LLM calls; replaying each task's
+reference actions against environments built from the task and from a copy with its evaluation criteria
+emptied): the listing depends on the reference actions in 17 of 30 tasks, exactly the tasks whose reference
+contains a discoverable call to a non-mutating tool. One mechanism, many tasks. Other agent-visible tool outputs
+exercised showed no such dependency (coverage-limited).
+
+**Related minor bug.** The empty-state branch checks for "No results found", but `query_database_tool`
+returns "No records found", so the friendly message is never shown.
 
 **Possible fixes.** Keep the eval-only log out of agent-visible tools: let `list_discoverable_agent_tools`
 list every unlocked or called tool from separate agent-facing state, and use the allowlisted log only for

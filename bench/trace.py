@@ -125,6 +125,8 @@ def research_eligibility(trace: dict) -> dict:
         flags.append("answer-independence check inconclusive (nondeterministic outputs or check error)")
     if indep and indep.get("replay_matches_recorded") is False:
         flags.append("environment replay did not reproduce the recorded tool outputs")
+    if trace.get("config", {}).get("environment_patches"):
+        flags.append(f"modified benchmark environment: {trace['config']['environment_patches']}")
     if trace.get("config", {}).get("retrieval_config") != "alltools":
         flags.append(f"non-official retrieval config: {trace.get('config', {}).get('retrieval_config')}")
     return {"reliability": {"eligible": not reliability, "reasons": reliability},
