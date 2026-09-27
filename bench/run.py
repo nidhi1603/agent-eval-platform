@@ -152,8 +152,13 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
                 orchestrator = build_text_orchestrator(config, task, seed=opts.seed)
             trace["agent_inputs"] = _audit_agent_inputs(orchestrator, task, config, opts.agent_variant)
             if opts.agent_guard:
-                # the rules read the environment's own records (never the task's evaluation criteria)
-                orchestrator.agent.guard_db = orchestrator.environment.tools.db
+                from bench import guard
+
+                # static tool metadata (read/write) for observed-evidence rules; the environment's records only
+                # when a database-backed prototype rule is enabled (never the task's evaluation criteria)
+                orchestrator.agent.guard_toolkit = orchestrator.environment.tools
+                if any(guard.RULES[r]["evidence"] == "environment_db" for r in opts.agent_guard):
+                    orchestrator.agent.guard_db = orchestrator.environment.tools.db
             if not trace["agent_inputs"]["passed"]:
                 raise ConfigError("agent input integrity check failed; see agent_inputs")
             with role("environment"):  # tool calls and grading replays; agent/user/grader tag themselves
@@ -182,7 +187,11 @@ def _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0) -> Pa
         trace.update(_result_record(simulation, orchestrator, error))
         if (trace.get("config") or {}).get("agent", {}).get("guard_rules"):
             events = getattr(getattr(orchestrator, "agent", None), "events", None)
-            trace["guard"] = {"rules": trace["config"]["agent"]["guard_rules"], "events": events,
+            from bench import guard as _guard
+
+            rules = trace["config"]["agent"]["guard_rules"]
+            trace["guard"] = {"rules": rules, "events": events,
+                              "evidence_sources": {r: _guard.RULES[r]["evidence"] for r in rules},
                               "placement": "proposal time, inside the agent: blocked calls never enter the trajectory"}
         trace["spend"] = _spend_record(simulation, budget)
         trace["attribution"] = attribute(trace["termination_reason"], (trace.get("evaluation") or {}).get("reward"),
