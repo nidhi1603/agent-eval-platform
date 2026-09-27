@@ -74,6 +74,7 @@ class RunOptions:
     out_dir: Path = REPO_ROOT / "runs" / "local"
     env_fixes: tuple[str, ...] = ()  # opt-in environment changes (bench/fixes.py); disclosed in every trace
     agent_variant: str = "baseline"  # harness instruction variant (bench/variants/); recorded with its sha256
+    agent_guard: tuple[str, ...] = ()  # proposal-time permission rules (bench/guard.py); blocked calls logged
 
 
 def run(opts: RunOptions) -> tuple[dict, Path]:
@@ -125,7 +126,7 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
 
         from bench import independence
 
-        agent_name = agent.register(opts.agent_variant)
+        agent_name = agent.register(opts.agent_variant, opts.agent_guard)
         task = get_tasks(pins.DOMAIN, task_ids=[opts.task_id])[0]
         trace["task"] = {"id": task.id, "split": "dev",
                          "reward_basis": [str(b.value) for b in task.evaluation_criteria.reward_basis],
@@ -150,6 +151,9 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
             with role("environment_setup"):  # a fresh environment (fresh DB) is built for every run
                 orchestrator = build_text_orchestrator(config, task, seed=opts.seed)
             trace["agent_inputs"] = _audit_agent_inputs(orchestrator, task, config, opts.agent_variant)
+            if opts.agent_guard:
+                # the rules read the environment's own records (never the task's evaluation criteria)
+                orchestrator.agent.guard_db = orchestrator.environment.tools.db
             if not trace["agent_inputs"]["passed"]:
                 raise ConfigError("agent input integrity check failed; see agent_inputs")
             with role("environment"):  # tool calls and grading replays; agent/user/grader tag themselves
@@ -176,6 +180,10 @@ def _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0) -> Pa
     path = run_dir / "trace.json"
     try:
         trace.update(_result_record(simulation, orchestrator, error))
+        if (trace.get("config") or {}).get("agent", {}).get("guard_rules"):
+            events = getattr(getattr(orchestrator, "agent", None), "events", None)
+            trace["guard"] = {"rules": trace["config"]["agent"]["guard_rules"], "events": events,
+                              "placement": "proposal time, inside the agent: blocked calls never enter the trajectory"}
         trace["spend"] = _spend_record(simulation, budget)
         trace["attribution"] = attribute(trace["termination_reason"], (trace.get("evaluation") or {}).get("reward"),
                                          error, trace["messages"], trace["spend"]["ledger"])
@@ -213,6 +221,7 @@ def _config_record(opts: RunOptions) -> dict:
         "agent": {"implementation": ("tau2 LLMAgent, unmodified prompt" if opts.agent_variant == "baseline" else
                                      f"tau2 LLMAgent + frozen instruction variant {opts.agent_variant!r} appended to the policy"),
                   "variant": _variant_record(opts.agent_variant),
+                  "guard_rules": list(opts.agent_guard),
                   "model_requested": opts.agent_model, "llm_args": opts.agent_llm_args},
         "user_simulator": {"implementation": "tau2 user_simulator", "model_requested": opts.user_model,
                            "llm_args": opts.user_llm_args},

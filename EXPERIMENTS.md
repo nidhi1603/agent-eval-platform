@@ -104,3 +104,22 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Replay:** from the exact saved states where it said it could not act (S003 task_095 msg 26; S002 task_080 msg 22), the documented unlock-and-call sequence **works**. Unlocking returns the parameters, and the calls return accounts and cards and freeze the card.
 - **Authorization:** writes execute with no identity verification. Authorization is enforced by the written policy only, not the interface.
 - **Conclusion:** not a broken integration; the model did not use a working interface. Details: `experiments/T001_tool_discovery_check.md`. Test: `tests/test_tool_discovery.py`.
+
+### G001: rewards-write permission check (2026-09-27, $0)
+- **The rule:** `update_transaction_rewards_3847` requires an approved cash back dispute for that transaction, read from the environment's own records (policy doc `_004`).
+- **Placement:** at the agent's proposal step, because tau2 grades by replaying recorded writes; a check at execution time would break grading.
+- **Verified:**
+  - it blocks the S003 unauthorized write from its saved state;
+  - it allows the legitimate task_028 write after auto-approved disputes;
+  - a full scripted conversation keeps blocked calls out of the trajectory and grading still completes.
+- Details: `experiments/G001_rewards_guard.md`.
+
+### D001: tool-discovery diagnostic (planned; not run)
+- **Design:** agent-only continuations from 4 saved failure points:
+  - P1, P2: permitted tool;
+  - M1: prerequisite missing;
+  - A1: unavailable capability plus missing information.
+- **Variants (2x2), all fixed files:** baseline / interface description / validated worked example / both. The example is generated from a real execution with neutral placeholder names, and a test checks it.
+- **Samples:** 3 per cell, 48 continuations. No customer simulator, no tau2 grading. The guard is not used in any arm.
+- **Forecast:** about $0.85 full price. Allocation awaiting approval ($1.20 recommended; $0.50 for 1 sample).
+- Plan: `experiments/D001_plan.json`.

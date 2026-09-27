@@ -92,3 +92,20 @@ def test_blind_export_hides_the_arm(tmp_path):
     for hidden in (VARIANT, "denial_check", trace["run_id"], "reward_basis", "official_reward", "Before telling the customer"):
         assert hidden not in text
     assert "CALL " in text and json.dumps(trace["config"]) not in text
+
+
+def test_worked_example_is_derived_from_a_real_execution():
+    from bench import discovery_example as ex
+
+    frozen = variants.text("discovery_example_v1")
+    assert frozen.strip() == ex.build().strip()  # the frozen file is exactly a fresh build
+    real_unlock, real_call = ex.real_outputs()
+    for real in (real_unlock, real_call):
+        assert ex.neutralize(real).strip() in frozen  # the shown outputs are the real ones, renamed
+        assert ex.restore(ex.neutralize(real)) == real  # and the renaming is reversible
+    assert "7291" not in frozen and "c7d8e9f0a1" not in frozen  # no real tool name or customer id
+
+
+def test_combined_variant_is_exactly_interface_plus_example():
+    both = variants.text("discovery_both_v1")
+    assert both == variants.text("discovery_interface_v1").rstrip() + "\n\n" + variants.text("discovery_example_v1")

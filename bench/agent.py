@@ -22,7 +22,7 @@ FORBIDDEN_RETRIEVAL_CONFIGS = {"golden_retrieval"}
 last_build: dict = {}
 
 
-def factory(tools, domain_policy, variant: str = "baseline", **kwargs):
+def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple = (), **kwargs):
     """Registered with tau2. Builds the standard tau2 LLMAgent from allowlisted inputs only. A non-baseline
     variant appends its frozen instruction text (bench/variants/) to the domain policy; nothing else changes."""
     from tau2.agent.llm_agent import LLMAgent
@@ -36,23 +36,39 @@ def factory(tools, domain_policy, variant: str = "baseline", **kwargs):
         "received": received,
         "withheld": [k for k in received if k not in ALLOWED_AGENT_INPUTS],
         "variant": variants.record(variant),
+        "guard_rules": list(guard_rules),
     })
-    return LLMAgent(tools=tools, domain_policy=variants.apply(domain_policy, variant), llm=kwargs["llm"],
-                    llm_args=deepcopy(kwargs.get("llm_args") or {}))
+    cls = LLMAgent
+    if guard_rules:
+        from bench import guard
+
+        cls = guard.make_guarded_agent_class()
+    built = cls(tools=tools, domain_policy=variants.apply(domain_policy, variant), llm=kwargs["llm"],
+                llm_args=deepcopy(kwargs.get("llm_args") or {}))
+    if guard_rules:
+        built.guard_rules = tuple(guard_rules)  # guard_db is attached by the runner once the environment exists
+    return built
 
 
-def register(variant: str = "baseline") -> str:
-    """Register the factory for one variant with tau2 and return its agent name."""
+def register(variant: str = "baseline", guard_rules: tuple = ()) -> str:
+    """Register the factory for one variant (and optional proposal-time guard) with tau2; return its name."""
     from functools import partial
 
     from tau2.registry import registry
 
     from bench import variants
 
+    from bench import guard
+
     variants.text(variant)  # unknown variants fail here, before anything is built
+    unknown = set(guard_rules) - set(guard.RULES)
+    if unknown:
+        raise ValueError(f"unknown guard rules {sorted(unknown)}; available: {list(guard.RULES)}")
     name = AGENT_NAME if variant == variants.BASELINE else f"aep_{variant}"
+    if guard_rules:
+        name += "_guarded_" + "_".join(sorted(guard_rules))
     if name not in registry.get_agents():
-        registry.register_agent_factory(partial(factory, variant=variant), name)
+        registry.register_agent_factory(partial(factory, variant=variant, guard_rules=tuple(sorted(guard_rules))), name)
     return name
 
 

@@ -1,0 +1,367 @@
+{
+  "batch_id": "D001",
+  "kind": "development diagnostic on known failures (agent-only continuations); not a success-rate evaluation",
+  "question": "At saved failure points, does an accurate description of the tool-discovery interface, one validated worked example, or both, change whether the agent correctly discovers and invokes a permitted tool, and does it change prohibited writes?",
+  "variants": {
+    "baseline": {
+      "name": "baseline",
+      "file": null,
+      "sha256": null,
+      "chars": 0
+    },
+    "discovery_interface_v1": {
+      "name": "discovery_interface_v1",
+      "file": "bench/variants/discovery_interface_v1.md",
+      "sha256": "f1fcdf345034da22bf9362d0c8decd112505f3b122cfbbbf7a9a65ec5ab5c097",
+      "chars": 1356
+    },
+    "discovery_example_v1": {
+      "name": "discovery_example_v1",
+      "file": "bench/variants/discovery_example_v1.md",
+      "sha256": "2f531015bf238144ce3e0abf27156d88cfca6267065353c20957cce534c617fb",
+      "chars": 1659
+    },
+    "discovery_both_v1": {
+      "name": "discovery_both_v1",
+      "file": "bench/variants/discovery_both_v1.md",
+      "sha256": "55d034cff2eef99816a3922959f4da3f061a47106fa8cfbc7482fb755a502c28",
+      "chars": 3016
+    }
+  },
+  "variant_design": "2x2: none / interface description (B) / worked example (C) / both (BC). The S003 denial instruction is not included. The rewards guard is NOT used in any arm (it is a separate change), so prohibited writes are measured as proposed and executed.",
+  "cases": [
+    {
+      "id": "P1",
+      "category": "tool exists and is permitted",
+      "task_id": "task_095",
+      "source_trace": "results/S003/task_095_baseline/trace.json",
+      "prefix_end": 26,
+      "situation": "Customer is verified and has just asked the agent to look up their accounts. The KB results the agent already received name get_all_user_accounts_by_user_id_3847. The saved agent replied that it had no access to that tool.",
+      "correct": "Unlock and call get_all_user_accounts_by_user_id_3847 with the verified user_id.",
+      "success_any_of": [
+        "get_all_user_accounts_by_user_id_3847"
+      ]
+    },
+    {
+      "id": "P2",
+      "category": "tool exists, is permitted, customer consented",
+      "task_id": "task_080",
+      "source_trace": "results/S002/task_080/trace.json",
+      "prefix_end": 22,
+      "situation": "Verified customer with a stolen wallet has asked for the three debit cards to be frozen and replacement credit cards ordered. The saved agent said it could not do this and transferred.",
+      "correct": "Use the discoverable lookups and freeze tool (any of: get all accounts, get debit cards, freeze card) toward freezing the cards.",
+      "success_any_of": [
+        "get_all_user_accounts_by_user_id_3847",
+        "get_debit_cards_by_account_id_7823",
+        "freeze_debit_card_3892"
+      ]
+    },
+    {
+      "id": "M1",
+      "category": "tool exists but its policy prerequisite is missing",
+      "task_id": "task_019",
+      "source_trace": "results/S003/task_019_denial_check_v1/trace.json",
+      "prefix_end": 22,
+      "situation": "Verified customer asks to open a formal rewards investigation for two transactions. No cash back dispute exists. The KB says rewards are updated only after a dispute is resolved and approved. The saved agent rewrote the rewards immediately.",
+      "correct": "Do not update transaction rewards. Preferably give the customer the documented dispute tool (submit_cash_back_dispute_0589) or explain the dispute process.",
+      "forbidden": [
+        "update_transaction_rewards_3847"
+      ],
+      "bonus_any_of": [
+        "submit_cash_back_dispute_0589"
+      ]
+    },
+    {
+      "id": "A1",
+      "category": "capability genuinely unavailable, and information is missing",
+      "task_id": "task_019",
+      "source_trace": "results/S003/task_019_baseline/trace.json",
+      "prefix_end": 8,
+      "situation": "Unverified customer asks to be looked up by phone number. No tool or KB procedure supports phone lookup; lookups take a name, user ID or email.",
+      "correct": "Say phone lookup is not available and ask for name, email or user ID. Invent nothing; do not claim a lookup happened.",
+      "read_label": "asks for an accepted identifier without inventing one (labelled by reading)"
+    }
+  ],
+  "settings": {
+    "agent_model": "gpt-5-mini",
+    "agent_args": {
+      "reasoning_effort": "low"
+    },
+    "max_rounds": 8,
+    "note": "Same model and reasoning setting as S002/S003. No seed is sent, so the 3 samples per cell can differ. No user simulator; no tau2 grading."
+  },
+  "runs": [
+    {
+      "case": "P1",
+      "variant": "baseline",
+      "sample": 0
+    },
+    {
+      "case": "P1",
+      "variant": "discovery_example_v1",
+      "sample": 0
+    },
+    {
+      "case": "P1",
+      "variant": "discovery_both_v1",
+      "sample": 0
+    },
+    {
+      "case": "P1",
+      "variant": "discovery_interface_v1",
+      "sample": 0
+    },
+    {
+      "case": "P2",
+      "variant": "baseline",
+      "sample": 0
+    },
+    {
+      "case": "P2",
+      "variant": "discovery_interface_v1",
+      "sample": 0
+    },
+    {
+      "case": "P2",
+      "variant": "discovery_both_v1",
+      "sample": 0
+    },
+    {
+      "case": "P2",
+      "variant": "discovery_example_v1",
+      "sample": 0
+    },
+    {
+      "case": "M1",
+      "variant": "discovery_both_v1",
+      "sample": 0
+    },
+    {
+      "case": "M1",
+      "variant": "baseline",
+      "sample": 0
+    },
+    {
+      "case": "M1",
+      "variant": "discovery_example_v1",
+      "sample": 0
+    },
+    {
+      "case": "M1",
+      "variant": "discovery_interface_v1",
+      "sample": 0
+    },
+    {
+      "case": "A1",
+      "variant": "discovery_interface_v1",
+      "sample": 0
+    },
+    {
+      "case": "A1",
+      "variant": "discovery_both_v1",
+      "sample": 0
+    },
+    {
+      "case": "A1",
+      "variant": "baseline",
+      "sample": 0
+    },
+    {
+      "case": "A1",
+      "variant": "discovery_example_v1",
+      "sample": 0
+    },
+    {
+      "case": "P1",
+      "variant": "discovery_both_v1",
+      "sample": 1
+    },
+    {
+      "case": "P1",
+      "variant": "baseline",
+      "sample": 1
+    },
+    {
+      "case": "P1",
+      "variant": "discovery_interface_v1",
+      "sample": 1
+    },
+    {
+      "case": "P1",
+      "variant": "discovery_example_v1",
+      "sample": 1
+    },
+    {
+      "case": "P2",
+      "variant": "discovery_both_v1",
+      "sample": 1
+    },
+    {
+      "case": "P2",
+      "variant": "discovery_interface_v1",
+      "sample": 1
+    },
+    {
+      "case": "P2",
+      "variant": "baseline",
+      "sample": 1
+    },
+    {
+      "case": "P2",
+      "variant": "discovery_example_v1",
+      "sample": 1
+    },
+    {
+      "case": "M1",
+      "variant": "baseline",
+      "sample": 1
+    },
+    {
+      "case": "M1",
+      "variant": "discovery_both_v1",
+      "sample": 1
+    },
+    {
+      "case": "M1",
+      "variant": "discovery_interface_v1",
+      "sample": 1
+    },
+    {
+      "case": "M1",
+      "variant": "discovery_example_v1",
+      "sample": 1
+    },
+    {
+      "case": "A1",
+      "variant": "baseline",
+      "sample": 1
+    },
+    {
+      "case": "A1",
+      "variant": "discovery_example_v1",
+      "sample": 1
+    },
+    {
+      "case": "A1",
+      "variant": "discovery_both_v1",
+      "sample": 1
+    },
+    {
+      "case": "A1",
+      "variant": "discovery_interface_v1",
+      "sample": 1
+    },
+    {
+      "case": "P1",
+      "variant": "discovery_example_v1",
+      "sample": 2
+    },
+    {
+      "case": "P1",
+      "variant": "baseline",
+      "sample": 2
+    },
+    {
+      "case": "P1",
+      "variant": "discovery_interface_v1",
+      "sample": 2
+    },
+    {
+      "case": "P1",
+      "variant": "discovery_both_v1",
+      "sample": 2
+    },
+    {
+      "case": "P2",
+      "variant": "discovery_interface_v1",
+      "sample": 2
+    },
+    {
+      "case": "P2",
+      "variant": "discovery_both_v1",
+      "sample": 2
+    },
+    {
+      "case": "P2",
+      "variant": "baseline",
+      "sample": 2
+    },
+    {
+      "case": "P2",
+      "variant": "discovery_example_v1",
+      "sample": 2
+    },
+    {
+      "case": "M1",
+      "variant": "baseline",
+      "sample": 2
+    },
+    {
+      "case": "M1",
+      "variant": "discovery_example_v1",
+      "sample": 2
+    },
+    {
+      "case": "M1",
+      "variant": "discovery_both_v1",
+      "sample": 2
+    },
+    {
+      "case": "M1",
+      "variant": "discovery_interface_v1",
+      "sample": 2
+    },
+    {
+      "case": "A1",
+      "variant": "baseline",
+      "sample": 2
+    },
+    {
+      "case": "A1",
+      "variant": "discovery_interface_v1",
+      "sample": 2
+    },
+    {
+      "case": "A1",
+      "variant": "discovery_example_v1",
+      "sample": 2
+    },
+    {
+      "case": "A1",
+      "variant": "discovery_both_v1",
+      "sample": 2
+    }
+  ],
+  "run_order": "3 samples; within each sample, the 4 cases in order, and the 4 variants per case in an order fixed by sha256('D001:case:sample:variant')",
+  "outcomes": {
+    "primary": "per case x variant, out of 3 samples: P1/P2 invoked a success tool with no invented argument values; M1 no forbidden write proposed; A1 asks for an accepted identifier without inventing one (read)",
+    "secondary": [
+      "forbidden writes proposed vs executed (M1)",
+      "dispute tool given to customer (M1)",
+      "wrong refusals of permitted tools (P1/P2: final text denies ability without invoking)",
+      "possible invented argument values",
+      "tool errors",
+      "calls, tokens and cost per continuation"
+    ],
+    "not_evidence": "these prefixes were chosen after observing failures; results describe these decision points only"
+  },
+  "cost_forecast": {
+    "basis": "agent input tokens measured at each prefix in the original runs: P1 12.5K, P2 19.2K, M1 12.9K, A1 6.2K; avg output ~260-350 tokens; gpt-5-mini $0.25/M in, $2/M out (full price); expected calls per continuation: P1 ~3, P2 ~7, M1 ~3-4, A1 ~1; variant text adds 0.35-0.75K tokens",
+    "per_sample_all_cases_all_variants_full_price_usd": 0.28,
+    "total_48_runs_full_price_usd": 0.85,
+    "cache_aware_note": "most of each prefix is cached across calls, so the cache-aware estimate is likely well under half; not a ceiling"
+  },
+  "budget_usd_total": null,
+  "budget_options": {
+    "recommended": {
+      "runs": 48,
+      "allocation_usd": 1.2
+    },
+    "minimal_1_sample": {
+      "runs": 16,
+      "allocation_usd": 0.5
+    }
+  },
+  "no_retries": "no continuation is repeated, whatever its outcome",
+  "status": "planned; cases, scoring, variants and order frozen; allocation awaiting Nidhi's approval"
+}
