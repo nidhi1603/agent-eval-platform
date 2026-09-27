@@ -1,4 +1,17 @@
 {
-  "_note": "USD per 1M tokens. The runner refuses to call a model that has no entry here, because it could not bound spend. Add an entry only after checking the provider's pricing page, and record the URL and date. Prices are never inferred from litellm's price map.",
-  "models": {}
+  "_note": "USD per 1M tokens, Standard processing tier, short-context rates. The runner refuses to call a model that has no entry here. Entries are recorded by a person from the provider's pricing page (URL and date given); the code checks their form, not their truth. The ledger charges every prompt token at the full input rate (cached-input discounts are ignored), so usage-based estimates can overstate the bill.",
+  "models": {
+    "gpt-5-mini": {
+      "input_per_mtok": 0.25,
+      "output_per_mtok": 2.0,
+      "source": "https://developers.openai.com/api/docs/pricing (Standard: input $0.25, cached input $0.025, output $2.00); https://developers.openai.com/api/docs/models/gpt-5-mini",
+      "checked_on": "2026-09-26"
+    },
+    "gpt-5.2": {
+      "input_per_mtok": 1.75,
+      "output_per_mtok": 14.0,
+      "source": "https://developers.openai.com/api/docs/pricing (Standard: input $1.75, cached input $0.175, output $14.00); https://developers.openai.com/api/docs/models/gpt-5.2",
+      "checked_on": "2026-09-26"
+    }
+  }
 }
