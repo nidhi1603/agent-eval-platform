@@ -27,6 +27,26 @@ DENIAL = re.compile(r"(don[’']t have (?:access|a (?:way|tool|backend tool))|do
                     r"aren[’']t exposed|no (?:backend )?tool (?:here|available))", re.I)
 
 
+# Adapted from "From Confident Closing to Silent Failure" (arXiv 2606.09863, App. A), which labels the closing
+# message with two regex sets. These patterns are OUR adaptation for banking, not the paper's exact expressions.
+CLAIMS_DONE = re.compile(r"(\b(?:i[’']ve|i have|we[’']ve)\s+(?:\w+\s+){0,3}(?:applied|updated|closed|opened|frozen|"
+                         r"submitted|filed|ordered|processed|completed|redeemed|transferred)|\ball set\b|"
+                         r"\bsuccessfully\b|\bhas been (?:applied|updated|closed|opened|frozen|submitted|processed)\b)", re.I)
+ADMITS_NOT_DONE = re.compile(r"(\bunable to\b|\bcan[’']t\b|\bcannot\b|\bnot able to\b|\btransfer(?:ring|red)? you\b|"
+                             r"\bescalat|\bspecialist\b|\bhuman agent\b)", re.I)
+
+
+def closing_label(trace: dict) -> str | None:
+    """For zero-reward runs only: does the agent's last text claim success ('false success candidate'),
+    admit it did not finish ('honest failure'), both or neither ('ambiguous')?"""
+    if (trace.get("evaluation") or {}).get("reward") != 0.0:
+        return None
+    last = next((m.get("content") or "" for m in reversed(trace["messages"])
+                 if m["role"] == "assistant" and (m.get("content") or "").strip()), "")
+    claims, admits = bool(CLAIMS_DONE.search(last)), bool(ADMITS_NOT_DONE.search(last))
+    return "false_success_candidate" if claims and not admits else "honest_failure" if admits and not claims else "ambiguous"
+
+
 def live_traces(root: Path = REPO_ROOT / "results") -> list[Path]:
     paths = sorted(root.glob("S00*/**/trace.json"))
     return [p for p in paths if json.loads(p.read_text()).get("mode") == "live"]
@@ -40,7 +60,7 @@ def _tool_types():
 
     env = fresh_env(TextRunConfig(domain="banking_knowledge", retrieval_config="bm25"),
                     get_tasks("banking_knowledge", task_ids=["task_047"])[0])  # static metadata only
-    return guard.toolkit_type_lookup(env.tools), set(env.tools.get_discoverable_tools())
+    return guard.toolkit_type_lookup(env.tools), set(env.tools.get_discoverable_tools()) | set(env.user_tools.get_discoverable_tools())
 
 
 def analyse(trace: dict, tool_type, discoverable: set[str]) -> dict:
@@ -75,6 +95,9 @@ def analyse(trace: dict, tool_type, discoverable: set[str]) -> dict:
     ev_checks = (trace.get("evaluation") or {}).get("action_checks") or []
     return {
         "official_reward": (trace.get("evaluation") or {}).get("reward"),
+        # GAUGE (arXiv 2609.12191, §4.5): a judge-free completion bit (clean stop vs truncation or error)
+        "completion_bit": trace.get("termination_reason") in ("user_stop", "agent_stop"),
+        "closing_label_heuristic": closing_label(trace),
         "reference_actions_matched": f"{sum(a['action_match'] for a in ev_checks)}/{len(ev_checks)}" if ev_checks else None,
         "observed": {
             "minefield_would_block": would_block,
@@ -87,6 +110,37 @@ def analyse(trace: dict, tool_type, discoverable: set[str]) -> dict:
         "heuristic": {"denial_naming_an_unlocked_tool_it_had_seen": denials_named,
                       "capability_denial_while_named_tools_unused": denials_capability},
     }
+
+
+def nudge_replay(trace: dict, discoverable: set[str], reference_tools: set[str]) -> dict | None:
+    """Where the pre-send check (bench/nudge.py) would first have fired, and whether any tool it would have named
+    is one the task's reference solution uses (evaluation-side relevance; the check itself never sees this)."""
+    from bench import nudge
+
+    msgs = trace["messages"]
+    for m in msgs:
+        if m["role"] != "assistant":
+            continue
+        draft = {"content": m.get("content"), "tool_calls": m.get("tool_calls")}
+        names = nudge.trigger(draft, agent_visible(msgs, m["i"]), discoverable)
+        if names:
+            ranks = [k + 1 for k, n in enumerate(names) if n in reference_tools]
+            return {"i": m["i"], "names": names, "kind": "transfer" if m.get("tool_calls") else "denial",
+                    "relevant": bool(ranks), "first_relevant_position": ranks[0] if ranks else None,
+                    "irrelevant_write_tools_named": [n for n in names if n not in reference_tools]}
+    return None
+
+
+def reference_tool_names(task_id: str) -> set[str]:
+    """Discoverable tools the task's reference actions use (evaluation-side only)."""
+    from tau2.runner.helpers import get_tasks
+
+    task = get_tasks("banking_knowledge", task_ids=[task_id])[0]
+    out = set()
+    for a in task.evaluation_criteria.actions or []:
+        args = a.arguments or {}
+        out |= {args[k] for k in ("agent_tool_name", "discoverable_tool_name") if args.get(k)}
+    return out
 
 
 def replay_rewards_writes(trace: dict, task_id: str) -> list[dict]:
@@ -120,6 +174,7 @@ def main(argv=None) -> int:
                "variant": ((t.get("config") or {}).get("agent") or {}).get("variant", {}).get("name", "baseline"),
                **analyse(t, tool_type, discoverable)}
         row["replay"] = {"rewards_writes_vs_approved_dispute": replay_rewards_writes(t, t["task"]["id"])}
+        row["nudge_replay"] = nudge_replay(t, discoverable, reference_tool_names(t["task"]["id"]))
         rows.append(row)
     n = len(rows)
     summary = {
@@ -136,6 +191,18 @@ def main(argv=None) -> int:
         "heuristic_denials_naming_a_seen_tool": sum(bool(r["heuristic"]["denial_naming_an_unlocked_tool_it_had_seen"]) for r in rows),
         "heuristic_capability_denials_while_named_tools_unused": sum(
             bool(r["heuristic"]["capability_denial_while_named_tools_unused"]) for r in rows),
+        "nudge_would_fire": {
+            "conversations": sum(r["nudge_replay"] is not None for r in rows),
+            "named_a_tool_the_reference_uses": sum(bool(r["nudge_replay"] and r["nudge_replay"]["relevant"]) for r in rows),
+            "first_named_tool_is_one_the_reference_uses": sum(
+                bool(r["nudge_replay"] and r["nudge_replay"]["first_relevant_position"] == 1) for r in rows),
+            "fired_naming_only_tools_the_reference_does_not_use": sum(
+                bool(r["nudge_replay"] and not r["nudge_replay"]["relevant"]) for r in rows),
+            "by_kind": {k: sum(bool(r["nudge_replay"] and r["nudge_replay"]["kind"] == k) for r in rows)
+                        for k in ("denial", "transfer")}},
+        "completion_bit_true": sum(r["completion_bit"] for r in rows),
+        "closing_label_heuristic": {k: sum(r["closing_label_heuristic"] == k for r in rows)
+                                    for k in ("false_success_candidate", "honest_failure", "ambiguous")},
         "rewards_writes_without_approved_dispute": sum(not w["allowed"] for r in rows
                                                        for w in r["replay"]["rewards_writes_vs_approved_dispute"]),
     }

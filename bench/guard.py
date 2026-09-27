@@ -189,51 +189,83 @@ def toolkit_type_lookup(toolkit):
 def make_guarded_agent_class():
     import tau2.agent.llm_agent as llm_agent_module
     from tau2.agent.llm_agent import LLMAgent
-    from tau2.data_model.message import AssistantMessage, ToolMessage
+    from tau2.data_model.message import AssistantMessage, SystemMessage, ToolMessage
+
+    from bench import nudge as nudge_mod
 
     class GuardedLLMAgent(LLMAgent):
-        """tau2's LLMAgent with a proposal-time check. The runner sets `guard_rules`, `guard_toolkit` (for static
-        tool types) and, only when an environment_db rule is enabled, `guard_db`. Blocked proposals go to `events`."""
+        """tau2's LLMAgent with proposal-time review: permission rules that block (`guard_rules`) and pre-send
+        checks that advise once (`harness_nudges`, bench/nudge.py). The runner sets `guard_toolkit` (static tool
+        types and discoverable names), and `guard_db` only when an environment_db rule is enabled. Every
+        intervention is appended to `events`; rejected drafts never enter the trajectory."""
 
-        guard_rules: tuple[str, ...] = OBSERVED_RULES
+        guard_rules: tuple[str, ...] = ()
+        harness_nudges: tuple[str, ...] = ()
         guard_toolkit = None
         guard_db = None
+        discoverable_names: frozenset = frozenset()
+        agent_tool_names: frozenset = frozenset()
 
         def __init__(self, *a, **kw):
             super().__init__(*a, **kw)
             self.events: list[dict] = []
+            self.nudges_fired = 0
 
         def _evidence(self, state) -> Evidence:
             return Evidence(messages=messages_as_dicts(state.messages),
                             tool_type=toolkit_type_lookup(self.guard_toolkit) if self.guard_toolkit else None,
                             db=self.guard_db)
 
+        def _regenerate(self, state):
+            # llm_agent's own `generate`, looked up at call time, so the budget meters and tags it as "agent"
+            return llm_agent_module.generate(model=self.llm, tools=self.tools,
+                                             messages=state.system_messages + state.messages,
+                                             call_name="agent_response", **self.llm_args)
+
         def _generate_next_message(self, message, state):
             proposal = super()._generate_next_message(message, state)
-            for attempt in range(MAX_CONSECUTIVE_BLOCKS + 1):  # the original proposal plus up to 3 regenerations
+            blocks = 0
+            while True:
                 ev = self._evidence(state)
                 decisions = [(tc, check(tc, ev, self.guard_rules)) for tc in proposal.tool_calls or []]
                 blocked = [(tc, d) for tc, d in decisions if not d.allowed]
-                if not blocked:
-                    return proposal  # every returned proposal has been checked
-                for tc, d in blocked:
-                    self.events.append({"event": "blocked", "attempt": attempt, "rule": d.rule, "reason": d.reason,
-                                        "tool_call": tc.name, "arguments": tc.arguments})
-                # Private feedback: visible to the model on its next generation, never part of the trajectory.
-                state.messages.append(proposal)
-                for tc, d in decisions:
-                    state.messages.append(ToolMessage(
-                        id=tc.id, role="tool", requestor="assistant", error=not d.allowed,
-                        content=d.reason if not d.allowed else
-                        "Not executed: another tool call in the same message was blocked by a policy check."))
-                if attempt == MAX_CONSECUTIVE_BLOCKS:
-                    break
-                # llm_agent's own `generate`, looked up at call time, so the budget meters and tags it as "agent"
-                proposal = llm_agent_module.generate(model=self.llm, tools=self.tools,
-                                                     messages=state.system_messages + state.messages,
-                                                     call_name="agent_response", **self.llm_args)
-            self.events.append({"event": "fallback_after_repeated_blocks", "rule": None})
-            return AssistantMessage(role="assistant", content=(
-                "I'm not able to complete that action right now because a required policy condition is not met."))
+                if blocked:
+                    for tc, d in blocked:
+                        self.events.append({"event": "blocked", "attempt": blocks, "rule": d.rule, "reason": d.reason,
+                                            "tool_call": tc.name, "arguments": tc.arguments})
+                    # Private feedback: visible to the model on its next generation, never part of the trajectory.
+                    state.messages.append(proposal)
+                    for tc, d in decisions:
+                        state.messages.append(ToolMessage(
+                            id=tc.id, role="tool", requestor="assistant", error=not d.allowed,
+                            content=d.reason if not d.allowed else
+                            "Not executed: another tool call in the same message was blocked by a policy check."))
+                    if blocks == MAX_CONSECUTIVE_BLOCKS:
+                        self.events.append({"event": "fallback_after_repeated_blocks", "rule": None})
+                        return AssistantMessage(role="assistant", content=(
+                            "I'm not able to complete that action right now because a required policy condition "
+                            "is not met."))
+                    blocks += 1
+                    proposal = self._regenerate(state)
+                    continue  # every proposal, including the last, is checked
+                if "locked_named_tool_before_denial_or_transfer" in self.harness_nudges and self.nudges_fired == 0:
+                    draft = messages_as_dicts([proposal])[0]
+                    names = nudge_mod.trigger(draft, ev.messages, set(self.discoverable_names))
+                    if names:
+                        self.nudges_fired += 1
+                        text = nudge_mod.note(names, set(self.agent_tool_names))
+                        self.events.append({"event": "nudged", "check": "locked_named_tool_before_denial_or_transfer",
+                                            "names": names, "draft_tool_calls": [tc.name for tc in proposal.tool_calls or []],
+                                            "draft_text": (proposal.content or "")[:300]})
+                        state.messages.append(proposal)
+                        if proposal.tool_calls:
+                            for tc in proposal.tool_calls:
+                                state.messages.append(ToolMessage(id=tc.id, role="tool", requestor="assistant",
+                                                                  content="Not executed yet. " + text))
+                        else:
+                            state.messages.append(SystemMessage(role="system", content=text))
+                        proposal = self._regenerate(state)
+                        continue  # the regenerated proposal is reviewed again (the nudge fires at most once)
+                return proposal
 
     return GuardedLLMAgent

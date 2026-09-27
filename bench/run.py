@@ -75,6 +75,7 @@ class RunOptions:
     env_fixes: tuple[str, ...] = ()  # opt-in environment changes (bench/fixes.py); disclosed in every trace
     agent_variant: str = "baseline"  # harness instruction variant (bench/variants/); recorded with its sha256
     agent_guard: tuple[str, ...] = ()  # proposal-time permission rules (bench/guard.py); blocked calls logged
+    agent_nudges: tuple[str, ...] = ()  # proposal-time advisory checks (bench/nudge.py); each firing logged
 
 
 def run(opts: RunOptions) -> tuple[dict, Path]:
@@ -126,7 +127,7 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
 
         from bench import independence
 
-        agent_name = agent.register(opts.agent_variant, opts.agent_guard)
+        agent_name = agent.register(opts.agent_variant, opts.agent_guard, opts.agent_nudges)
         task = get_tasks(pins.DOMAIN, task_ids=[opts.task_id])[0]
         trace["task"] = {"id": task.id, "split": "dev",
                          "reward_basis": [str(b.value) for b in task.evaluation_criteria.reward_basis],
@@ -151,12 +152,16 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
             with role("environment_setup"):  # a fresh environment (fresh DB) is built for every run
                 orchestrator = build_text_orchestrator(config, task, seed=opts.seed)
             trace["agent_inputs"] = _audit_agent_inputs(orchestrator, task, config, opts.agent_variant)
-            if opts.agent_guard:
+            if opts.agent_guard or opts.agent_nudges:
                 from bench import guard
 
                 # static tool metadata (read/write) for observed-evidence rules; the environment's records only
                 # when a database-backed prototype rule is enabled (never the task's evaluation criteria)
                 orchestrator.agent.guard_toolkit = orchestrator.environment.tools
+                agent_names = frozenset(orchestrator.environment.tools.get_discoverable_tools())
+                user_names = frozenset(orchestrator.environment.user_tools.get_discoverable_tools())
+                orchestrator.agent.agent_tool_names = agent_names
+                orchestrator.agent.discoverable_names = agent_names | user_names  # static metadata: which names exist
                 if any(guard.RULES[r]["evidence"] == "environment_db" for r in opts.agent_guard):
                     orchestrator.agent.guard_db = orchestrator.environment.tools.db
             if not trace["agent_inputs"]["passed"]:
@@ -185,12 +190,13 @@ def _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0) -> Pa
     path = run_dir / "trace.json"
     try:
         trace.update(_result_record(simulation, orchestrator, error))
-        if (trace.get("config") or {}).get("agent", {}).get("guard_rules"):
+        if (trace.get("config") or {}).get("agent", {}).get("guard_rules") or \
+                (trace.get("config") or {}).get("agent", {}).get("nudges"):
             events = getattr(getattr(orchestrator, "agent", None), "events", None)
             from bench import guard as _guard
 
             rules = trace["config"]["agent"]["guard_rules"]
-            trace["guard"] = {"rules": rules, "events": events,
+            trace["guard"] = {"rules": rules, "nudges": trace["config"]["agent"].get("nudges", []), "events": events,
                               "evidence_sources": {r: _guard.RULES[r]["evidence"] for r in rules},
                               "placement": "proposal time, inside the agent: blocked calls never enter the trajectory"}
         trace["spend"] = _spend_record(simulation, budget)
@@ -231,6 +237,7 @@ def _config_record(opts: RunOptions) -> dict:
                                      f"tau2 LLMAgent + frozen instruction variant {opts.agent_variant!r} appended to the policy"),
                   "variant": _variant_record(opts.agent_variant),
                   "guard_rules": list(opts.agent_guard),
+                  "nudges": list(opts.agent_nudges),
                   "model_requested": opts.agent_model, "llm_args": opts.agent_llm_args},
         "user_simulator": {"implementation": "tau2 user_simulator", "model_requested": opts.user_model,
                            "llm_args": opts.user_llm_args},

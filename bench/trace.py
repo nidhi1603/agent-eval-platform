@@ -130,6 +130,8 @@ def research_eligibility(trace: dict) -> dict:
         flags.append(f"agent instruction variant: {variant} (harness change; benchmark unchanged)")
     if ((trace.get("config", {}).get("agent") or {}).get("guard_rules")):
         flags.append(f"agent proposal guard: {trace['config']['agent']['guard_rules']} (harness change; benchmark unchanged)")
+    if ((trace.get("config", {}).get("agent") or {}).get("nudges")):
+        flags.append(f"agent pre-send checks: {trace['config']['agent']['nudges']} (harness change; benchmark unchanged)")
     if trace.get("config", {}).get("environment_patches"):
         flags.append(f"modified benchmark environment: {trace['config']['environment_patches']}")
     if trace.get("config", {}).get("retrieval_config") != "alltools":
