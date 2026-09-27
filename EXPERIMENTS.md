@@ -72,3 +72,12 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   validation). With the local fix: 0 flags on 532 agent-visible probe outputs (569 calls executed). Grading logic is
   unchanged; hashes, schemas and grades matched on the tested scripted trajectories only. Exposure only; exploitation and score inflation
   not tested. Report: docs/findings/2026-09-27-answer-dependent-listing.md.
+
+### S002: exploratory baseline batch (run 2026-09-27, $1 approved)
+- 6 pre-registered dev tasks, 1 trial each; gpt-5-mini agent, gpt-5.2 user simulator; bm25, unchanged tau2 v1.0.1.
+- **Outcome:** 6/6 finished, **0/6 rewarded**. Exposure `not_observed` in all 6: the check was conclusive and the listing tool was never called.
+- **Spend:** $0.601 full-price estimate ($0.283 cache-aware), within the $1 allocation. Per rollout, mean $0.100 full price. The user simulator is about 51% of cost.
+- **First consequential errors,** labelled by reading traces (`experiments/S002_labels.md`):
+  - The most common observed pattern is a negative conclusion without an adequate search ("not documented", "no tool", "can't do that here"): 5/6 traces, and the first error in 3/6.
+  - Discoverable agent tools were not unlocked when needed in 3/6.
+  - First-error categories are mixed; n = 6, so these are counts, not rates.
