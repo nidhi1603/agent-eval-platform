@@ -1,6 +1,6 @@
 # Research agenda: what to try from recent work, and in what order
 
-Prepared 2026-09-27, as principal research engineer. Sources were read on arXiv (primary text) by research subagents; every arXiv ID was resolved to its title. Numbers marked † were checked word-for-word in the source; others come from full-text reading and should be spot-checked before citing. The DAIR.AI "Harness Engineering" collection (21 papers) was triaged in full; only its 2025–26 entries plus mechanisms from ReAct/Reflexion/Voyager/DSPy are listed.
+Prepared 2026-09-27, as principal research engineer. Three scans: the DAIR harness collection, recent tool-use/policy work, recent evaluation methodology. Sources were read on arXiv (primary text) by research subagents; every arXiv ID was resolved to its title. Numbers marked † were checked word-for-word in the source; others come from full-text reading and should be spot-checked before citing. The DAIR.AI "Harness Engineering" collection (21 papers) was triaged in full; only its 2025–26 entries plus mechanisms from ReAct/Reflexion/Voyager/DSPy are listed.
 
 **Selection rule.** A paper earns a slot only if its mechanism addresses a failure we *measured* (19 live conversations) and it can be tried at zero cost first. Headline numbers on other benchmarks count for little: none of these papers studies a multi-turn, policy-bound customer-service agent under a ~$2.58 budget.
 
@@ -23,12 +23,28 @@ Our measured failures: (F1) found a discoverable tool, never unlocked it (unlock
 | **OpenJarvis** (Saad-Falcon, 2605.17172, §3.3) | Accept an edit only if its target failure cluster improves and no other cluster drops | protocol | acceptance gate in the protocol below |
 | **Selection-Aware Stress Testing** (Xu, 2608.30916) | Discovery gains vanished on confirmation; pre-register "no claim"; tasks as clusters; t-based bounds | protocol | added to pre-registration rules |
 
+### Tool use and policy enforcement (third scan: 12 papers, IDs verified on arXiv; numbers from full-text reading, spot-check before citing)
+
+| Paper | What it shows (as read) | How it changes our plan |
+|---|---|---|
+| **How Strongly Should Task State Influence an LLM Agent?** (Zhang, 2609.25686) | τ²-airline, Qwen3-235B: gated deny rules raise pass^1 0.39→0.54, wrongful-write episodes 54%→35%; replaying gold writes blocks 0/49; an **advisory** warn-once arm let 8 violating writes through under user pressure; silent refusals read as completed work unless the block notice arrives in the same turn (§5.5) | Confirms our split: **enforcement blocks, capability hints advise**. Our block reason reaches the model in the same turn, before it can reply. Next zero-cost step: replay the reference writes of all dev tasks through the observed rules to measure over-blocking |
+| **Outcome Monitors** (Panthi, 2608.19303) | A nonbinding receipt that lists the **recovery tools available** raised τ-bench retail +12–14 points; removing the tool list erased the gain | Direct support for the pre-send check's design (it lists tools already seen) |
+| **AgentTether** (Zhao, 2607.06273) | τ-bench **Banking** (97 tasks): 94% of failures behavioural; root cause a median 4 steps before failure; one-shot fix messages followed less than half the time; **Reflexion gave no gain on Banking** | Caution for our Reflexion-inspired check: measure whether the note is *followed*, not only whether it fires; prefer per-turn checks over preambles |
+| **LedgerAgent** (Uddin, 2606.20529) | Hand-written predicates with allow/revise/block, incl. argument grounding (a value must come from observed state); +12–15 pass^1 on τ² retail/airline, no extra model calls | Generalise `verification_time_from_clock` to an argument-provenance rule for IDs; "revise" rather than hard block |
+| **PolicyGuard** (Kang, 2606.29225) | Dialogue-grounded verifier with conversation-specific remediation; a gpt-5.4-mini agent 0.20→0.36 pass^4 on τ²-airline; argument-only guards starved legitimate writes | Block messages must name the missing prerequisite and next step (ours do); an LLM verifier is a small-budget option for rules we cannot make deterministic |
+| **Fabrication After Tool Failure** (Sethi, 2609.14758) | One failure mode is declining while citing an invented capability limit (our F2); a forced status line cut dishonest answers 14.1%→0.87% | Candidate later package: a "capability check" line before any denial, detectable by regex |
+| **Calibration is the Bottleneck** (Zhao, 2609.00949) | Retry-once on stop-without-tool-call, plus flagging never-given parameter values; effect varies from +11.5 to −21.0 pp by model family | Any intervention must be A/B tested on our model; the sign can flip |
+| **ContrAgent** (Xiao, 2609.18128); **Near-Miss** (Rabinovich, 2603.29665) | Contracts that both block live and grade saved traces; 8–17% of write trajectories skipped a required policy read yet reached the right final state | Our diagnostics already replay the observed rules over saved traces; add "required read before write" checks |
+| **CASD** (Singh, 2609.26261) | A coding agent reading a pool of saved trajectories found absence rules (a call no rollout makes) and wrote better prompts, beating GEPA on 3 of 4 | Our diagnostics found the same absence (unlock in 2/17); a corpus-level prompt revision is a zero-rollout option to compare later |
+| **PROCTOR** (Wahi, 2609.02246) | Canary tasks no honest agent can pass expose answer-key cheating | Add canaries to the F001 audit line of work |
+| **Policy Loopholes** (Cao, 2609.14400) | Scores become unreliable when policy ambiguity meets permissive tools | banking_knowledge tools are permissive (T001); audit policy ambiguity before calling a write an agent error |
+
 ### Try with a small budget (after approval; each < $1)
 
 | Experiment | Mechanism / source | Cost basis | Gate to run |
 |---|---|---|---|
 | **D001 pilot** (frozen): four instruction packages at 4 saved failure points | MCP-Zero (2506.01056) one-example; Play2Prompt (2503.14432, Table 3†) descriptions vs demos | 16 agent-only continuations, ~$0.30 | Nidhi's approval ($0.50) |
-| **N001**: pre-send check vs baseline, *with* observed rules and the disclosed rewards prototype on, at the 13 prefixes where it would fire | Reflexion/Voyager trigger; measure unlock-given-seen, harms proposed/blocked/executed | ~13–26 continuations, est. $0.20–0.45 (to be measured from D001) | D001 read; plan frozen; approval |
+| **N001**: pre-send check vs baseline, *with* observed rules and the disclosed rewards prototype on, at the 13 prefixes where it would fire | Reflexion/Voyager trigger; Outcome Monitors (recovery-tool list); measure whether the note is **followed** (AgentTether), unlock-given-seen, harms proposed/blocked/executed, and legitimate actions wrongly blocked | ~13–26 continuations, est. $0.20–0.45 (to be measured from D001) | D001 read; plan frozen; approval |
 | **DSPy-style demonstration** from the 2 conversations that unlocked correctly | DSPy (2310.03714) bootstrapped demos | continuations only | only if D001's example package shows a signal |
 
 ### Later (needs budget or more data)

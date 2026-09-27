@@ -81,7 +81,8 @@ tau2 grades a conversation by replaying every state-changing tool call recorded 
 | Decision | Evidence |
 |---|---|
 | Keep the benchmark unchanged; changes are harness-side and flagged | F001: even a benign-looking tool listing leaked the answer key; any environment change needs the same scrutiny |
-| Advise at the failure signature instead of standing instructions | S003: a standing "search before denying" instruction cost +45% and did not change success; Meta-Harness (2603.28052, App. A.2): additive information beat prompt rewrites |
+| Advise at the failure signature instead of standing instructions | AgentTether (2607.06273, τ-bench Banking): one-shot fixes are followed less than half the time, so check per turn; S003: a standing "search before denying" instruction cost +45% and did not change success; Meta-Harness (2603.28052, App. A.2): additive information beat prompt rewrites |
+| Enforcement blocks; capability hints advise | Gated vs advisory enforcement (2609.25686): an advisory arm let violating writes through under user pressure; recovery-tool lists were the active ingredient in Outcome Monitors (2608.19303) |
 | Separate enforcement from capability | S003 variant-arm unauthorized write; T001: the environment executes writes with no verification; ChatGPT review; PCAS/FORGE (2602.16708) |
 | Prefer observed evidence; mark database access | ChatGPT review; our finding that the rewards prerequisite is unobservable by the agent |
 | Process diagnostics next to binary reward | 0/18 live rewards; "Deployment Decision Reliability" (2608.11323): binary reliability collapses on hard tasks; ToolSandbox milestones/minefields (2408.04682) |
