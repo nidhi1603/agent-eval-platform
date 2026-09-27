@@ -20,6 +20,14 @@ from bench.budget import Limits
 from bench.run import RunOptions, run
 
 
+def _exposure(trace: dict) -> int | None:
+    """How many agent-visible outputs in this run depended on hidden reference data (None if unchecked)."""
+    indep = trace.get("answer_independence")
+    if not indep or "agent_visible_outputs_depending_on_hidden_reference" not in indep:
+        return None
+    return len(indep["agent_visible_outputs_depending_on_hidden_reference"])
+
+
 def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None) -> dict:
     if abs(approved_usd - plan["budget_usd_total"]) > 1e-9:
         raise SystemExit(f"approved ${approved_usd} does not match the plan's ${plan['budget_usd_total']}")
@@ -54,6 +62,9 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None) -> d
             "unresolved_reservations_usd": spend.get("unresolved_reservations_usd"),
             "counts": trace.get("counts"),
             "flags": (trace.get("research_eligibility") or {}).get("flags"),
+            # exposure is recorded alongside the official outcome; exposed runs are never dropped from the batch
+            "answer_dependent_outputs_seen": _exposure(trace),
+            "answer_independence_conclusive": (trace.get("answer_independence") or {}).get("conclusive"),
             "trace": str(path),
         })
     return {
@@ -64,7 +75,9 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None) -> d
         "scheduled": len(plan["tasks"]),
         "by_status": {st: sum(r["status"] == st for r in rows) for st in {r["status"] for r in rows}},
         "results": rows,
-        "note": "Exploratory sample; first consequential errors are labelled by reading each trace, not by this script.",
+        "exposed_runs": sum(bool(r.get("answer_dependent_outputs_seen")) for r in rows),
+        "note": ("Exploratory sample; first consequential errors are labelled by reading each trace, not by this script. "
+                 "Every scheduled trial keeps its official outcome; exposed runs are reported, not removed."),
     }
 
 

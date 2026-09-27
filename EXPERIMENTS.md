@@ -65,9 +65,10 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 
 ### F001: answer-dependent listing audit (feasibility study, 2026-09-27, $0)
 - Question: can controlled differential replay detect hidden-answer dependencies in agent tool environments,
-  with reproducible evidence and a measured false-positive rate?
-- Result (dev split, bm25, no model calls): one shared mechanism (`list_discoverable_agent_tools` prints an
+  with reproducible evidence and a measured false-positive rate? (The answer gives negative controls within coverage, not a general rate.)
+- Result (dev split, bm25, no model calls, reference-constructed probes): one shared mechanism (`list_discoverable_agent_tools` prints an
   evaluation log filtered by the reference actions) exposes answer information in 17/30 tasks (145 of 442
-  agent-visible reference-probe outputs); the flagged set equals the code-predicted set exactly. With the local
-  fix: 0 flags in 569 probe calls, grading and schemas unchanged. Exposure only; exploitation and score inflation
+  agent-visible reference-probe outputs); the flagged set equals the code-predicted set (a mechanism consistency check, not independent
+  validation). With the local fix: 0 flags on 532 agent-visible probe outputs (569 calls executed). Grading logic is
+  unchanged; hashes, schemas and grades matched on the tested scripted trajectories only. Exposure only; exploitation and score inflation
   not tested. Report: docs/findings/2026-09-27-answer-dependent-listing.md.

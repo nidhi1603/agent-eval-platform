@@ -415,8 +415,11 @@ def test_batch_shares_one_allocation_and_records_every_scheduled_task(monkeypatc
     def fake_run(opts):
         caps.append(opts.budget_usd)
         spent = min(0.45, opts.budget_usd)  # each run uses up to $0.45 of upper-bound spend
+        exposed = [{"tool": "list_discoverable_agent_tools"}] if opts.task_id == "b" else []
         trace = {"run_id": opts.task_id, "execution": {"finished": spent == 0.45}, "evaluation": {"reward": 0.0},
-                 "spend": {"incurred": {"upper_bound_usd": spent}}, "persisted": True}
+                 "spend": {"incurred": {"upper_bound_usd": spent}}, "persisted": True,
+                 "answer_independence": {"conclusive": True,
+                                         "agent_visible_outputs_depending_on_hidden_reference": exposed}}
         return trace, tmp_path / f"{opts.task_id}.json"
 
     monkeypatch.setattr(batch, "run", fake_run)
@@ -427,5 +430,8 @@ def test_batch_shares_one_allocation_and_records_every_scheduled_task(monkeypatc
     assert caps == [1.0, 0.55, pytest.approx(0.1)]  # each cap = allocation minus earlier upper-bound spend
     assert [r["status"] for r in summary["results"]] == ["finished", "finished", "interrupted_or_failed", "not_run"]
     assert summary["spend_upper_bound_usd"] <= 1.0 and summary["scheduled"] == 4
+    # exposed runs keep their official outcome and are counted, not dropped
+    assert [r.get("answer_dependent_outputs_seen") for r in summary["results"]] == [0, 1, 0, None]
+    assert summary["exposed_runs"] == 1 and summary["results"][1]["official_reward"] == 0.0
     with pytest.raises(SystemExit):
         batch.run_batch(plan, 2.0)  # the approval must match the committed plan

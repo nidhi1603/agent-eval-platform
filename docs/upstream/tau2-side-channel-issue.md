@@ -23,13 +23,13 @@ discoverable read, an agent can therefore learn whether that read is part of the
 
 **Expected.** Agent-visible outputs do not depend on the task's evaluation criteria.
 
-**Impact.** Small: one bit about a read the agent has already made. But it is a channel from the answer
-key to the agent, so an optimized harness could exploit it (for example, by probing reads).
+**Impact.** Small per call: one bit about a read the agent has already made. But the channel runs from the answer key
+to the agent. We have not tested whether any agent or optimized harness uses it.
 
-**Scope measured locally** (30 tasks of our development split, `bm25`, no LLM calls; replaying each task's
+**Scope measured locally** (30 tasks of our development split, `bm25`, no LLM calls; reference-constructed probes, i.e. replaying each task's
 reference actions against environments built from the task and from a copy with its evaluation criteria
-emptied): the listing depends on the reference actions in 17 of 30 tasks, exactly the tasks whose reference
-contains a discoverable call to a non-mutating tool. One mechanism, many tasks. Other agent-visible tool outputs
+emptied): the listing depends on the reference actions in 17 of 30 tasks, matching the tasks whose reference
+contains a discoverable call to a non-mutating tool (consistent with the mechanism above). One mechanism, many tasks. Other agent-visible tool outputs
 exercised showed no such dependency (coverage-limited).
 
 **Related minor bug.** The empty-state branch checks for "No results found", but `query_database_tool`
