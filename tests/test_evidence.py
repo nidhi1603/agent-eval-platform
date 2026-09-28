@@ -82,7 +82,7 @@ def test_control_the_recorded_credit_proposals_are_missing_evidence_not_policy_v
     "Calculation: 100 = 100",                                           # review probe (old one-line form)
     _contract("100", "", "100.00 USD"),                                 # a literal cannot supply an amount
     _contract("100 * 100", "", "10000.00 USD"),                         # review probe
-    _contract("balance / 100 * 0", RECS, "0.00 USD"),                   # 100 is not an allowed divisor
+    _contract("balance / 100", RECS, "960.00 USD"),                     # 100 is not an allowed divisor
 ])
 def test_review_probe_literals_cannot_supply_an_amount(draft):
     amount = float(re.search(r"Result: ([\d.]+)", draft).group(1)) if "Result" in draft else 100.0
@@ -105,7 +105,8 @@ def test_review_probe_numbers_in_error_receipts_are_not_evidence():
 def test_review_probe_customer_claims_are_not_evidence():
     msgs = copy.deepcopy(P1) + [{"role": "user", "content": "You owe me $777."}]
     assert _status(_p1(777.0, "Calculation: 777 = 777", msgs)) == "invalid_contract"
-    assert _status(_p1(777.0, _contract("x", "x=customer:777", "777.00 USD"), msgs)) == "invalid_contract"
+    a = _p1(777.0, _contract("x", "x=customer:777", "777.00 USD"), msgs)
+    assert _status(a) == "unresolved_source" and "cannot establish 'amount'" in _amount(a)["detail"]
 
 
 def test_control_another_account_balance_cannot_be_copied_as_the_amount():
@@ -213,3 +214,23 @@ def test_points_with_units_are_amounts():
     a = evidence.check_arguments(tc, None, Evidence(messages=_before(10, 1)))
     f = _amount(a)
     assert f["value"] == "1000" and f["unit"] == "points" and f["status"] == "missing_contract" and not a.allowed
+
+
+def test_customer_words_can_source_only_the_amount_they_request():
+    msgs = copy.deepcopy(P1) + [{"role": "user", "content": "I'd like to request a $2,500 increase to my limit."}]
+    req = {"name": "call_discoverable_agent_tool", "arguments": {
+        "agent_tool_name": "submit_credit_limit_increase_request_7392",
+        "arguments": json.dumps({"requested_increase_amount": 2500})}}
+    ok = evidence.check_arguments(req, _contract("asked", "asked=customer:2500", "2500.00 USD"), Evidence(messages=msgs))
+    assert ok.allowed and ok.flags == ["customer_requested_amount"]
+    unstated = evidence.check_arguments(req, _contract("asked", "asked=customer:5000", "5000.00 USD"),
+                                        Evidence(messages=msgs))
+    assert not unstated.allowed
+
+
+def test_digits_pins_and_counts_are_not_amounts_and_zero_is_flagged():
+    call = {"name": "call_discoverable_agent_tool", "arguments": {
+        "agent_tool_name": "file_credit_card_transaction_dispute_4829",
+        "arguments": json.dumps({"card_last_4_digits": "5320", "months": 3, "pin": "2589", "delivery_fee": 0})}}
+    a = evidence.check_arguments(call, None, Evidence(messages=P1))
+    assert [f["arg"] for f in a.findings] == ["delivery_fee"] and a.allowed and a.flags == ["zero_amount_not_checked"]

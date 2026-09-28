@@ -168,6 +168,9 @@ RULES = {
         "note": "No agent tool reads cash_back_disputes (only the customer's submit tool writes it, and its result goes "
                 "to the customer), so an observed-evidence version of this rule could never allow the legitimate flow."},
 }
+EVIDENCE_FEEDBACK = ("Identifiers must come from records you retrieved for this customer. For any amount, state in the same "
+                     "message: 'Calculation: <formula over named inputs> = <name>', 'Sources: name=record:<record_id>.<field>; "
+                     "name=policy:<doc_id>:<value>' and 'Result: <amount> USD|points'. You may correct the call once.")
 OBSERVED_RULES = tuple(r for r, spec in RULES.items() if spec["evidence"] == "observed")
 
 
@@ -225,6 +228,10 @@ def make_guarded_agent_class():
         guard_db = None
         discoverable_names: frozenset = frozenset()
         agent_tool_names: frozenset = frozenset()
+        # Argument-evidence check (bench/evidence.py): None (off), "record" (assess and log every proposal, never
+        # block) or "enforce" (writes that fail get one private correction; a second failure is withheld).
+        # Reads are only ever recorded.
+        evidence_mode: str | None = None
 
         def __init__(self, *a, **kw):
             super().__init__(*a, **kw)
@@ -242,9 +249,54 @@ def make_guarded_agent_class():
                                              messages=state.system_messages + state.messages,
                                              call_name="agent_response", **self.llm_args)
 
+        def _evidence_review(self, proposal, ev, state, corrections):
+            """None to continue with this proposal, "regenerate" after adding private feedback, or a withheld
+            replacement message."""
+            from bench import evidence as evidence_mod
+
+            if ev.tool_type is None:
+                raise GuardConfigError("the evidence check needs tool-type metadata (guard_toolkit not set)")
+            failing = []
+            for tc in proposal.tool_calls:
+                name, _ = target(tc)
+                if tc.name in ("unlock_discoverable_agent_tool", "give_discoverable_user_tool"):
+                    continue
+                a = evidence_mod.check_arguments(tc, proposal.content, ev)
+                if not a.findings:
+                    continue
+                kind = ev.tool_type(name)
+                enforce = self.evidence_mode == "enforce" and kind == "write"
+                self.events.append({"event": "evidence_assessed", "mode": self.evidence_mode, "tool": name,
+                                    "tool_type": kind, "attempt": corrections, "allowed": a.allowed,
+                                    "enforced": enforce, "findings": a.findings, "flags": a.flags,
+                                    "draft_text": proposal.content, "arguments": tc.arguments})
+                if enforce and not a.allowed:
+                    failing.append((tc, a))
+            if not failing:
+                return None
+            if corrections >= 1:
+                self.events.append({"event": "evidence_withheld", "tools": [target(tc)[0] for tc, _ in failing]})
+                return AssistantMessage(role="assistant", content=(
+                    "I can't make that change yet: I couldn't document the values it depends on. "
+                    "I haven't changed anything on your account."))
+            state.messages.append(proposal)
+            problems = {id(tc): [f"{f['arg']}: {f.get('problem') or f.get('status')} ({f.get('detail', '')})"
+                                 for f in a.findings if not (f.get("basis") if f["kind"] == "id"
+                                                            else f["status"] == "supported")]
+                        for tc, a in failing}
+            for tc in proposal.tool_calls:
+                state.messages.append(ToolMessage(id=tc.id, role="tool", requestor="assistant", error=id(tc) in problems,
+                                                  content=("Not executed: evidence check failed. " +
+                                                           "; ".join(problems[id(tc)]) + ". " + EVIDENCE_FEEDBACK)
+                                                  if id(tc) in problems else
+                                                  "Not executed: another tool call in the same message failed the evidence check."))
+            self.events.append({"event": "evidence_blocked", "tools": [target(tc)[0] for tc, _ in failing]})
+            return "regenerate"
+
         def _generate_next_message(self, message, state):
             proposal = super()._generate_next_message(message, state)
             blocks = 0
+            corrections = 0
             while True:
                 ev = self._evidence(state)
                 decisions = [(tc, check(tc, ev, self.guard_rules)) for tc in proposal.tool_calls or []]
@@ -268,6 +320,14 @@ def make_guarded_agent_class():
                     blocks += 1
                     proposal = self._regenerate(state)
                     continue  # every proposal, including the last, is checked
+                if self.evidence_mode and proposal.tool_calls:
+                    held = self._evidence_review(proposal, ev, state, corrections)
+                    if held == "regenerate":
+                        corrections += 1
+                        proposal = self._regenerate(state)
+                        continue  # the correction is reviewed again by every rule and check
+                    if held is not None:
+                        return held
                 if "locked_named_tool_before_denial_or_transfer" in self.harness_nudges and self.nudges_fired == 0:
                     draft = messages_as_dicts([proposal])[0]
                     names = nudge_mod.trigger(draft, ev.messages, set(self.discoverable_names))

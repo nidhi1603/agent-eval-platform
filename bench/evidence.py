@@ -21,8 +21,12 @@ missing/invalid evidence, never as a policy violation.
   that number in it (`%` scales by 1/100). Literal numbers in the formula are allowed only as the divisors 12 and
   365. Arithmetic is decimal; USD rounds half-up to cents, points to whole points. A direct copy is a formula with
   one input (`Calculation: fee = refund`); the field's purpose is recorded, not verified.
-- Numbers from error receipts (including `error=False` results that begin "Error") and the customer's own words are
-  never amount evidence.
+- Numbers from error receipts (including `error=False` results that begin "Error") are never evidence. The customer's
+  words (`customer:<value>`) are evidence only for the amount of their own request (argument names containing
+  "request"), never for an entitlement such as a credit or refund.
+- Amounts are money/points arguments by name (amount, limit, fee, rewards, points, liability, balance, credit);
+  card digits, PINs, CVVs, counts and rates are not checked as amounts. A zero amount is allowed and flagged
+  `zero_amount_not_checked`.
 """
 
 from __future__ import annotations
@@ -48,8 +52,14 @@ CALC = re.compile(r"^\s*(?P<formula>[^=\n]+?)\s*=\s*(?P<name>[A-Za-z_]\w*)\s*$",
 SOURCES = re.compile(r"Sources:(?P<src>.*?)(?=Result:|\Z)", re.S | re.I)
 RESULT = re.compile(r"Result:\s*\$?(?P<value>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>USD|points?)\b", re.I)
 REF = re.compile(r"^(?P<name>[A-Za-z_]\w*)\s*=\s*(?:(?P<kind>record):(?P<rec>[^.\s]+)\.(?P<field>\w+)"
-                 r"|(?P<pkind>policy):(?P<doc>doc_[^:\s]+):(?P<pval>-?\d[\d,]*(?:\.\d+)?)(?P<pct>%)?)\s*$")
+                 r"|(?P<pkind>policy):(?P<doc>doc_[^:\s]+):(?P<pval>-?\d[\d,]*(?:\.\d+)?)(?P<pct>%)?"
+                 r"|(?P<ckind>customer):\$?(?P<cval>-?\d[\d,]*(?:\.\d+)?))\s*$")
 ALLOWED_DIVISORS = {Decimal(12), Decimal(365)}
+# Which numeric arguments are amounts (money or points). Card digits, PINs, CVVs and counts are not.
+AMOUNT_KEY = re.compile(r"amount|limit|fee|rewards|points|liability|credit$|balance", re.I)
+NOT_AMOUNT_KEY = re.compile(r"last_4|digits|pin|cvv|months|days|count|zip|phone|apy|rate", re.I)
+# Argument names for which the customer's own words are the legitimate source of the amount they are requesting.
+REQUEST_KEY = re.compile(r"request", re.I)
 OWNER_LINKS = ("account_id", "credit_card_account_id", "card_id")
 QUANTUM = {"usd": Decimal("0.01"), "points": Decimal("1")}
 # A heuristic, not a purpose check: a stock value (a balance or limit) is never by itself the amount of a credit,
@@ -185,7 +195,16 @@ def policy_documents(ev: Evidence) -> dict[str, str]:
     return docs
 
 
-def _resolve(ref: re.Match, owned_records: list[dict], docs: dict[str, str]) -> tuple[Decimal, dict]:
+def _resolve(ref: re.Match, owned_records: list[dict], docs: dict[str, str], arg_key: str = "",
+             customer_text: str = "") -> tuple[Decimal, dict]:
+    if ref.group("ckind"):
+        value = _dec(ref.group("cval"))
+        if not REQUEST_KEY.search(arg_key):
+            raise ContractError("unresolved_source", f"the customer's words cannot establish {arg_key!r}; only the "
+                                                     "amount of a customer's own request may come from them")
+        if value not in numbers_in(customer_text):
+            raise ContractError("unresolved_source", f"the customer did not state {ref.group('cval')}")
+        return value, {"source": f"customer:{ref.group('cval')}"}
     if ref.group("kind"):
         rid, fld = ref.group("rec"), ref.group("field")
         for rec in owned_records:
@@ -209,7 +228,7 @@ def _unit(key: str, suffix: str | None) -> str:
 
 
 def assess_amount(value: Decimal, unit: str, draft_text: str | None, owned_records: list[dict],
-                  docs: dict[str, str]) -> dict:
+                  docs: dict[str, str], arg_key: str = "", customer_text: str = "") -> dict:
     blocks = [b.group("body") for b in BLOCK.finditer(draft_text or "")]
     if not blocks:
         return {"status": "missing_contract", "detail": "no Calculation block in the draft"}
@@ -232,7 +251,7 @@ def assess_amount(value: Decimal, unit: str, draft_text: str | None, owned_recor
                 m = REF.match(e)
                 if not m:
                     raise ContractError("invalid_contract", f"source entry not understood: {e!r}")
-                inputs[m.group("name")], sources[m.group("name")] = _resolve(m, owned_records, docs)
+                inputs[m.group("name")], sources[m.group("name")] = _resolve(m, owned_records, docs, arg_key, customer_text)
             computed, used = evaluate(calc.group("formula"), inputs)
             if not used:
                 raise ContractError("invalid_contract", "the formula uses no sourced input")
@@ -268,6 +287,7 @@ def check_arguments(tool_call, draft_text: str | None, ev: Evidence) -> Assessme
     owned, owner_of = ownership(recs, customer)
     owned_records = [r for r in recs if any(v in owned for k, v in r.items() if ID_KEY.search(k) or k == "Record ID")]
     docs = policy_documents(ev)
+    customer_text = " ".join(m.get("content") or "" for m in ev.messages if m.get("role") == "user")
     error_text = " ".join(r.get("content") or "" for c, r in ev.results()
                           if r.get("error") or not receipt_ok(c["name"], r.get("content")))
     out = Assessment(True)
@@ -291,14 +311,21 @@ def check_arguments(tool_call, draft_text: str | None, ev: Evidence) -> Assessme
             out.findings.append({"arg": path, "kind": "id", "value": v, **f})
             continue
         m = AMOUNT_VALUE.match(str(value)) if isinstance(value, (str, int, float)) and not isinstance(value, bool) else None
-        if not m:
+        if not m or NOT_AMOUNT_KEY.search(key) or not (AMOUNT_KEY.search(key) or m.group(2)):
             continue
         unit = _unit(key, m.group(2))
         amount = _dec(m.group(1))
-        f = assess_amount(amount, unit, draft_text, owned_records, docs)
+        if amount == 0:
+            out.flags.append("zero_amount_not_checked")
+            out.findings.append({"arg": path, "kind": "amount", "value": "0", "unit": unit, "status": "supported",
+                                 "basis": "zero"})
+            continue
+        f = assess_amount(amount, unit, draft_text, owned_records, docs, key, customer_text)
+        if f["status"] == "supported" and "customer" in f.get("input_kinds", []):
+            out.flags.append("customer_requested_amount")
         if f["status"] == "supported" and "policy" in f.get("input_kinds", []):
             out.flags.append("policy_applicability_not_checked")
-        if f.get("basis") == "direct_reference":
+        if f.get("basis") == "direct_reference" and f.get("input_kinds") == ["record"]:
             out.flags.append("source_purpose_not_verified")
         out.findings.append({"arg": path, "kind": "amount", "value": str(amount), "unit": unit, **f})
     out.allowed = all(f.get("basis") if f["kind"] == "id" else f["status"] == "supported" for f in out.findings)

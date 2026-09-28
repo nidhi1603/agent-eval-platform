@@ -160,7 +160,8 @@ def final_state(case: dict, env, before: dict) -> dict:
 
 
 def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds: int = 8,
-                  guard_rules: tuple = (), nudges: tuple = (), budget=None, record_path: Path | None = None) -> dict:
+                  guard_rules: tuple = (), nudges: tuple = (), budget=None, record_path: Path | None = None,
+                  evidence_mode: str | None = None) -> dict:
     """Run one continuation. The caller installs spending control (bench.budget.install). Always returns a
     record; on an exception the record keeps every action taken so far, with status 'error'."""
     from tau2.data_model.message import MultiToolMessage
@@ -170,6 +171,7 @@ def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds
     from bench import agent as agent_mod
 
     rec: dict = {"case": case["id"], "variant": variant, "guard_rules": list(guard_rules), "nudges": list(nudges),
+                 "evidence_mode": evidence_mode,
                  "status": "started", "proposals": [], "calls": [], "final_text": None, "rounds": 0}
     seq_start = len(budget.calls) if budget is not None else None
 
@@ -192,8 +194,9 @@ def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds
         if not seen or seen[-1]["role"] not in ("user", "tool"):
             raise PlanError("a prefix must end with the customer's or a tool's message")
         agent = agent_mod.factory(tools=env.get_tools(), domain_policy=env.get_policy(), variant=variant,
-                                  guard_rules=tuple(guard_rules), nudges=tuple(nudges), llm=llm, llm_args=dict(llm_args))
-        if guard_rules or nudges:
+                                  guard_rules=tuple(guard_rules), nudges=tuple(nudges), evidence_mode=evidence_mode,
+                                  llm=llm, llm_args=dict(llm_args))
+        if guard_rules or nudges or evidence_mode:
             from bench import guard
 
             agent.guard_toolkit = env.tools
@@ -289,6 +292,12 @@ def score(case: dict, rec: dict) -> dict:
             proposed.append((e["tool_call"], e["arguments"]))
         elif e.get("event") == "nudged":
             proposed += [(tc["name"], tc["arguments"]) for tc in e.get("draft_tool_calls_full", [])]
+        elif e.get("event") == "evidence_assessed" and e.get("enforced") and not e.get("allowed"):
+            call = {"name": "call_discoverable_agent_tool",
+                    "arguments": e["arguments"]} if isinstance(e.get("arguments"), dict) and "agent_tool_name" in e["arguments"] else None
+            pair = (call["name"], call["arguments"]) if call else (e["tool"], e.get("arguments") or {})
+            blocked.append(pair)
+            proposed.append(pair)
     names = lambda pairs: sorted({underlying(n, a) for n, a in pairs})  # noqa: E731
     discoverable_calls = lambda cs: [c for c in cs if c["name"] == "call_discoverable_agent_tool"]  # noqa: E731
     ok_calls = [c for c in calls if c["ok"]]
@@ -357,6 +366,9 @@ def preflight(plan: dict, approved_usd: float) -> dict:
             raise PlanError(f"run references variant {item['variant']!r} that the plan does not fingerprint")
         if item.get("arm") is not None and item["arm"] not in arms:
             raise PlanError(f"run references undefined arm {item['arm']!r}")
+    for name, arm in arms.items():
+        if arm.get("evidence") not in (None, "record", "enforce"):
+            raise PlanError(f"arm {name!r}: evidence must be null, 'record' or 'enforce'")
     return {
         "batch_id": plan["batch_id"],
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -407,7 +419,8 @@ def main(argv=None) -> int:
             r = continue_case(cases[item["case"]], item["variant"], plan["settings"]["agent_model"],
                               plan["settings"]["agent_args"], plan["settings"].get("max_rounds", 8),
                               tuple(arm.get("guard_rules", ())), tuple(arm.get("nudges", ())),
-                              budget=budget, record_path=out_dir / f"run_{k:02d}.json")
+                              budget=budget, record_path=out_dir / f"run_{k:02d}.json",
+                              evidence_mode=arm.get("evidence"))
             rows.append({**base, **r})
             stopped = r.get("error_type") in ("BudgetExceeded", "BoundViolation")
             (out_dir / "results.json").write_text(json.dumps(rows, indent=2, default=str) + "\n")

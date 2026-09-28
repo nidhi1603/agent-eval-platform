@@ -22,7 +22,8 @@ FORBIDDEN_RETRIEVAL_CONFIGS = {"golden_retrieval"}
 last_build: dict = {}
 
 
-def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple = (), nudges: tuple = (), **kwargs):
+def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple = (), nudges: tuple = (),
+            evidence_mode: str | None = None, **kwargs):
     """Registered with tau2. Builds the standard tau2 LLMAgent from allowlisted inputs only. A non-baseline
     variant appends its frozen instruction text (bench/variants/) to the domain policy; nothing else changes."""
     from tau2.agent.llm_agent import LLMAgent
@@ -38,17 +39,22 @@ def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple 
         "variant": variants.record(variant),
         "guard_rules": list(guard_rules),
         "nudges": list(nudges),
+        "evidence_mode": evidence_mode,
     })
+    if evidence_mode not in (None, "record", "enforce"):
+        raise ValueError(f"evidence_mode must be None, 'record' or 'enforce', not {evidence_mode!r}")
+    guarded = bool(guard_rules or nudges or evidence_mode)
     cls = LLMAgent
-    if guard_rules or nudges:
+    if guarded:
         from bench import guard
 
         cls = guard.make_guarded_agent_class()
     built = cls(tools=tools, domain_policy=variants.apply(domain_policy, variant), llm=kwargs["llm"],
                 llm_args=deepcopy(kwargs.get("llm_args") or {}))
-    if guard_rules or nudges:
+    if guarded:
         built.guard_rules = tuple(guard_rules)
         built.harness_nudges = tuple(nudges)  # toolkit (and db, if needed) are attached once the environment exists
+        built.evidence_mode = evidence_mode
     return built
 
 

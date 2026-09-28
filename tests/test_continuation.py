@@ -220,3 +220,52 @@ def test_continuations_can_run_with_the_pre_send_check_and_permission_rules(tmp_
     assert [e["event"] for e in ev] == ["nudged"] and ev[0]["names"][0] == tool
     assert ev[0]["draft_text"].startswith("I don't have access") and ev[0]["note"].startswith("Harness note")
     assert r["score"]["success"] and r["final_text"] == "I found your accounts."
+
+
+# ---- argument-evidence check modes (D002 arms) --------------------------------------------------------
+
+CREDIT, ACCTS, TXNS = "apply_savings_account_credit_6831", "get_all_user_accounts_by_user_id_3847", "get_bank_account_transactions_9173"
+GOLD = "sav_lm83h7k2p5_gold"
+LOOKUPS = [unlock(ACCTS), call(ACCTS, user_id="lm83h7k2p5"), unlock(TXNS), call(TXNS, account_id=GOLD), unlock(CREDIT)]
+BARE = call(CREDIT, account_id=GOLD, amount=100.0, credit_type="interest_correction")
+SOURCED = {**call(CREDIT, account_id=GOLD, amount=450.0, credit_type="interest_correction"),
+           "say": "Calculation: posted = correction\nSources: posted=record:btxn_9a76d3ee8b01.amount\nResult: 450.00 USD"}
+
+
+def _credit_calls(r):
+    return [c for c in r["calls"] if c["name"] == "call_discoverable_agent_tool" and c["underlying"] == CREDIT]
+
+
+def _evidence_events(r, kind):
+    return [e for e in r["harness_events"] if e["event"] == kind]
+
+
+def test_enforce_blocks_an_unsupported_write_once_and_executes_the_sourced_correction(tmp_path):
+    r = _run("P1", LOOKUPS + [BARE, SOURCED, {"say": "Credited."}], tmp_path, evidence_mode="enforce")
+    assert [json.loads(c["arguments"]["arguments"])["amount"] for c in _credit_calls(r)] == [450.0]  # $100 never executed
+    assert len(_evidence_events(r, "evidence_blocked")) == 1 and not _evidence_events(r, "evidence_withheld")
+    assessed = [e for e in _evidence_events(r, "evidence_assessed") if e["tool"] == CREDIT]
+    assert [e["allowed"] for e in assessed] == [False, True] and all(e["enforced"] for e in assessed)
+    assert CREDIT in r["score"]["blocked_tools"] and CREDIT in r["score"]["proposed_tools"]
+
+
+def test_enforce_withholds_after_one_failed_correction(tmp_path):
+    r = _run("P1", LOOKUPS + [BARE, BARE, {"say": "unused"}], tmp_path, evidence_mode="enforce")
+    assert not _credit_calls(r)
+    assert len(_evidence_events(r, "evidence_withheld")) == 1
+    assert r["status"] == "text" and "haven't changed anything" in r["final_text"]
+
+
+def test_record_mode_assesses_but_never_blocks(tmp_path):
+    r = _run("P1", LOOKUPS + [BARE, {"say": "Credited."}], tmp_path, evidence_mode="record")
+    assert len(_credit_calls(r)) == 1
+    e = [e for e in _evidence_events(r, "evidence_assessed") if e["tool"] == CREDIT][0]
+    assert e["allowed"] is False and e["enforced"] is False and not _evidence_events(r, "evidence_blocked")
+
+
+def test_reads_are_recorded_not_enforced(tmp_path):
+    r = _run("P1", [unlock(ACCTS), call(ACCTS, user_id="zz_guess_01"), {"say": "Nothing found."}], tmp_path,
+             evidence_mode="enforce")
+    assert [c["underlying"] for c in r["calls"]] == [ACCTS, ACCTS]
+    e = [e for e in _evidence_events(r, "evidence_assessed") if e["tool"] == ACCTS][0]
+    assert e["tool_type"] == "read" and e["allowed"] is False and e["enforced"] is False
