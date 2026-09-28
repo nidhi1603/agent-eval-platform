@@ -1,44 +1,60 @@
 """Argument-evidence check for write proposals (offline; not wired into any run yet).
 
-Question it answers for one proposed call: is every identifier and amount in the arguments backed by evidence the
-agent actually received? It does NOT decide whether the action is permitted or the amount is what policy intends:
-a correctly derived amount from conflicting documents passes, flagged `policy_applicability_not_checked`.
+For one proposed call it asks: is every identifier and amount backed by evidence the agent actually received?
+It does NOT decide whether the action is permitted, or whether an amount is what policy intends. A correctly
+computed amount from conflicting documents passes, flagged `policy_applicability_not_checked`: that flag marks
+something the checker never evaluates, not a conflict it detected. Missing or malformed evidence is reported as
+missing/invalid evidence, never as a policy violation.
 
-Three kinds of value, three kinds of evidence (tech-lead review of 6d42140):
-- **Identifier** (`*_id`): an exact field value in a record from a successful tool result, owned by the verified
-  customer (directly, or through an owned account/card). Seen only in an error message, or nowhere, is not
-  evidence; a valid identifier of another customer is not evidence for this customer.
-- **Directly supplied amount:** exact numeric equality (not substring) with a money/points field of an owned
-  record. Recorded as `record_field`; the field's purpose is not verified.
-- **Calculated amount:** a `Calculation: <expression> = <result>` line in the same draft. The expression must
-  evaluate to the result and to the argument, and every operand must appear as a number in received evidence
-  (tool results or the customer's words), apart from unit constants.
+- **Identifier** (`*_id`): an exact field value in a record from a successful receipt, owned by the verified
+  customer (directly, or through an owned account/card). An identifier seen only in an error, or nowhere, is not
+  evidence; nor is another customer's valid identifier.
+- **Amount:** needs a contract block in the same draft, whose inputs are all named and sourced:
 
-Only numbers are compared as numbers, so "100.0" no longer matches inside "2100.00" (D001 run 01).
+      Calculation: balance * (base_apy + boost) / 12 - posted = correction
+      Sources: balance=record:sav_x.current_holdings; base_apy=policy:doc_y:5.5%; boost=policy:doc_z:0.75%;
+               posted=record:btxn_w.amount
+      Result: 42.50 USD
+
+  `record:<id>.<field>` resolves to that field of a record from a successful receipt owned by the verified
+  customer. `policy:<doc_id>:<value>` requires that document in a successful KB result the agent received, with
+  that number in it (`%` scales by 1/100). Literal numbers in the formula are allowed only as the divisors 12 and
+  365. Arithmetic is decimal; USD rounds half-up to cents, points to whole points. A direct copy is a formula with
+  one input (`Calculation: fee = refund`); the field's purpose is recorded, not verified.
+- Numbers from error receipts (including `error=False` results that begin "Error") and the customer's own words are
+  never amount evidence.
 """
 
 from __future__ import annotations
 
 import ast
 import json
-import operator
 import re
-from pathlib import Path
 from dataclasses import dataclass, field
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from pathlib import Path
 
 from bench.continuation import receipt_ok
 from bench.guard import VERIFIED, Evidence, target
 
 ID_KEY = re.compile(r"(^|_)id$")
-MONEY_FIELD = re.compile(r"amount|balance|holdings|fee|credit|points|rewards|limit|interest", re.I)
 NUMBER = re.compile(r"(?<![\w.])-?\$?\d[\d,]*(?:\.\d+)?")
-AMOUNT_VALUE = re.compile(r"^\s*\$?(-?\d[\d,]*(?:\.\d+)?)\s*(?:points?|pts|usd|dollars)?\s*$", re.I)
-CALCULATION = re.compile(r"Calculation:\s*(?P<expr>[^=\n]+?)\s*=\s*\$?(?P<result>-?\d[\d,]*(?:\.\d+)?)", re.I)
+AMOUNT_VALUE = re.compile(r"^\s*\$?(-?\d[\d,]*(?:\.\d+)?)\s*(points?|pts|usd|dollars)?\s*$", re.I)
 RECORD_SPLIT = re.compile(r"\n\s*\d+\.\s+Record ID:")
 FIELD_LINE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*):\s*(.+?)\s*$")
-UNIT_CONSTANTS = {1.0, 12.0, 100.0, 365.0}
+DOC_ID_LINE = re.compile(r"^\s*ID:\s*(doc_\S+)\s*$", re.M)
+BLOCK = re.compile(r"Calculation:(?P<body>.*?)(?=Calculation:|\Z)", re.S | re.I)
+CALC = re.compile(r"^\s*(?P<formula>[^=\n]+?)\s*=\s*(?P<name>[A-Za-z_]\w*)\s*$", re.M)
+SOURCES = re.compile(r"Sources:(?P<src>.*?)(?=Result:|\Z)", re.S | re.I)
+RESULT = re.compile(r"Result:\s*\$?(?P<value>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>USD|points?)\b", re.I)
+REF = re.compile(r"^(?P<name>[A-Za-z_]\w*)\s*=\s*(?:(?P<kind>record):(?P<rec>[^.\s]+)\.(?P<field>\w+)"
+                 r"|(?P<pkind>policy):(?P<doc>doc_[^:\s]+):(?P<pval>-?\d[\d,]*(?:\.\d+)?)(?P<pct>%)?)\s*$")
+ALLOWED_DIVISORS = {Decimal(12), Decimal(365)}
 OWNER_LINKS = ("account_id", "credit_card_account_id", "card_id")
-CENT = 0.005
+QUANTUM = {"usd": Decimal("0.01"), "points": Decimal("1")}
+# A heuristic, not a purpose check: a stock value (a balance or limit) is never by itself the amount of a credit,
+# refund or correction. It may be an input to a calculation.
+STOCK_FIELD = re.compile(r"balance|holdings|limit|available", re.I)
 
 
 @dataclass
@@ -48,15 +64,15 @@ class Assessment:
     flags: list[str] = field(default_factory=list)
 
 
-def _num(text) -> float | None:
+def _dec(text) -> Decimal | None:
     try:
-        return float(str(text).replace("$", "").replace(",", ""))
-    except ValueError:
+        return Decimal(str(text).replace("$", "").replace(",", "").strip())
+    except (InvalidOperation, ValueError):
         return None
 
 
-def numbers_in(text: str) -> set[float]:
-    return {n for n in (_num(t) for t in NUMBER.findall(text or "")) if n is not None}
+def numbers_in(text: str) -> set[Decimal]:
+    return {n for n in (_dec(t) for t in NUMBER.findall(text or "")) if n is not None}
 
 
 def records(content: str) -> list[dict]:
@@ -71,8 +87,9 @@ def records(content: str) -> list[dict]:
         pass
     out = []
     for block in RECORD_SPLIT.split("\n" + text)[1:]:
-        rec = {}
-        for line in block.splitlines():
+        lines = block.splitlines()
+        rec = {"Record ID": lines[0].strip()} if lines and lines[0].strip() else {}
+        for line in lines[1:]:
             m = FIELD_LINE.match(line)
             if m:
                 rec.setdefault(m.group(1), m.group(2))
@@ -111,50 +128,128 @@ def ownership(recs: list[dict], customer: str | None) -> tuple[set[str], dict[st
     return {i for i, o in owner_of.items() if customer and o == customer}, owner_of
 
 
-_OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv}
+class ContractError(Exception):
+    def __init__(self, status: str, detail: str):
+        super().__init__(detail)
+        self.status, self.detail = status, detail
 
 
-def _eval(node):
+def _evaluate(node, inputs: dict[str, Decimal], used: set[str]) -> Decimal:
     if isinstance(node, ast.Expression):
-        return _eval(node.body)
-    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-        return float(node.value)
-    if isinstance(node, ast.BinOp) and type(node.op) in _OPS:
-        return _OPS[type(node.op)](_eval(node.left), _eval(node.right))
+        return _evaluate(node.body, inputs, used)
+    if isinstance(node, ast.Name):
+        if node.id not in inputs:
+            raise ContractError("invalid_contract", f"input {node.id!r} has no source")
+        used.add(node.id)
+        return inputs[node.id]
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+        if isinstance(node.op, ast.Div) and isinstance(node.right, ast.Constant):
+            d = _dec(node.right.value)
+            if d not in ALLOWED_DIVISORS:
+                raise ContractError("invalid_contract", f"literal divisor {node.right.value} not allowed")
+            right = d
+        else:
+            right = _evaluate(node.right, inputs, used)
+        left = _evaluate(node.left, inputs, used)
+        op = type(node.op)
+        return (left + right if op is ast.Add else left - right if op is ast.Sub
+                else left * right if op is ast.Mult else left / right)
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
-        return -_eval(node.operand)
-    raise ValueError("unsupported expression")
+        return -_evaluate(node.operand, inputs, used)
+    if isinstance(node, ast.Constant):
+        raise ContractError("invalid_contract", f"literal {node.value} must be a named, sourced input")
+    raise ContractError("invalid_contract", "unsupported expression")
 
 
-def evaluate(expr: str) -> tuple[float, list[float]]:
-    """Value of an arithmetic expression written by the agent, and its literal operands (before % scaling)."""
-    s = (expr.replace("×", "*").replace("÷", "/").replace("−", "-").replace("–", "-")
-         .replace("$", "").replace(",", ""))
-    s = re.sub(r"(?<=[\d)\s])x(?=[\s\d(])", "*", s)
-    operands = [float(t) for t in re.findall(r"\d+(?:\.\d+)?", s)]
-    s = re.sub(r"(\d+(?:\.\d+)?)\s*%", r"(\1/100)", s)
-    return _eval(ast.parse(s, mode="eval")), operands
+def evaluate(formula: str, inputs: dict[str, Decimal]) -> tuple[Decimal, set[str]]:
+    s = formula.replace("×", "*").replace("÷", "/").replace("−", "-").replace("–", "-")
+    try:
+        tree = ast.parse(s, mode="eval")
+    except SyntaxError as e:
+        raise ContractError("invalid_contract", f"formula not parseable: {formula!r}") from e
+    used: set[str] = set()
+    return _evaluate(tree, inputs, used), used
 
 
-def _derivation(value: float, draft_text: str, evidence_numbers: set[float]) -> dict:
-    lines = list(CALCULATION.finditer(draft_text or ""))
-    if not lines:
-        return {"basis": None, "problem": "no Calculation line in the draft"}
-    for m in lines:
-        stated = _num(m.group("result"))
-        if stated is None or abs(stated - value) > CENT:
+def policy_documents(ev: Evidence) -> dict[str, str]:
+    """doc_id -> the text the agent received for it, from successful KB_search results."""
+    docs: dict[str, str] = {}
+    for c, r in ev.results():
+        content = r.get("content") or ""
+        if c["name"] != "KB_search" or r.get("error") or not receipt_ok(c["name"], content):
             continue
+        ids = list(DOC_ID_LINE.finditer(content))
+        for k, m in enumerate(ids):
+            end = ids[k + 1].start() if k + 1 < len(ids) else len(content)
+            docs[m.group(1)] = docs.get(m.group(1), "") + " " + content[m.end():end]
+    return docs
+
+
+def _resolve(ref: re.Match, owned_records: list[dict], docs: dict[str, str]) -> tuple[Decimal, dict]:
+    if ref.group("kind"):
+        rid, fld = ref.group("rec"), ref.group("field")
+        for rec in owned_records:
+            if rec.get("Record ID") == rid or any(ID_KEY.search(k) and v == rid for k, v in rec.items()):
+                if fld in rec and _dec(rec[fld]) is not None:
+                    return _dec(rec[fld]), {"source": f"record:{rid}.{fld}"}
+        raise ContractError("unresolved_source", f"record:{rid}.{fld} is not a numeric field of a record the "
+                                                 "verified customer owns, from a successful receipt")
+    doc, raw = ref.group("doc"), _dec(ref.group("pval"))
+    if doc not in docs:
+        raise ContractError("unresolved_source", f"policy:{doc} is not in any KB result the agent received")
+    if raw not in numbers_in(docs[doc]):
+        raise ContractError("unresolved_source", f"{ref.group('pval')} does not appear in {doc} as received")
+    return (raw / 100 if ref.group("pct") else raw), {"source": f"policy:{doc}:{ref.group('pval')}{ref.group('pct') or ''}"}
+
+
+def _unit(key: str, suffix: str | None) -> str:
+    if suffix and suffix.lower().startswith(("point", "pts")) or re.search("point|reward", key, re.I):
+        return "points"
+    return "usd"
+
+
+def assess_amount(value: Decimal, unit: str, draft_text: str | None, owned_records: list[dict],
+                  docs: dict[str, str]) -> dict:
+    blocks = [b.group("body") for b in BLOCK.finditer(draft_text or "")]
+    if not blocks:
+        return {"status": "missing_contract", "detail": "no Calculation block in the draft"}
+    q = QUANTUM[unit]
+    problems = []
+    for body in blocks:
         try:
-            computed, operands = evaluate(m.group("expr"))
-        except (ValueError, SyntaxError, ZeroDivisionError):
-            return {"basis": None, "problem": f"calculation not parseable: {m.group(0)!r}"}
-        if abs(computed - stated) > CENT:
-            return {"basis": None, "problem": f"calculation evaluates to {computed:.2f}, not {stated:.2f}"}
-        missing = [o for o in operands if o not in UNIT_CONSTANTS and o not in evidence_numbers]
-        if missing:
-            return {"basis": None, "problem": f"operands not in received evidence: {missing}"}
-        return {"basis": "derivation", "expression": m.group(0)}
-    return {"basis": None, "problem": "no Calculation line whose result equals the argument"}
+            calc, res = CALC.search(body), RESULT.search(body)
+            if not calc or not res:
+                raise ContractError("invalid_contract", "a block needs 'formula = name', Sources and 'Result: <n> USD|points'")
+            stated = _dec(res.group("value"))
+            if _unit("", res.group("unit")) != unit:
+                raise ContractError("invalid_contract", f"Result unit {res.group('unit')} does not match the argument ({unit})")
+            if stated.quantize(q, ROUND_HALF_UP) != stated or stated != value:
+                raise ContractError("result_mismatch", f"Result {stated} does not equal the argument {value}")
+            src = SOURCES.search(body)
+            entries = [e.strip() for e in re.split(r"[;\n]", src.group("src") if src else "") if e.strip()]
+            inputs, sources = {}, {}
+            for e in entries:
+                m = REF.match(e)
+                if not m:
+                    raise ContractError("invalid_contract", f"source entry not understood: {e!r}")
+                inputs[m.group("name")], sources[m.group("name")] = _resolve(m, owned_records, docs)
+            computed, used = evaluate(calc.group("formula"), inputs)
+            if not used:
+                raise ContractError("invalid_contract", "the formula uses no sourced input")
+            rounded = computed.quantize(q, ROUND_HALF_UP)
+            if rounded != stated:
+                raise ContractError("arithmetic_mismatch", f"formula evaluates to {rounded}, not {stated}")
+            kinds = {v["source"].split(":")[0] for k, v in sources.items() if k in used}
+            direct = len(used) == 1 and ast.dump(ast.parse(calc.group("formula").strip(), mode="eval").body).startswith("Name(")
+            if direct and STOCK_FIELD.search(sources[next(iter(used))]["source"].rsplit(".", 1)[-1]):
+                raise ContractError("unsupported_purpose", f"{sources[next(iter(used))]['source']} is a balance or "
+                                                           "limit; it cannot be copied as the amount itself")
+            return {"status": "supported", "basis": "direct_reference" if direct else "calculation",
+                    "formula": calc.group(0).strip(), "inputs": {k: sources[k] for k in sorted(used)},
+                    "input_kinds": sorted(kinds)}
+        except ContractError as e:
+            problems.append({"status": e.status, "detail": e.detail})
+    return problems[0] if len(problems) == 1 else {"status": problems[0]["status"], "detail": problems}
 
 
 def _leaves(args: dict, prefix=""):
@@ -171,11 +266,10 @@ def check_arguments(tool_call, draft_text: str | None, ev: Evidence) -> Assessme
     customer = verified_customer(ev)
     recs = _successful_records(ev)
     owned, owner_of = ownership(recs, customer)
+    owned_records = [r for r in recs if any(v in owned for k, v in r.items() if ID_KEY.search(k) or k == "Record ID")]
+    docs = policy_documents(ev)
     error_text = " ".join(r.get("content") or "" for c, r in ev.results()
                           if r.get("error") or not receipt_ok(c["name"], r.get("content")))
-    received = " ".join([r.get("content") or "" for c, r in ev.results() if not r.get("error")] +
-                        [m.get("content") or "" for m in ev.messages if m.get("role") == "user"])
-    evidence_numbers = numbers_in(received)
     out = Assessment(True)
     for path, key, value in _leaves(args):
         if key == "agent_tool_name":
@@ -199,21 +293,15 @@ def check_arguments(tool_call, draft_text: str | None, ev: Evidence) -> Assessme
         m = AMOUNT_VALUE.match(str(value)) if isinstance(value, (str, int, float)) and not isinstance(value, bool) else None
         if not m:
             continue
-        amount = _num(m.group(1))
-        direct = [(i, k) for i, rec in enumerate(recs) for k, fv in rec.items()
-                  if MONEY_FIELD.search(k) and _num(fv) is not None and abs(_num(fv) - amount) <= CENT
-                  and any(rec.get(x) in owned for x in ("Record ID", "account_id", "transaction_id", "user_id"))]
-        derived = _derivation(amount, draft_text, evidence_numbers)
-        if derived["basis"]:
-            f = derived
+        unit = _unit(key, m.group(2))
+        amount = _dec(m.group(1))
+        f = assess_amount(amount, unit, draft_text, owned_records, docs)
+        if f["status"] == "supported" and "policy" in f.get("input_kinds", []):
             out.flags.append("policy_applicability_not_checked")
-        elif direct:
-            i, k = direct[0]
-            f = {"basis": "record_field", "field": k, "note": "exact value of an owned record's field; purpose not verified"}
-        else:
-            f = {"basis": None, "problem": derived["problem"] + "; no owned record field has this value"}
-        out.findings.append({"arg": path, "kind": "amount", "value": amount, **f})
-    out.allowed = all(f.get("basis") for f in out.findings)
+        if f.get("basis") == "direct_reference":
+            out.flags.append("source_purpose_not_verified")
+        out.findings.append({"arg": path, "kind": "amount", "value": str(amount), "unit": unit, **f})
+    out.allowed = all(f.get("basis") if f["kind"] == "id" else f["status"] == "supported" for f in out.findings)
     out.flags = sorted(set(out.flags))
     return out
 
