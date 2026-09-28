@@ -237,3 +237,88 @@ def test_digits_pins_and_counts_are_not_amounts_and_zero_is_flagged():
     assert a.flags == ["zero_amount_not_checked"] and not a.allowed  # 5320 is in no record and nobody said it
     said = copy.deepcopy(P1) + [{"role": "user", "content": "The last four are 5320."}]
     assert evidence.check_arguments(call, None, Evidence(messages=said)).allowed
+
+
+# ---- review of 493f5e1: regressions -----------------------------------------------------------------
+
+D002 = {c["id"]: c for c in json.loads((REPO_ROOT / "experiments/D002_plan.json").read_text())["cases"]}
+
+
+def _prefix(case_id):
+    c = D002[case_id]
+    trace = json.loads((REPO_ROOT / c["source_trace"]).read_text())["messages"]
+    return evidence.messages_before(trace, c["prefix_end"], [], -1)
+
+
+def _file(digits):
+    return {"name": "call_discoverable_agent_tool", "arguments": {
+        "agent_tool_name": "file_credit_card_transaction_dispute_4829",
+        "arguments": json.dumps({"transaction_id": "txn_adea68821a1d", "card_last_4_digits": digits})}}
+
+
+def _digits(a):
+    return next(f for f in a.findings if f["arg"] == "card_last_4_digits")
+
+
+def test_review_probe_a_date_is_not_card_digits_in_I1():
+    msgs = _prefix("I1")
+    assert "2025" in " ".join(m.get("content") or "" for m in msgs if m["role"] == "user")  # the probe's premise
+    a = evidence.check_arguments(_file("2025"), None, Evidence(messages=msgs))
+    assert not a.allowed and _digits(a)["basis"] is None
+
+
+def test_phone_fragments_and_unrelated_record_values_are_not_card_digits():
+    msgs = _prefix("I1") + [{"role": "user", "content": "My phone is 313-555-0199 and my zip is 48226."}]
+    for v in ("0199", "8226", "4822"):
+        assert not evidence.check_arguments(_file(v), None, Evidence(messages=msgs)).allowed, v
+
+
+@pytest.mark.parametrize("said", ["The last four are 5320.", "It's the card ending in 5320", "last 4 digits: 5320"])
+def test_explicitly_stated_card_digits_are_accepted(said):
+    msgs = _prefix("I1") + [{"role": "user", "content": said}]
+    a = evidence.check_arguments(_file("5320"), None, Evidence(messages=msgs))
+    assert a.allowed and _digits(a)["basis"] == "customer_stated"
+
+
+def test_card_digits_from_an_owned_card_record_are_accepted():
+    """W1 (task_087): the debit-card record carries last_4_digits 7291 once the agent has retrieved it."""
+    c = D002["W1"]
+    trace = json.loads((REPO_ROOT / c["source_trace"]).read_text())["messages"]
+    msgs = evidence.messages_before(trace, c["prefix_end"], [], -1) + [
+        {"role": "assistant", "content": None, "tool_calls": [{"id": "d1", "name": "call_discoverable_agent_tool",
+                                                               "arguments": {"agent_tool_name": "get_debit_cards_by_account_id_7823",
+                                                                             "arguments": "{}"}}]},
+        {"role": "tool", "tool_call_id": "d1", "error": False, "content": json.dumps([{
+            "card_id": "dbc_mt35a7c9d2_blue", "account_id": "chk_mt35a7c9d2_blue", "user_id": "mt35a7c9d2",
+            "last_4_digits": "7291", "status": "FROZEN"}])}]
+    ok = evidence.check_arguments(_file("7291"), None, Evidence(messages=msgs))
+    assert _digits(ok)["basis"] == "record"
+    assert _digits(evidence.check_arguments(_file("7284"), None, Evidence(messages=msgs)))["basis"] is None
+
+
+def test_review_probe_division_by_zero_is_an_invalid_contract_not_a_crash():
+    draft = _contract("bal / (bal - bal)", "bal=record:sav_lm83h7k2p5_gold.current_holdings", "1.00 USD")
+    a = _p1(1.0, draft)
+    assert not a.allowed and _status(a) == "invalid_contract" and "DivisionByZero" in _amount(a)["detail"]
+
+
+def test_customer_request_source_is_an_explicit_tool_argument_pair_bound_to_a_request():
+    ask = copy.deepcopy(P1) + [{"role": "user", "content": "I'd like to request a $2,500 increase to my limit."}]
+    stated = copy.deepcopy(P1) + [{"role": "user", "content": "My balance was 2500 last month."}]
+    submit = lambda arg: {"name": "call_discoverable_agent_tool", "arguments": {  # noqa: E731
+        "agent_tool_name": "submit_credit_limit_increase_request_7392", "arguments": json.dumps({arg: 2500})}}
+    draft = _contract("asked", "asked=customer:2500", "2500.00 USD")
+    assert evidence.check_arguments(submit("requested_increase_amount"), draft, Evidence(messages=ask)).allowed
+    assert not evidence.check_arguments(submit("requested_increase_amount"), draft, Evidence(messages=stated)).allowed
+    other = {"name": "call_discoverable_agent_tool", "arguments": {  # "request" in a name no longer suffices
+        "agent_tool_name": "request_temporary_debit_card_limit_increase_8374",
+        "arguments": json.dumps({"card_id": "x", "requested_limit": 2500})}}
+    a = evidence.check_arguments(other, draft, Evidence(messages=ask))
+    assert _amount(a)["status"] == "unresolved_source"
+
+
+def test_zero_amounts_are_reported_unchecked_not_supported():
+    call = {"name": "call_discoverable_agent_tool", "arguments": {
+        "agent_tool_name": "order_debit_card_5739", "arguments": json.dumps({"delivery_fee": 0})}}
+    a = evidence.check_arguments(call, None, Evidence(messages=P1))
+    assert a.allowed and _amount(a)["status"] == "unchecked" and _amount(a)["basis"] is None

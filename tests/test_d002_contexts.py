@@ -186,3 +186,25 @@ def test_X1_customer_asserted_amount_is_blocked(tmp_path):
                                  _x1_credit(72.0, None), {"say": "unused"}], tmp_path)
     assert [e["findings"][-1]["status"] for e in writes_blocked(r)] == ["unresolved_source", "missing_contract"]
     assert not r["final_state"]["accounts_changed"]
+
+
+def test_review_probe_withheld_reply_does_not_deny_an_earlier_successful_change(tmp_path):
+    """Review reproduction on 493f5e1: unfreeze succeeds, then two rejected velocity-clear attempts; the harness's
+    reply must not claim nothing changed."""
+    card = "dbc_mt35a7c9d2_blue"
+    bad = call("clear_debit_card_fraud_alert_4892", card_id="dbc_guess_0000", reason="velocity_clear")
+    r = _run("W1", W1_LOOKUPS + [unlock("unfreeze_debit_card_3893"), call("unfreeze_debit_card_3893", card_id=card),
+                                 unlock("clear_debit_card_fraud_alert_4892"), bad, bad, {"say": "unused"}], tmp_path)
+    assert r["final_state"]["debit_cards_changed"] and events(r, "evidence_withheld")
+    assert "haven't changed" not in r["final_text"] and r["final_text"].startswith("I did not execute that proposed change")
+
+
+@pytest.mark.parametrize("mode", ["record", "enforce"])
+def test_review_probe_an_uncomputable_formula_never_ends_the_conversation(tmp_path, mode):
+    say = contract("limit / (limit - limit)", "limit=policy:doc_checking_accounts_green_account_(checking)_012:600", "900 USD")
+    step = call("request_temporary_debit_card_limit_increase_8374", say=say, card_id="dbc_2f8a7c3d1e9b",
+                limit_type="atm", new_limit=900)
+    r = _run("C1", C1_LOOKUPS + [step, {"say": "Let me recheck the limit."}], tmp_path, mode=mode)
+    assert r["status"] == "text"
+    a = [e for e in events(r, "evidence_assessed") if e["tool"] == "request_temporary_debit_card_limit_increase_8374"][0]
+    assert a["findings"][-1]["status"] == "invalid_contract" and a["enforced"] == (mode == "enforce")

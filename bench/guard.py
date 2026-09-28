@@ -261,7 +261,11 @@ def make_guarded_agent_class():
                 name, _ = target(tc)
                 if tc.name in ("unlock_discoverable_agent_tool", "give_discoverable_user_tool"):
                     continue
-                a = evidence_mod.check_arguments(tc, proposal.content, ev)
+                try:
+                    a = evidence_mod.check_arguments(tc, proposal.content, ev)
+                except Exception as e:  # noqa: BLE001 - a checker defect must not end the conversation in either arm
+                    a = evidence_mod.Assessment(False, [{"arg": None, "kind": "checker", "status": "checker_error",
+                                                         "detail": f"{type(e).__name__}: {e}"}])
                 if not a.findings:
                     continue
                 kind = ev.tool_type(name)
@@ -277,12 +281,11 @@ def make_guarded_agent_class():
             if corrections >= 1:
                 self.events.append({"event": "evidence_withheld", "tools": [target(tc)[0] for tc, _ in failing]})
                 return AssistantMessage(role="assistant", content=(
-                    "I can't make that change yet: I couldn't document the values it depends on. "
-                    "I haven't changed anything on your account."))
+                    "I did not execute that proposed change, because I couldn't document the values it depends on."))
             state.messages.append(proposal)
             problems = {id(tc): [f"{f['arg']}: {f.get('problem') or f.get('status')} ({f.get('detail', '')})"
                                  for f in a.findings if not (f.get("basis") if f["kind"] == "id"
-                                                            else f["status"] == "supported")]
+                                                            else f.get("status") in ("supported", "unchecked"))]
                         for tc, a in failing}
             for tc in proposal.tool_calls:
                 state.messages.append(ToolMessage(id=tc.id, role="tool", requestor="assistant", error=id(tc) in problems,

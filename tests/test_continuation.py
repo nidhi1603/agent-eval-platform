@@ -253,7 +253,7 @@ def test_enforce_withholds_after_one_failed_correction(tmp_path):
     r = _run("P1", LOOKUPS + [BARE, BARE, {"say": "unused"}], tmp_path, evidence_mode="enforce")
     assert not _credit_calls(r)
     assert len(_evidence_events(r, "evidence_withheld")) == 1
-    assert r["status"] == "text" and "haven't changed anything" in r["final_text"]
+    assert r["status"] == "text" and r["final_text"].startswith("I did not execute that proposed change")
 
 
 def test_record_mode_assesses_but_never_blocks(tmp_path):

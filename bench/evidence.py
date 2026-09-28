@@ -22,12 +22,14 @@ missing/invalid evidence, never as a policy violation.
   365. Arithmetic is decimal; USD rounds half-up to cents, points to whole points. A direct copy is a formula with
   one input (`Calculation: fee = refund`); the field's purpose is recorded, not verified.
 - Numbers from error receipts (including `error=False` results that begin "Error") are never evidence. The customer's
-  words (`customer:<value>`) are evidence only for the amount of their own request (argument names containing
-  "request"), never for an entitlement such as a credit or refund.
-- Card digits (`last_4`): an owned record's value or the customer's own words; never invented.
+  words (`customer:<value>`) are evidence only for the amount of their own request (the
+  explicit (tool, argument) pairs in CUSTOMER_REQUEST_ARGS, and only from a message that makes the request), never for
+  an entitlement such as a credit or refund.
+- Card digits (`last_4`): a card-digits field of an owned record, or digits the customer states as card digits
+  ("last four are 5320", "ending in 5320"). Dates, phone fragments and other record values are not card digits.
 - Amounts are money/points arguments by name (amount, limit, fee, rewards, points, liability, balance, credit);
-  card digits, PINs, CVVs, counts and rates are not checked as amounts. A zero amount is allowed and flagged
-  `zero_amount_not_checked`.
+  card digits, PINs, CVVs, counts and rates are not checked as amounts. A zero amount is allowed, reported with
+  status `unchecked` and flagged `zero_amount_not_checked`: it is not evidence of grounding.
 """
 
 from __future__ import annotations
@@ -46,6 +48,9 @@ ID_KEY = re.compile(r"(^|_)id$")
 # Card digits identify a card. They may come from an owned record or from the customer (who can read their card or
 # run a lookup tool the agent handed them); they are never invented.
 DIGITS_KEY = re.compile(r"last_?4", re.I)
+DIGITS_FIELD = re.compile(r"last_?4|last_four", re.I)
+DIGITS_STATEMENT = re.compile(r"(?:last\s*(?:4|four)(?:\s*digits)?|ending\s*(?:in|with)|ends\s*(?:in|with))"
+                              r"[^\d\n]{0,25}?(\d{4})(?!\d)", re.I)
 NUMBER = re.compile(r"(?<![\w.])-?\$?\d[\d,]*(?:\.\d+)?")
 AMOUNT_VALUE = re.compile(r"^\s*\$?(-?\d[\d,]*(?:\.\d+)?)\s*(points?|pts|usd|dollars)?\s*$", re.I)
 RECORD_SPLIT = re.compile(r"\n\s*\d+\.\s+Record ID:")
@@ -62,8 +67,10 @@ ALLOWED_DIVISORS = {Decimal(12), Decimal(365)}
 # Which numeric arguments are amounts (money or points). Card digits, PINs, CVVs and counts are not.
 AMOUNT_KEY = re.compile(r"amount|limit|fee|rewards|points|liability|credit$|balance", re.I)
 NOT_AMOUNT_KEY = re.compile(r"last_4|digits|pin|cvv|months|days|count|zip|phone|apy|rate", re.I)
-# Argument names for which the customer's own words are the legitimate source of the amount they are requesting.
-REQUEST_KEY = re.compile(r"request", re.I)
+# (tool, argument) pairs whose amount is the customer's own request, so their words are its legitimate source.
+# Explicit pairs, not a name heuristic: an amount the agent grants or credits is never set by the customer.
+CUSTOMER_REQUEST_ARGS = {("submit_credit_limit_increase_request_7392", "requested_increase_amount")}
+REQUEST_WORDS = re.compile(r"\b(request|increase|would like|i'd like|i want|asking for|ask for)\b", re.I)
 OWNER_LINKS = ("account_id", "credit_card_account_id", "card_id")
 QUANTUM = {"usd": Decimal("0.01"), "points": Decimal("1")}
 # A heuristic, not a purpose check: a stock value (a balance or limit) is never by itself the amount of a credit,
@@ -182,7 +189,10 @@ def evaluate(formula: str, inputs: dict[str, Decimal]) -> tuple[Decimal, set[str
     except SyntaxError as e:
         raise ContractError("invalid_contract", f"formula not parseable: {formula!r}") from e
     used: set[str] = set()
-    return _evaluate(tree, inputs, used), used
+    try:
+        return _evaluate(tree, inputs, used), used
+    except (ArithmeticError, InvalidOperation) as e:  # e.g. division by zero: an invalid contract, not a crash
+        raise ContractError("invalid_contract", f"formula cannot be evaluated: {type(e).__name__}") from e
 
 
 def policy_documents(ev: Evidence) -> dict[str, str]:
@@ -200,14 +210,14 @@ def policy_documents(ev: Evidence) -> dict[str, str]:
 
 
 def _resolve(ref: re.Match, owned_records: list[dict], docs: dict[str, str], arg_key: str = "",
-             customer_text: str = "") -> tuple[Decimal, dict]:
+             customer_messages: tuple[str, ...] = (), tool: str | None = None) -> tuple[Decimal, dict]:
     if ref.group("ckind"):
         value = _dec(ref.group("cval"))
-        if not REQUEST_KEY.search(arg_key):
+        if (tool, arg_key) not in CUSTOMER_REQUEST_ARGS:
             raise ContractError("unresolved_source", f"the customer's words cannot establish {arg_key!r}; only the "
                                                      "amount of a customer's own request may come from them")
-        if value not in numbers_in(customer_text):
-            raise ContractError("unresolved_source", f"the customer did not state {ref.group('cval')}")
+        if not any(REQUEST_WORDS.search(m) and value in numbers_in(m) for m in customer_messages):
+            raise ContractError("unresolved_source", f"the customer did not request {ref.group('cval')}")
         return value, {"source": f"customer:{ref.group('cval')}"}
     if ref.group("kind"):
         rid, fld = ref.group("rec"), ref.group("field")
@@ -232,7 +242,8 @@ def _unit(key: str, suffix: str | None) -> str:
 
 
 def assess_amount(value: Decimal, unit: str, draft_text: str | None, owned_records: list[dict],
-                  docs: dict[str, str], arg_key: str = "", customer_text: str = "") -> dict:
+                  docs: dict[str, str], arg_key: str = "", customer_messages: tuple[str, ...] = (),
+                  tool: str | None = None) -> dict:
     blocks = [b.group("body") for b in BLOCK.finditer(draft_text or "")]
     if not blocks:
         return {"status": "missing_contract", "detail": "no Calculation block in the draft"}
@@ -255,7 +266,7 @@ def assess_amount(value: Decimal, unit: str, draft_text: str | None, owned_recor
                 m = REF.match(e)
                 if not m:
                     raise ContractError("invalid_contract", f"source entry not understood: {e!r}")
-                inputs[m.group("name")], sources[m.group("name")] = _resolve(m, owned_records, docs, arg_key, customer_text)
+                inputs[m.group("name")], sources[m.group("name")] = _resolve(m, owned_records, docs, arg_key, customer_messages, tool)
             computed, used = evaluate(calc.group("formula"), inputs)
             if not used:
                 raise ContractError("invalid_contract", "the formula uses no sourced input")
@@ -291,7 +302,8 @@ def check_arguments(tool_call, draft_text: str | None, ev: Evidence) -> Assessme
     owned, owner_of = ownership(recs, customer)
     owned_records = [r for r in recs if any(v in owned for k, v in r.items() if ID_KEY.search(k) or k == "Record ID")]
     docs = policy_documents(ev)
-    customer_text = " ".join(m.get("content") or "" for m in ev.messages if m.get("role") == "user")
+    customer_messages = tuple(m.get("content") or "" for m in ev.messages if m.get("role") == "user")
+    customer_text = "\n".join(customer_messages)
     error_text = " ".join(r.get("content") or "" for c, r in ev.results()
                           if r.get("error") or not receipt_ok(c["name"], r.get("content")))
     out = Assessment(True)
@@ -316,13 +328,15 @@ def check_arguments(tool_call, draft_text: str | None, ev: Evidence) -> Assessme
             continue
         if DIGITS_KEY.search(key):
             v = str(value).strip()
-            owned_values = {str(x) for r in owned_records for x in r.values()}
-            if v in owned_values:
+            record_digits = {str(x) for r in owned_records for k, x in r.items() if DIGITS_FIELD.search(k)}
+            stated_digits = set(DIGITS_STATEMENT.findall(customer_text))
+            if v in record_digits:
                 f = {"basis": "record", "owner": customer}
-            elif re.search(rf"(?<!\d){re.escape(v)}(?!\d)", customer_text):
+            elif v in stated_digits:
                 f = {"basis": "customer_stated"}
             else:
-                f = {"basis": None, "problem": "card digits not in an owned record or the customer's words"}
+                f = {"basis": None, "problem": "card digits are neither a card-digits field of an owned record nor stated "
+                                              "by the customer as card digits"}
             out.findings.append({"arg": path, "kind": "id", "value": v, **f})
             continue
         m = AMOUNT_VALUE.match(str(value)) if isinstance(value, (str, int, float)) and not isinstance(value, bool) else None
@@ -332,10 +346,10 @@ def check_arguments(tool_call, draft_text: str | None, ev: Evidence) -> Assessme
         amount = _dec(m.group(1))
         if amount == 0:
             out.flags.append("zero_amount_not_checked")
-            out.findings.append({"arg": path, "kind": "amount", "value": "0", "unit": unit, "status": "supported",
-                                 "basis": "zero"})
+            out.findings.append({"arg": path, "kind": "amount", "value": "0", "unit": unit, "status": "unchecked",
+                                 "basis": None, "note": "zero amounts are not evidence-checked; not proof of grounding"})
             continue
-        f = assess_amount(amount, unit, draft_text, owned_records, docs, key, customer_text)
+        f = assess_amount(amount, unit, draft_text, owned_records, docs, key, customer_messages, name)
         if f["status"] == "supported" and "customer" in f.get("input_kinds", []):
             out.flags.append("customer_requested_amount")
         if f["status"] == "supported" and "policy" in f.get("input_kinds", []):
@@ -343,7 +357,8 @@ def check_arguments(tool_call, draft_text: str | None, ev: Evidence) -> Assessme
         if f.get("basis") == "direct_reference" and f.get("input_kinds") == ["record"]:
             out.flags.append("source_purpose_not_verified")
         out.findings.append({"arg": path, "kind": "amount", "value": str(amount), "unit": unit, **f})
-    out.allowed = all(f.get("basis") if f["kind"] == "id" else f["status"] == "supported" for f in out.findings)
+    out.allowed = all(f.get("basis") if f["kind"] == "id" else f["status"] in ("supported", "unchecked")
+                      for f in out.findings)
     out.flags = sorted(set(out.flags))
     return out
 

@@ -179,3 +179,12 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **D002 plan (draft, unapproved):** six new dev contexts × two arms = 12 continuations. The expected assessments are frozen; all 12 offline context tests pass. Forecast $0.20–$0.45 upper bound; recommended allocation $0.60.
 - Decision record: `docs/reviews/2026-09-27-tech-lead-review-d2c716e.md`.
 
+### Review of 493f5e1: three checker defects fixed before D002 (2026-09-27, $0)
+- **Reproduced and fixed:**
+  - a date accepted as card digits (I1);
+  - division by zero crashed the checker;
+  - the withheld reply could deny an earlier successful change (W1).
+- **Also:** `customer:` is limited to an explicit (tool, argument) allowlist and to a request message; zero amounts are reported as `unchecked`; the reporting rules are written into the plan.
+- **Regressions:** 8 new tests fail on `493f5e1`. Suite: 169 passed, 14 xfailed.
+- **D002:** technically cleared; awaiting Nidhi's approval of $0.60. Decision record: `docs/reviews/2026-09-27-tech-lead-review-493f5e1.md`.
+
