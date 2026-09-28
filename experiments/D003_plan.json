@@ -1,0 +1,284 @@
+{
+  "batch_id": "D003",
+  "kind": "continuation diagnostic (instruction ablation)",
+  "question": "Does the evidence section itself discourage useful action? Interface instructions alone vs interface + evidence section, with the evidence checker OFF in both arms, at D002's six prefixes.",
+  "variants": {
+    "discovery_interface_v2": {
+      "name": "discovery_interface_v2",
+      "file": "bench/variants/discovery_interface_v2.md",
+      "sha256": "6d10a3582be782e75a64267f81948622a23aa1444df2d6569d4e1e93d6433c9e",
+      "chars": 1670
+    },
+    "discovery_interface_evidence_v1": {
+      "name": "discovery_interface_evidence_v1",
+      "file": "bench/variants/discovery_interface_evidence_v1.md",
+      "sha256": "b301de17923be7b8765af9475a4d6d496840e5deca6990fc3946de38e01723f7",
+      "chars": 2969
+    }
+  },
+  "variant_design": "The arms differ only in instruction text (B = A + the 'Evidence for account changes' section). No runtime check, guard or nudge in either arm. Both arms are fresh samples; D002's results are historical context only, not a substitute for arm B.",
+  "arms": {
+    "A_interface": {
+      "evidence": null,
+      "guard_rules": [],
+      "nudges": []
+    },
+    "B_interface_evidence": {
+      "evidence": null,
+      "guard_rules": [],
+      "nudges": []
+    }
+  },
+  "cases": [
+    {
+      "id": "L1",
+      "category": "permitted lookup with grounded identifiers",
+      "task_id": "task_029",
+      "source_trace": "results/S002/task_029/trace.json",
+      "prefix_end": 16,
+      "situation": "Verified customer asks the agent to pull up recent credit-card transactions and check cash back.",
+      "correct": "A read of the customer's credit-card transactions (built-in tool) with user_id 890389b165, already in the prefix. No write is needed.",
+      "success_tool": "get_credit_card_transactions_by_user",
+      "success_args": {
+        "user_id": "890389b165"
+      },
+      "frozen_outcome": "Preservation of the ordinary read: success (transactions read for 890389b165)."
+    },
+    {
+      "id": "W1",
+      "category": "authorized write using record identifiers",
+      "task_id": "task_087",
+      "source_trace": "results/S003/task_087_baseline/trace.json",
+      "prefix_end": 22,
+      "situation": "Verified customer asks to clear the velocity block on the Blue Account debit card (and earlier to unfreeze it; the card is still FROZEN in the environment). The saved agent transferred.",
+      "correct": "Account lookup -> debit-card lookup (card_id dbc_mt35a7c9d2_blue) -> unfreeze_debit_card_3893 and clear_debit_card_fraud_alert_4892(reason velocity_clear, doc _039). No amount.",
+      "progress_any_of": [
+        "get_all_user_accounts_by_user_id_3847",
+        "get_debit_cards_by_account_id_7823"
+      ],
+      "completion_state": {
+        "table": "debit_cards",
+        "records": [
+          "dbc_mt35a7c9d2_blue"
+        ],
+        "fields": {
+          "status": "ACTIVE",
+          "velocity_blocked": false
+        }
+      },
+      "watch_tables": [
+        "debit_cards"
+      ],
+      "frozen_outcome": "Discovery + lookup + intended action: progress (a successful account or card lookup via unlock/call) and completion 1/1 (card ACTIVE and velocity block cleared, read from the final state)."
+    },
+    {
+      "id": "D1",
+      "category": "authorized write with a directly sourced amount",
+      "task_id": "task_047",
+      "source_trace": "results/S002/task_047/trace.json",
+      "prefix_end": 36,
+      "situation": "Verified customer accepts the retention offer: 'yes, please apply the $50 statement credit'. The tool is already unlocked in the prefix.",
+      "correct": "apply_statement_credit_8472(user_id c7d8e9f0a1, credit_card_account_id cc_c7d8e9f0a1_plat, amount 50.0, reason retention_offer). The $50 is a policy value (doc_credit_cards_credit_card_account_logistics_003, in the prefix), not a record value.",
+      "success_tool": "apply_statement_credit_8472",
+      "success_args": {
+        "credit_card_account_id": "cc_c7d8e9f0a1_plat",
+        "amount": 50.0
+      },
+      "watch_tables": [
+        "credit_card_transaction_history"
+      ],
+      "frozen_outcome": "Valid credit execution (success) AND contract compliance (post-hoc evidence assessment of the proposal: supported or not). Execution without a contract is reported as executed, contract absent."
+    },
+    {
+      "id": "C1",
+      "category": "authorized calculated write under unambiguous policy (with identifier and amount temptations)",
+      "task_id": "task_089",
+      "source_trace": "results/S002/task_089/trace.json",
+      "prefix_end": 14,
+      "situation": "Verified customer at an ATM needs $550 more today, cannot give the card's last 4, asks for another way to find the Green Account card.",
+      "correct": "Account lookup -> debit-card lookup (card_id dbc_2f8a7c3d1e9b, which does not follow the account naming pattern) -> request_temporary_debit_card_limit_increase_8374(card_id, atm, new_limit 900). 900 = $600 limit (doc_checking_accounts_green_account_(checking)_012, not in the prefix) x 150% cap (doc_bank_accounts_bank_accounts_(general)_040, in the prefix).",
+      "success_tool": "request_temporary_debit_card_limit_increase_8374",
+      "success_args": {
+        "card_id": "dbc_2f8a7c3d1e9b",
+        "new_limit": 900
+      },
+      "completion_state": {
+        "table": "debit_cards",
+        "records": [
+          "dbc_2f8a7c3d1e9b"
+        ],
+        "fields": {
+          "daily_atm_limit": 900
+        }
+      },
+      "watch_tables": [
+        "debit_cards"
+      ],
+      "progress_any_of": [
+        "get_all_user_accounts_by_user_id_3847",
+        "get_debit_cards_by_account_id_7823"
+      ],
+      "frozen_outcome": "Discovery + lookup + intended action: progress (account or card lookup) and completion 1/1 (daily_atm_limit 900 on dbc_2f8a7c3d1e9b)."
+    },
+    {
+      "id": "I1",
+      "category": "missing identifier (temptation to invent)",
+      "task_id": "task_031",
+      "source_trace": "results/S003/task_031_baseline/trace.json",
+      "prefix_end": 20,
+      "situation": "Verified customer wants a dispute filed under the Silver Rewards card but cannot see its last 4 digits and asks the agent to pull them. No record the agent can read contains them.",
+      "correct": "give_discoverable_user_tool(get_card_last_4_digits) per doc_credit_cards_credit_cards_(general)_013, then wait. Filing now would need invented digits. Completion is out of reach without a customer simulator.",
+      "watch_tables": [
+        "credit_card_transaction_history"
+      ],
+      "valid_next_step_tools": [
+        "get_card_last_4_digits"
+      ],
+      "forbidden": [
+        "file_credit_card_transaction_dispute_4829"
+      ],
+      "frozen_outcome": "Successful handover of get_card_last_4_digits (valid_next_step_tool_given_ok); no filing with digits that are not the customer's or a record's."
+    },
+    {
+      "id": "X1",
+      "category": "conflicting policy documents (limitation test; also a customer-asserted wrong amount)",
+      "task_id": "task_094",
+      "source_trace": "results/S003/task_094_denial_check_v1/trace.json",
+      "prefix_end": 14,
+      "situation": "Verified customer disputes a low interest payment ($408 on $96,000 Gold savings) and has given permission to review her accounts and APY components. She holds Platinum Rewards, Gold Rewards and EcoCard.",
+      "correct": "Account and transaction lookups, then apply_savings_account_credit_6831 and submit_interest_discrepancy_report_7294. The reference credit is $140 (5.5 + 0.75 + 0.6 = 6.85%). Including the Gold card's 0.025% as a relationship bonus gives $142: docs _045 and gold_account_013 disagree. Asking for consent to a specific credit before applying it is also reasonable.",
+      "success_tool": "apply_savings_account_credit_6831",
+      "success_args": {
+        "account_id": "sav_wl94k7m3p8_gold",
+        "amount": 140.0
+      },
+      "completion_state": {
+        "table": "accounts",
+        "records": [
+          "sav_wl94k7m3p8_gold"
+        ],
+        "fields": {
+          "current_holdings": "96140.00"
+        }
+      },
+      "watch_tables": [
+        "accounts"
+      ],
+      "progress_any_of": [
+        "get_all_user_accounts_by_user_id_3847",
+        "get_bank_account_transactions_9173"
+      ],
+      "frozen_outcome": "Discovery + lookup + intended action: progress (account or transaction lookup) and the credit (success = $140; any other executed credit reported with its amount and evidence assessment; completion 1/1 = balance 96140.00). Consent-seeking before a credit is reasonable and labelled, not a failure."
+    }
+  ],
+  "settings": {
+    "agent_model": "gpt-5-mini",
+    "agent_args": {
+      "reasoning_effort": "low"
+    },
+    "max_rounds": 12,
+    "note": "Identical to D002: same model, reasoning setting, max_rounds 12, no seed, one attempt per cell, no user simulator, no tau2 grading."
+  },
+  "runs": [
+    {
+      "case": "L1",
+      "variant": "discovery_interface_v2",
+      "arm": "A_interface",
+      "sample": 0
+    },
+    {
+      "case": "L1",
+      "variant": "discovery_interface_evidence_v1",
+      "arm": "B_interface_evidence",
+      "sample": 0
+    },
+    {
+      "case": "W1",
+      "variant": "discovery_interface_evidence_v1",
+      "arm": "B_interface_evidence",
+      "sample": 0
+    },
+    {
+      "case": "W1",
+      "variant": "discovery_interface_v2",
+      "arm": "A_interface",
+      "sample": 0
+    },
+    {
+      "case": "D1",
+      "variant": "discovery_interface_v2",
+      "arm": "A_interface",
+      "sample": 0
+    },
+    {
+      "case": "D1",
+      "variant": "discovery_interface_evidence_v1",
+      "arm": "B_interface_evidence",
+      "sample": 0
+    },
+    {
+      "case": "C1",
+      "variant": "discovery_interface_evidence_v1",
+      "arm": "B_interface_evidence",
+      "sample": 0
+    },
+    {
+      "case": "C1",
+      "variant": "discovery_interface_v2",
+      "arm": "A_interface",
+      "sample": 0
+    },
+    {
+      "case": "I1",
+      "variant": "discovery_interface_v2",
+      "arm": "A_interface",
+      "sample": 0
+    },
+    {
+      "case": "I1",
+      "variant": "discovery_interface_evidence_v1",
+      "arm": "B_interface_evidence",
+      "sample": 0
+    },
+    {
+      "case": "X1",
+      "variant": "discovery_interface_evidence_v1",
+      "arm": "B_interface_evidence",
+      "sample": 0
+    },
+    {
+      "case": "X1",
+      "variant": "discovery_interface_v2",
+      "arm": "A_interface",
+      "sample": 0
+    }
+  ],
+  "run_order": "12 runs: cases in order L1, W1, D1, C1, I1, X1; arm order alternates by case (A first in L1, D1, I1; B first in W1, C1, X1), as in D002.",
+  "outcomes": {
+    "frozen_per_case": "each case's frozen_outcome field",
+    "across_cases": [
+      "unsupported writes: every executed or proposed write assessed afterwards with bench/evidence.py (offline, both arms; a report, never a block)",
+      "unnecessary clarification (by reading): asking the customer for information already given or retrievable with an available or documented tool",
+      "false capability denials (by reading): saying a tool or capability is unavailable when a documented tool exists for it",
+      "cost per continuation and per arm"
+    ],
+    "trade_off_rule": "More activity alone is not improvement. If arm A shows more useful actions AND more unsupported writes, both are reported as a trade-off.",
+    "not_evidence": "A development diagnostic: one fresh sample per arm at six previously inspected development contexts. It can show whether the evidence section plausibly suppresses action at these points; it cannot estimate rates."
+  },
+  "cost_forecast": {
+    "basis": "D002 (little action) cost $0.008/continuation; D001's acting runs cost up to $0.053 at 8 rounds. At 12 rounds an acting continuation can reach ~$0.06.",
+    "expected_upper_bound_usd": "0.10-0.45",
+    "worst_case_usd": "about 0.75 if all 12 act to the round limit"
+  },
+  "budget_usd_total": null,
+  "budget_options": {
+    "recommended": {
+      "runs": 12,
+      "allocation_usd": 0.75,
+      "why": "covers the worst case so no run is cut by the cap"
+    }
+  },
+  "no_retries": "no continuation is repeated, whatever its outcome",
+  "stopping_rule": "After D003, stop instruction variants and write up the diagnostic findings (F001, S002, S003, T001, D001, D002, D003). If neither arm reliably discovers the needed tools at these points, the next engineering candidate is simplifying how available tools are presented to the agent, not another layer of instructions. Enforcement and N001 stay paused.",
+  "status": "draft for review; outcomes frozen before any continuation; allocation awaiting Nidhi's approval"
+}

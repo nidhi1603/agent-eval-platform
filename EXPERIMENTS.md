@@ -194,8 +194,19 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - A executed it without a contract.
   - B blocked it (`missing_contract`); the correction was a malformed contract in text plus a repeat consent request, so no repair.
   - No unsupported write was attempted in either arm.
-- **Discovery failure dominated:** 0/12 unlocks. W1, C1 and X1 were denied or transferred in both arms, and I1's user tool was never handed over. L1's read succeeded in both arms.
-- **X1(A) endorsed the customer's wrong $72 in text** (outside any argument check).
+- **Discovery failure dominated:** 0/6 discovery at W1, C1 and X1; 0/2 handover at I1. L1 and D1 needed no new unlock. L1's read succeeded in both arms.
+- **X1(A):** conditional arithmetic on the customer's unverified inputs, plus a false capability denial. False denials also appear at C1 and X1 in both arms.
 - **Reading:** acting at all is still the constraint; enforcement cost one valid action here. Whether the evidence section suppresses action is untested (no interface-only arm).
 - Findings: `experiments/D002_findings.md`.
+
+### Review of cccd6e0: D002 interpretations corrected; D003 ablation planned (2026-09-27, $0)
+- **X1(A):** conditional arithmetic on unverified inputs plus a false capability denial, not an entitlement claim.
+- **Discovery denominator:** 0/6 at W1, C1 and X1; 0/2 handover at I1.
+- **Contract finding:** narrowed to what happened.
+- **D003 (draft, unapproved):**
+  - `discovery_interface_v2` vs `discovery_interface_evidence_v1`, with the checker off, fresh samples, D002's six prefixes (12 continuations);
+  - outcomes frozen;
+  - forecast $0.10–$0.45, worst case about $0.75.
+- **Stopping rule:** after D003, stop instruction variants and write up the findings. Enforcement and N001 stay paused.
+- Decision record: `docs/reviews/2026-09-27-tech-lead-review-cccd6e0.md`.
 
