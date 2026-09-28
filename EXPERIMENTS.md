@@ -253,3 +253,13 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Design:** 6 rule-selected dev tasks × 2 arms × 3 attempts = 36 conversations, official grades, identical settings to S002/S003, balanced order.
 - **Cost:** forecast $3.40–$5.00, which exceeds the remaining credit (about $2.05). Options are in `experiments/A002_plan.json`.
 
+### R001 and phase-2 research (2026-09-28, $0)
+- **Failure decomposition of the 19 live conversations:** retrieval 8, tool use 7, argument (invented verification time) 2, user simulator 1, policy 1.
+  - Required-document recall 34%; 8 conversations searched once; 11 transferred, where the reference transfers in 1.
+  - The adapter alone would plausibly fix about 1/19. Record: `experiments/R001_failure_decomposition.md`.
+- **Research plan:** `docs/PHASE2_RESEARCH.md`.
+  - **Targets:** paper best 25.5% pass^1; leaderboard best standard 55.2%; an unverified custom claim of 86.6%.
+  - **Evidence:** deterministic state and validation layers with recovery messages beat prompting, reflection and automated harness search.
+  - **Plan:** build harness v1 (adapter + knowledge persistence + clock/verification rules + a write gate with remediation) at $0. Then a dev pilot baseline vs v1, then ablation, then held-out, then a full custom run.
+  - **Supersedes the adapter-only A002.**
+
