@@ -27,7 +27,7 @@
 |---|---|---|
 | Block permissions, advise on capability | Yes; bounded advisory retry; keep original, note and revision privately | **Agree.** Nudge events now store the full draft text, full draft tool calls and the note; the revision is the next recorded proposal |
 | Database-backed rewards rule | Acceptable as a separately identified prototype; compare nudge on/off with identical guard access | **Agree.** N001 arms must share guard configuration; results never described as observed-evidence-only |
-| Offline nudge evidence enough for N001? | Not yet | **Agree, and the applicability review settles it:** helpful at 5/13, harm-risk first suggestion at 5/13, and the draft was already correct at 2/13. v1 is not ready. Next candidate (reads only, after a verification log) is to be evaluated offline before any N001 plan |
+| Offline nudge evidence enough for N001? | Not yet | **Agree, and the applicability review supports it:** the reviewer judged the first suggestion applicable and authorized at 5/13, the first suggestion was a harm-risk write at 5/13, and the draft was already correct at 2/13 (selected firing points; no intervention executed). v1 is not ready. Next candidate (reads only, after a verification log) is to be evaluated offline before any N001 plan |
 | Writes-only verification scope | Yes, as explicitly partial | **Agree**; documented as partial with unprotected paths |
 | Free reference audit before D001? | Not needed; raw reference replay is invalid for the clock rule | **Agree, and verified:** 26/30 dev references log a verification and 0/30 read the clock. Replaced in the agenda with complete scripted positive and negative controls, required before N001 |
 

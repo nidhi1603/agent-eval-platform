@@ -193,12 +193,16 @@ def messages_as_dicts(messages) -> list[dict]:
 
 
 def toolkit_type_lookup(toolkit):
-    """Static read/write/generic metadata from the environment's tool definitions (not data)."""
+    """Static read/write/generic metadata from the environment's tool definitions (not data).
+    A name absent from the toolkit (the model invented it) has no type: None, and the environment's own rejection
+    stands. A KNOWN tool whose type cannot be read is a configuration error, never treated as unknown."""
     def lookup(name):
+        if not toolkit.has_tool(name):
+            return None
         try:
             return str(toolkit.tool_type(name).value).lower()
-        except Exception:  # noqa: BLE001 - unknown or invented tool names have no type
-            return None
+        except Exception as e:  # noqa: BLE001 - any failure on a known tool must not fail open
+            raise GuardConfigError(f"tool-type metadata unreadable for known tool {name!r}: {e!r}") from e
     return lookup
 
 

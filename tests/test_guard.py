@@ -209,6 +209,28 @@ def test_missing_tool_type_metadata_is_a_configuration_error():
         guard.check(call, guard.Evidence(messages=[], tool_type=None), guard.OBSERVED_RULES)
 
 
+def test_unreadable_metadata_for_a_known_tool_fails_closed(config, monkeypatch):
+    """Review reproduction on 4b63830: a known write whose metadata lookup raised was treated as an unknown name
+    and allowed without a verification log. Absent names still pass through to the benchmark's own error."""
+    env = fresh_env(config, _task("task_080"))
+    lookup = guard.toolkit_type_lookup(env.tools)
+    assert lookup("freeze_debit_card_3892") == "write"
+    assert lookup("invented_tool_0000") is None
+    freeze = {"name": "call_discoverable_agent_tool",
+              "arguments": {"agent_tool_name": "freeze_debit_card_3892", "arguments": "{}"}}
+    invented = {"name": "call_discoverable_agent_tool",
+                "arguments": {"agent_tool_name": "invented_tool_0000", "arguments": "{}"}}
+    assert not guard.check(freeze, guard.Evidence(messages=[], tool_type=lookup), guard.OBSERVED_RULES).allowed
+
+    def broken(name):
+        raise RuntimeError("metadata backend down")
+    monkeypatch.setattr(env.tools, "tool_type", broken)
+    ev = guard.Evidence(messages=[], tool_type=guard.toolkit_type_lookup(env.tools))
+    with pytest.raises(guard.GuardConfigError):
+        guard.check(freeze, ev, guard.OBSERVED_RULES)
+    assert guard.check(invented, ev, guard.OBSERVED_RULES).allowed
+
+
 def test_known_limit_a_log_of_an_invented_identity_satisfies_the_rule(config):
     """Documents what the rule does NOT protect (review reproduction): log_verification accepts invented identity
     fields and reports success, and the rule only requires that such a log exists. If this test ever needs to fail,

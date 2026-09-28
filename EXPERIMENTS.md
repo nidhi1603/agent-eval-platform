@@ -143,6 +143,13 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - only success receipts count as used;
   - "relevance" is renamed as reference-name overlap;
   - 12 of 13 firings would name an out-of-reference write.
-  - The applicability review of the 13 firing points (`experiments/N001_applicability_review.md`): helpful at 5, harm risk at 5, and the draft was already correct at 2. **v1 is not ready for N001.** The next candidate is reads-only, after a verification log, evaluated offline first.
+  - The applicability review of the 13 firing points (`experiments/N001_applicability_review.md`): at 5 the reviewer judged the first suggestion applicable and authorized; the first suggestion was a harm-risk write at 5; the draft was already correct at 2. These are trigger-selected points, and no intervention was executed. **v1 is not ready for N001.** The next candidate is reads-only, after a verification log, evaluated offline first.
 - **D001:** scoring revised before any run; still awaiting approval.
 - Decision record: `docs/reviews/2026-09-27-tech-lead-review-c20312c.md`.
+
+### Review of 4b63830: D001 cleared technically; guard fail-open fixed (2026-09-27, $0)
+- **Reviewer:** reran the suite (120 passed, 14 xfailed) and checked the fixes and D001's four frozen cases and prefixes. Verdict: D001 ready to run as frozen, as a diagnostic on selected failure points, not a reliability estimate. Spending approval stays with Nidhi.
+- **Guard (accepted, fixed now rather than before N001; the fix is small and the fail-open is real):** `toolkit_type_lookup` caught every exception as "unknown tool", so a known write whose metadata lookup raised was allowed without a verification log. Now a name absent from the toolkit returns no type (the benchmark's own rejection stands), and a known tool with unreadable metadata raises `GuardConfigError`. Test: `test_unreadable_metadata_for_a_known_tool_fails_closed` (fails on `4b63830`).
+- **N001 counts (accepted):** the table had 11 inappropriate drafts, the prose said 10. The per-row labels were right; the reviewer's own summary sentence left out F01 (covered by a customer self-service tool). Reconciled in the file, and the wording no longer implies prevalence or measured benefit.
+- **Nudge candidate:** kept as a candidate, not built until after D001, with the reviewer's added requirements (protected reads vs lookups, applicability, honest log wording, required transfers preserved).
+- Decision record: `docs/reviews/2026-09-27-tech-lead-review-4b63830.md`.
