@@ -162,7 +162,7 @@ def final_state(case: dict, env, before: dict) -> dict:
 
 def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds: int = 8,
                   guard_rules: tuple = (), nudges: tuple = (), budget=None, record_path: Path | None = None,
-                  evidence_mode: str | None = None) -> dict:
+                  evidence_mode: str | None = None, tool_adapter: str | None = None) -> dict:
     """Run one continuation. The caller installs spending control (bench.budget.install). Always returns a
     record; on an exception the record keeps every action taken so far, with status 'error'."""
     from tau2.data_model.message import MultiToolMessage
@@ -172,7 +172,7 @@ def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds
     from bench import agent as agent_mod
 
     rec: dict = {"case": case["id"], "variant": variant, "guard_rules": list(guard_rules), "nudges": list(nudges),
-                 "evidence_mode": evidence_mode,
+                 "evidence_mode": evidence_mode, "tool_adapter": tool_adapter,
                  "status": "started", "proposals": [], "calls": [], "final_text": None, "rounds": 0}
     seq_start = len(budget.calls) if budget is not None else None
 
@@ -196,7 +196,10 @@ def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds
             raise PlanError("a prefix must end with the customer's or a tool's message")
         agent = agent_mod.factory(tools=env.get_tools(), domain_policy=env.get_policy(), variant=variant,
                                   guard_rules=tuple(guard_rules), nudges=tuple(nudges), evidence_mode=evidence_mode,
-                                  llm=llm, llm_args=dict(llm_args))
+                                  tool_adapter=tool_adapter, llm=llm, llm_args=dict(llm_args))
+        if tool_adapter:
+            agent.adapter_toolkit = env.tools
+            agent.agent_tool_names = frozenset(env.tools.get_discoverable_tools())
         if guard_rules or nudges or evidence_mode:
             from bench import guard
 
@@ -213,7 +216,10 @@ def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds
             msg, state = agent.generate_next_message(incoming, state)
             prop = {"n": len(rec["proposals"]), "text": msg.content,
                     "tool_calls": [{"name": tc.name, "arguments": tc.arguments} for tc in msg.tool_calls or []],
-                    "executed": False}
+                    "executed": False,
+                    # a harness turn (bench/adapter.py unlocks), not a model proposal
+                    "by": "adapter" if msg.tool_calls and all(tc.id.startswith("adapter_unlock_")
+                                                              for tc in msg.tool_calls) else "model"}
             rec["proposals"].append(prop)
             flush()
             if not msg.tool_calls:
@@ -243,7 +249,8 @@ def continue_case(case: dict, variant: str, llm: str, llm_args: dict, max_rounds
     except Exception as e:  # noqa: BLE001 - keep the evidence; the caller decides whether to stop
         rec["status"], rec["error_type"], rec["error"] = "error", type(e).__name__, f"{type(e).__name__}: {e}"[:500]
     finally:
-        rec["harness_events"] = getattr(agent, "events", []) if agent is not None else []
+        rec["harness_events"] = (getattr(agent, "events", None) or getattr(agent, "adapter_events", None) or []) \
+            if agent is not None else []
         if budget is not None:
             rec["ledger_calls"] = [c.seq for c in budget.calls[seq_start:]]
         if env is not None:
@@ -376,6 +383,8 @@ def preflight(plan: dict, approved_usd: float) -> dict:
     for name, arm in arms.items():
         if arm.get("evidence") not in (None, "record", "enforce"):
             raise PlanError(f"arm {name!r}: evidence must be null, 'record' or 'enforce'")
+        if arm.get("tool_adapter") not in (None, "direct_tools"):
+            raise PlanError(f"arm {name!r}: tool_adapter must be null or 'direct_tools'")
     return {
         "batch_id": plan["batch_id"],
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -427,7 +436,7 @@ def main(argv=None) -> int:
                               plan["settings"]["agent_args"], plan["settings"].get("max_rounds", 8),
                               tuple(arm.get("guard_rules", ())), tuple(arm.get("nudges", ())),
                               budget=budget, record_path=out_dir / f"run_{k:02d}.json",
-                              evidence_mode=arm.get("evidence"))
+                              evidence_mode=arm.get("evidence"), tool_adapter=arm.get("tool_adapter"))
             rows.append({**base, **r})
             stopped = r.get("error_type") in ("BudgetExceeded", "BoundViolation")
             (out_dir / "results.json").write_text(json.dumps(rows, indent=2, default=str) + "\n")

@@ -23,7 +23,7 @@ last_build: dict = {}
 
 
 def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple = (), nudges: tuple = (),
-            evidence_mode: str | None = None, **kwargs):
+            evidence_mode: str | None = None, tool_adapter: str | None = None, **kwargs):
     """Registered with tau2. Builds the standard tau2 LLMAgent from allowlisted inputs only. A non-baseline
     variant appends its frozen instruction text (bench/variants/) to the domain policy; nothing else changes."""
     from tau2.agent.llm_agent import LLMAgent
@@ -40,12 +40,22 @@ def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple 
         "guard_rules": list(guard_rules),
         "nudges": list(nudges),
         "evidence_mode": evidence_mode,
+        "tool_adapter": tool_adapter,
     })
     if evidence_mode not in (None, "record", "enforce"):
         raise ValueError(f"evidence_mode must be None, 'record' or 'enforce', not {evidence_mode!r}")
     guarded = bool(guard_rules or nudges or evidence_mode)
+    if tool_adapter not in (None, "direct_tools"):
+        raise ValueError(f"tool_adapter must be None or 'direct_tools', not {tool_adapter!r}")
+    if tool_adapter and guarded:
+        raise ValueError("the direct-tool adapter is tested on its own: do not combine it with guards, nudges or "
+                         "the evidence check, or a change in results could not be attributed")
     cls = LLMAgent
-    if guarded:
+    if tool_adapter:
+        from bench import adapter
+
+        cls = adapter.make_direct_tools_agent_class()
+    elif guarded:
         from bench import guard
 
         cls = guard.make_guarded_agent_class()
@@ -58,7 +68,7 @@ def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple 
     return built
 
 
-def register(variant: str = "baseline", guard_rules: tuple = (), nudges: tuple = ()) -> str:
+def register(variant: str = "baseline", guard_rules: tuple = (), nudges: tuple = (), tool_adapter: str | None = None) -> str:
     """Register the factory for one variant (and optional proposal-time guard) with tau2; return its name."""
     from functools import partial
 
@@ -79,9 +89,11 @@ def register(variant: str = "baseline", guard_rules: tuple = (), nudges: tuple =
         name += "_guarded_" + "_".join(sorted(guard_rules))
     if nudges:
         name += "_nudged_" + "_".join(sorted(nudges))
+    if tool_adapter:
+        name += "_" + tool_adapter
     if name not in registry.get_agents():
         registry.register_agent_factory(partial(factory, variant=variant, guard_rules=tuple(sorted(guard_rules)),
-                                                nudges=tuple(sorted(nudges))), name)
+                                                nudges=tuple(sorted(nudges)), tool_adapter=tool_adapter), name)
     return name
 
 

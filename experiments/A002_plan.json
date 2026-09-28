@@ -1,0 +1,241 @@
+{
+  "batch_id": "A002",
+  "kind": "full conversations, paired (official tau2 grade)",
+  "purpose": "Milestone 2: does the direct-tool adapter improve official task outcomes over our own baseline, with identical model, retrieval and instructions?",
+  "hypothesis": "Presenting retrieved tools as directly callable functions improves correct task execution compared with requiring unlock and wrapper calls.",
+  "selection_rule": "Development tasks whose reference solution calls at least one discoverable agent tool (21 of 30); sort by sha256('A002:' + task_id); take the first 6. Fixed before any run. All dev tasks were exercised by F001's reference-derived probes, so none is 'unseen'.",
+  "tasks": [
+    "task_061",
+    "task_092",
+    "task_031",
+    "task_066",
+    "task_091",
+    "task_041"
+  ],
+  "arms": {
+    "baseline": {
+      "agent_variant": "baseline"
+    },
+    "direct_tools": {
+      "agent_variant": "baseline",
+      "tool_adapter": "direct_tools"
+    }
+  },
+  "intervention": "bench/adapter.py (A001). Same baseline instructions in both arms; no guards, nudges or evidence checks.",
+  "trials_per_arm": 3,
+  "runs": [
+    {
+      "task_id": "task_061",
+      "arm": "direct_tools",
+      "attempt": 0
+    },
+    {
+      "task_id": "task_061",
+      "arm": "baseline",
+      "attempt": 0
+    },
+    {
+      "task_id": "task_061",
+      "arm": "baseline",
+      "attempt": 1
+    },
+    {
+      "task_id": "task_061",
+      "arm": "direct_tools",
+      "attempt": 1
+    },
+    {
+      "task_id": "task_061",
+      "arm": "direct_tools",
+      "attempt": 2
+    },
+    {
+      "task_id": "task_061",
+      "arm": "baseline",
+      "attempt": 2
+    },
+    {
+      "task_id": "task_092",
+      "arm": "baseline",
+      "attempt": 0
+    },
+    {
+      "task_id": "task_092",
+      "arm": "direct_tools",
+      "attempt": 0
+    },
+    {
+      "task_id": "task_092",
+      "arm": "direct_tools",
+      "attempt": 1
+    },
+    {
+      "task_id": "task_092",
+      "arm": "baseline",
+      "attempt": 1
+    },
+    {
+      "task_id": "task_092",
+      "arm": "baseline",
+      "attempt": 2
+    },
+    {
+      "task_id": "task_092",
+      "arm": "direct_tools",
+      "attempt": 2
+    },
+    {
+      "task_id": "task_031",
+      "arm": "direct_tools",
+      "attempt": 0
+    },
+    {
+      "task_id": "task_031",
+      "arm": "baseline",
+      "attempt": 0
+    },
+    {
+      "task_id": "task_031",
+      "arm": "baseline",
+      "attempt": 1
+    },
+    {
+      "task_id": "task_031",
+      "arm": "direct_tools",
+      "attempt": 1
+    },
+    {
+      "task_id": "task_031",
+      "arm": "direct_tools",
+      "attempt": 2
+    },
+    {
+      "task_id": "task_031",
+      "arm": "baseline",
+      "attempt": 2
+    },
+    {
+      "task_id": "task_066",
+      "arm": "direct_tools",
+      "attempt": 0
+    },
+    {
+      "task_id": "task_066",
+      "arm": "baseline",
+      "attempt": 0
+    },
+    {
+      "task_id": "task_066",
+      "arm": "baseline",
+      "attempt": 1
+    },
+    {
+      "task_id": "task_066",
+      "arm": "direct_tools",
+      "attempt": 1
+    },
+    {
+      "task_id": "task_066",
+      "arm": "direct_tools",
+      "attempt": 2
+    },
+    {
+      "task_id": "task_066",
+      "arm": "baseline",
+      "attempt": 2
+    },
+    {
+      "task_id": "task_091",
+      "arm": "baseline",
+      "attempt": 0
+    },
+    {
+      "task_id": "task_091",
+      "arm": "direct_tools",
+      "attempt": 0
+    },
+    {
+      "task_id": "task_091",
+      "arm": "direct_tools",
+      "attempt": 1
+    },
+    {
+      "task_id": "task_091",
+      "arm": "baseline",
+      "attempt": 1
+    },
+    {
+      "task_id": "task_091",
+      "arm": "baseline",
+      "attempt": 2
+    },
+    {
+      "task_id": "task_091",
+      "arm": "direct_tools",
+      "attempt": 2
+    },
+    {
+      "task_id": "task_041",
+      "arm": "baseline",
+      "attempt": 0
+    },
+    {
+      "task_id": "task_041",
+      "arm": "direct_tools",
+      "attempt": 0
+    },
+    {
+      "task_id": "task_041",
+      "arm": "direct_tools",
+      "attempt": 1
+    },
+    {
+      "task_id": "task_041",
+      "arm": "baseline",
+      "attempt": 1
+    },
+    {
+      "task_id": "task_041",
+      "arm": "baseline",
+      "attempt": 2
+    },
+    {
+      "task_id": "task_041",
+      "arm": "direct_tools",
+      "attempt": 2
+    }
+  ],
+  "arm_order_rule": "balanced within and across tasks: each pair's two arms run back to back and alternate by attempt. The 3 tasks with the smallest sha256('A002-order:' + task_id) run the adapter first in attempts 0 and 2, the other 3 in attempt 1 (9 of 18 pairs adapter-first overall). Earlier drafts (hash parity: 12/18; global ranking: one task adapter-first 3/3) were replaced before anything ran.",
+  "settings": {
+    "agent_model": "gpt-5-mini",
+    "agent_args": {
+      "reasoning_effort": "low"
+    },
+    "user_model": "gpt-5.2",
+    "user_args": {
+      "reasoning_effort": "low"
+    },
+    "retrieval_config": "bm25",
+    "seed": 300,
+    "max_steps": 200
+  },
+  "settings_note": "Identical to S002/S003. bm25 is a documented retrieval configuration; results are not comparable to published alltools numbers.",
+  "outcomes": {
+    "primary": "official tau2 reward per conversation (36), reported per task and attempt, as paired outcomes (improved / regressed / both pass / both fail), and as passes per arm per task (0-3)",
+    "secondary": [
+      "unauthorized actions: writes before a successful log_verification, and task-forbidden writes (from the trace)",
+      "discoverable tools actually executed per conversation",
+      "false capability denials and inaccurate handover summaries (by reading, rules as in D003)",
+      "cost per conversation and per arm; conversations cut by max_steps or errors"
+    ],
+    "not_evidence": "6 selected development tasks x 3 attempts: a development result, not a held-out or leaderboard-comparable estimate. A win here justifies a held-out comparison; it does not establish one."
+  },
+  "forecast_usd": {
+    "basis": "S002 $0.100/conversation, S003 $0.093/conversation (agent + customer simulator)",
+    "expected": "3.40-5.00 for 36 conversations (the adapter arm may run longer)"
+  },
+  "budget_usd_total": null,
+  "budget_note": "Remaining credit is about $2.05, which does not cover this design. Either add credit (recommended allocation $5.00), or reduce to 1 attempt per arm (12 conversations, about $1.10-1.60) with correspondingly weaker evidence.",
+  "no_retries": "no conversation is repeated beyond the planned attempts, whatever its outcome",
+  "status": "draft for review; not approved"
+}

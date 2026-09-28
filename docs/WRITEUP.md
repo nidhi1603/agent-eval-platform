@@ -132,7 +132,9 @@ A write can pass provenance and arithmetic, as run 02's $100 would, and still be
 
 **Why I stopped:** after D003 the pre-set stopping rule applied. More prompt variants at one sample per cell cannot separate effects from run-to-run variation. Across seven experiments, tool discovery never became reliable, however the instructions were framed.
 
-**The next engineering candidate, not started:** simplify how available tools are presented to the agent (for example, surfacing retrieved tool names as callable tools), rather than adding more instructions. Any test of that would need more than one sample per point.
+**Phase 2 (in progress since 2026-09-28):** the direct-tool adapter is built and verified at $0 (`experiments/A001_adapter_equivalence.md`): identical official grades through the wrappers and through the adapter. The paired full-conversation comparison (A002) is planned, not run.
+
+**The engineering candidate that started phase 2:** simplify how available tools are presented to the agent (for example, surfacing retrieved tool names as callable tools), rather than adding more instructions. Any test of that would need more than one sample per point.
 
 ## Evidence trail
 

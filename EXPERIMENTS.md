@@ -237,3 +237,19 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Wording:** scoped to selected failures and reviewer judgments.
 - **Status:** ready to share.
 
+## Phase 2: one architectural intervention
+
+### A001: direct-tool adapter built and verified (2026-09-28, $0)
+- **What it does:** presents discovered agent tools as ordinary callable functions (`bench/adapter.py`).
+  - Only names from the agent's own successful KB results.
+  - Unlocked through the benchmark's own call (in-memory, grading-neutral).
+  - Offered with the benchmark's definition (it matches the unlock text for all 44 tools).
+  - Direct calls are translated back to the standard wrapper with the same arguments and call id.
+  - Customer tools unchanged; no other intervention allowed alongside it.
+- **Equivalence under the official evaluator:** task_058 (database-graded) and task_035 (action-graded) score **1.0 through both the wrappers and the adapter**.
+- 8 adapter tests; suite 182 passed, 14 xfailed. Record: `experiments/A001_adapter_equivalence.md`.
+
+### A002: baseline vs adapter, full conversations (DRAFT, not approved)
+- **Design:** 6 rule-selected dev tasks × 2 arms × 3 attempts = 36 conversations, official grades, identical settings to S002/S003, balanced order.
+- **Cost:** forecast $3.40–$5.00, which exceeds the remaining credit (about $2.05). Options are in `experiments/A002_plan.json`.
+

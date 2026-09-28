@@ -66,6 +66,7 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None) -> d
             user_model=s["user_model"], user_llm_args=dict(s["user_args"]),
             retrieval_config=s["retrieval_config"], seed=s["seed"], max_steps=s["max_steps"],
             budget_usd=remaining, limits=Limits(), agent_variant=s.get("agent_variant", "baseline"),
+            agent_tool_adapter=s.get("tool_adapter"),
             **({"out_dir": out_dir} if out_dir else {}),
         )
         trace, path = run(opts)
@@ -74,6 +75,8 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None) -> d
         rows.append({
             "task_id": task_id,
             "arm": arm,
+            "attempt": item.get("attempt", 0),
+            "tool_adapter": (((trace.get("config") or {}).get("agent") or {}).get("tool_adapter")),
             "agent_variant": (((trace.get("config") or {}).get("agent") or {}).get("variant") or {}),
             "status": "finished" if trace.get("execution", {}).get("finished") else "interrupted_or_failed",
             "run_id": trace.get("run_id"),
@@ -112,11 +115,11 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None) -> d
 def _pairs(rows: list[dict]) -> list[dict]:
     """Per task, the outcome of each arm, and a paired classification. Incomplete pairs are kept and
     labelled, never dropped. Only official rewards are compared here; behaviour is read from traces."""
-    by_task: dict[str, dict] = {}
-    for r in rows:
-        by_task.setdefault(r["task_id"], {})[r["arm"]] = r
+    by_task: dict[tuple, dict] = {}
+    for r in rows:  # a pair is one task and one attempt: repeated attempts are separate pairs, never merged
+        by_task.setdefault((r["task_id"], r.get("attempt", 0)), {})[r["arm"]] = r
     out = []
-    for task_id, arms in by_task.items():
+    for (task_id, attempt), arms in by_task.items():
         rewards = {a: (r.get("official_reward") if r["status"] == "finished" else None) for a, r in arms.items()}
         names = sorted(arms)
         if len(names) != 2 or any(v is None for v in rewards.values()):
@@ -127,7 +130,7 @@ def _pairs(rows: list[dict]) -> list[dict]:
             b, o = rewards[base] >= 1.0, rewards[other] >= 1.0
             kind = {(False, True): "improved", (True, False): "regressed",
                     (True, True): "both pass", (False, False): "both fail"}[(b, o)]
-        out.append({"task_id": task_id, "rewards": rewards, "pair": kind})
+        out.append({"task_id": task_id, "attempt": attempt, "rewards": rewards, "pair": kind})
     return out
 
 
