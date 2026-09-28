@@ -188,3 +188,14 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Regressions:** 8 new tests fail on `493f5e1`. Suite: 169 passed, 14 xfailed.
 - **D002:** technically cleared; awaiting Nidhi's approval of $0.60. Decision record: `docs/reviews/2026-09-27-tech-lead-review-493f5e1.md`.
 
+### D002: recording vs enforcing the argument-evidence check (run 2026-09-27, $0.100 upper bound)
+- **Approval:** Nidhi, "go for it", $0.60 total. Run: 12/12 once each, all ending in text; exposure `not_observed`.
+- **The checker was barely exercised:** 2 write proposals in 12 runs, both D1's legitimate $50 credit.
+  - A executed it without a contract.
+  - B blocked it (`missing_contract`); the correction was a malformed contract in text plus a repeat consent request, so no repair.
+  - No unsupported write was attempted in either arm.
+- **Discovery failure dominated:** 0/12 unlocks. W1, C1 and X1 were denied or transferred in both arms, and I1's user tool was never handed over. L1's read succeeded in both arms.
+- **X1(A) endorsed the customer's wrong $72 in text** (outside any argument check).
+- **Reading:** acting at all is still the constraint; enforcement cost one valid action here. Whether the evidence section suppresses action is untested (no interface-only arm).
+- Findings: `experiments/D002_findings.md`.
+
