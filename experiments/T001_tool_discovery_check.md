@@ -9,7 +9,7 @@
 | | Count |
 |---|---|
 | Traces where the agent ever called `unlock_discoverable_agent_tool` | **2 of 19** (S002 task_047; S003 task_019, variant arm) |
-| Traces where a discoverable tool name appeared in tool results the agent received | 16 of 19 |
+| Traces where a discoverable agent-tool name appeared in tool results the agent received | **17 of 19** (corrected 2026-09-28 from 16, which no counting rule reproduces; definition: `scripts/count_tool_names_seen.py`; 17 also when restricted to KB search results; 18 if customer tools count). Seeing a name does not make the tool relevant or authorized |
 | Tool-call errors from unlock or call attempts | **0**. It never tried and failed; it did not try |
 
 ## 2. What the agent received

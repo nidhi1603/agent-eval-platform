@@ -100,7 +100,7 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **S003 decision:** `denial_check_v1` is retired as a candidate default. There was no observed success improvement, and cost rose (+45% full price, +24% cache-aware). The secondary metric measures search compliance, not denial correctness.
 
 ### T001: offline tool-discovery check (2026-09-27, $0)
-- **Usage:** across 19 live traces, the agent unlocked a discoverable tool in only 2, even though tool names appeared in results it received in 16. It made no failed attempts.
+- **Usage:** across 19 live traces, the agent unlocked a discoverable tool in only 2, even though agent-tool names appeared in results it received in 17 (corrected from 16 on 2026-09-28; definition: `scripts/count_tool_names_seen.py`). It made no failed attempts.
 - **Replay:** from the exact saved states where it said it could not act (S003 task_095 msg 26; S002 task_080 msg 22), the documented unlock-and-call sequence **works**. Unlocking returns the parameters, and the calls return accounts and cards and freeze the card.
 - **Authorization:** writes execute with no identity verification. Authorization is enforced by the written policy only, not the interface.
 - **Conclusion:** not a broken integration; the model did not use a working interface. Details: `experiments/T001_tool_discovery_check.md`. Test: `tests/test_tool_discovery.py`.
@@ -229,4 +229,11 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **`docs/WRITEUP.md` rewritten:** separate evaluation types, the evidence trail, the limits of each check, and engineering decisions.
 - **`make demo`:** an offline demonstration of the whole evidence trail.
 - **Milestone closed.** No further paid experiment; enforcement and N001 paused.
+
+### Review of f93aaeb: write-up corrections before sharing (2026-09-28, $0)
+- **Expected failures:** the 14 xfails are Kubernetes/API platform defects, not benchmark defects.
+- **Tool names seen:** 17/19 (not 16), now defined by `scripts/count_tool_names_seen.py`.
+- **Demo:** runs offline (0 connection attempts, verified); states what it reproduces vs displays; successes labelled "local criterion met".
+- **Wording:** scoped to selected failures and reviewer judgments.
+- **Status:** ready to share.
 

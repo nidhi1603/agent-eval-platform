@@ -16,4 +16,4 @@ def test_demo_reproduces_its_claims(capsys):
     assert "User accounts retrieved successfully." in out
     assert "the recorded $100 write:            allowed=False  (missing_contract)" in out
     assert "$100 adding the Gold card's 0.025%: allowed=True" in out
-    assert "No model was called" in out
+    assert "No model was called" in out and "local criterion met=True" in out

@@ -2,7 +2,7 @@
 
 Nidhi Rajani, September 2026.
 - **Authorship.** Implementation was AI-assisted (Claude Code). A second model (ChatGPT, acting as tech lead) reviewed each stage. Research direction, every spending approval and every decision to publish were mine.
-- **Reproduce it.** Everything below can be reproduced from this repository. `make demo` replays the evidence trail offline, with no API key and no spend.
+- **Reproduce it.** After installing dependencies and the pinned benchmark data, `make demo` reproduces selected deterministic checks and displays saved experimental results, with no model calls or API spend. It runs offline: it makes no network connection. It does not regenerate the stochastic model outputs; those are the saved traces.
 - **Spend.** The live runs cost **$2.26** in usage-based estimates (list prices; not reconciled with the provider).
 
 ## Conclusion
@@ -47,14 +47,14 @@ A continuation's "0 completed" means **no target state change before the first t
   - permission rules that can block a call;
   - a pre-send check that can advise once;
   - an argument-evidence checker (identifiers must come from the verified customer's retrieved records; amounts need a stated, sourced calculation) that can record or enforce.
-- **Tests:** 174 passing, plus 14 expected failures that document known benchmark defects. Every review finding has a regression test.
+- **Tests:** the suite reports 174 passing tests and 14 expected failures covering known defects in the unused Kubernetes execution path. All reported experiments used the separate local runner. Reproduced code defects have regression tests.
 
 ## Findings
 
 ### 1. The benchmark exposed hidden answer data (F001, $0). This is a benchmark finding, not an agent result
 - The agent-callable tool `list_discoverable_agent_tools` prints a log. The benchmark writes a read call into that log only if the tool's name is in the task's reference solution.
 - Under probes built from the reference solutions, agent-visible output depended on hidden reference data in **17 of 30** development tasks, all through this one mechanism.
-- A local, opt-in fix rebuilds only the agent-visible listing, and grading is unchanged. With the fix, no flags remain on 532 agent-visible outputs.
+- A local, opt-in fix rebuilds only the agent-visible listing. The fix preserves the grading logic, and the tested scripted conversations kept their grades. With the fix, no flags remain on 532 agent-visible outputs.
 - This shows exposure only; I did not test whether an agent exploits it.
 - Reported upstream with a standalone reproducer: [sierra-research/tau2-bench#574](https://github.com/sierra-research/tau2-bench/issues/574).
 
@@ -67,8 +67,11 @@ A continuation's "0 completed" means **no target state change before the first t
   - The instruction arm made an unauthorized write that the instruction itself prohibited.
   - **I retired the instruction.**
 
-### 3. The bottleneck was using tools, not finding them (T001, $0)
-- Across 19 live conversations, discoverable tool names appeared in tool results the agent received in 16, but the agent unlocked a tool in only 2.
+### 3. In selected failures, the agent found the needed tool but did not use it (T001, $0)
+- Across 19 live conversations, a discoverable agent-tool name appeared in tool results the agent received in **17**, all of them in knowledge-base search results. The agent unlocked a tool in only 2.
+  - The count is defined by `scripts/count_tool_names_seen.py`, which checks against the benchmark's tool registry.
+  - Seeing a name does not mean the tool was relevant or authorized; the replayed failures below are the stronger evidence.
+  - This does not rule out retrieval as another bottleneck.
 - One concrete case (task_095, message 26):
   - The agent had searched for `get_all_user_accounts_by_user_id_3847` by name, and seen it in results at messages 3 and 15.
   - It then told the customer: "I don't have access to the internal tool referenced in the KB".
@@ -119,7 +122,7 @@ A write can pass provenance and arithmetic, as run 02's $100 would, and still be
 
 **Rejected or retired:**
 - the "search before denying" instruction (S003: no outcome change, higher cost);
-- the first pre-send check (an offline review found its first suggestion was a harmful write at 5 of 13 firing points);
+- the first pre-send check (in an offline review, a reviewer judged its first suggested write irrelevant or insufficiently authorized at five of 13 selected points; the suggestions were never executed);
 - implicit number matching for provenance (the `2100.00` collision);
 - a blanket harness reply that could deny an earlier real change.
 
@@ -135,7 +138,8 @@ A write can pass provenance and arithmetic, as run 02's $100 would, and still be
 
 | What | Where |
 |---|---|
-| Offline demonstration (pins, exposure and fix, one failure end to end, all results) | `make demo` → `bench/demo.py` |
+| Demonstration: deterministic checks (pins, the exposure and its fix, one failure end to end, evidence-check verdicts) plus the saved results | `make demo` → `bench/demo.py` |
+| Tool-name count definition | `scripts/count_tool_names_seen.py` |
 | Pins | `bench/pins.py` (tau2 1.0.1 @ `b7ea907`, data commit verified) |
 | Plans with fingerprints and recorded approvals; results; findings | `experiments/{S002,S003,D001,D002,D003}_*`, `experiments/T001_tool_discovery_check.md`, `EXPERIMENTS.md` |
 | Traces and continuation records, ledgers, manifests | `results/`, `experiments/D00*_runs/` |

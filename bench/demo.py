@@ -1,4 +1,8 @@
-"""Reproducible demonstration of the project's evidence trail. Zero cost: no API key, no model calls.
+"""Demonstration of the project's evidence trail. No API key, no model calls, no spend.
+
+After installing dependencies and the pinned benchmark data, it reproduces selected deterministic checks (the
+benchmark exposure and its fix, a scripted tool call on a restored state, the evidence checker's verdicts) and
+displays saved experimental results. It does not reproduce the stochastic model generations themselves.
 
     uv run --extra bench python -m bench.demo        # or: make demo
 
@@ -16,10 +20,27 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import sys
 
-import bench  # noqa: F401 - must precede any tau2 import: it sets TAU2_DATA_DIR
-from bench import REPO_ROOT
+# Offline: LiteLLM otherwise tries to download its pricing map at import (it falls back locally, but that is a
+# network attempt). Must be set before anything imports LiteLLM.
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+
+import bench  # noqa: E402,F401 - must precede any tau2 import: it sets TAU2_DATA_DIR
+from bench import REPO_ROOT  # noqa: E402
+
+
+def _quiet() -> None:
+    """tau2 logs every tool call at DEBUG; keep only errors so the demonstration is readable."""
+    try:
+        from loguru import logger
+
+        logger.remove()
+        logger.add(sys.stderr, level="ERROR")
+    except ImportError:
+        pass
 
 
 def _h(title: str) -> None:
@@ -140,17 +161,21 @@ def results() -> None:
         print(f"\n{batch} (spend upper bound ${res['spend']['upper_bound_usd']:.3f}; status {res['by_status']})")
         for r in res["results"]:
             s = r["score"]
-            parts = [f"{k}={s[k]}" for k in ("success", "progress", "completion_final_state",
-                                             "valid_next_step_tool_given_ok") if k in s]
+            label = {"success": "local criterion met", "progress": "useful progress",
+                     "completion_final_state": "target state before first reply",
+                     "valid_next_step_tool_given_ok": "customer tool handed over"}
+            parts = [f"{label[k]}={s[k]}" for k in label if k in s]
             if s.get("forbidden_successful"):
                 parts.append(f"forbidden_write={s['forbidden_successful']}")
             arm = r.get("arm") or r["variant"]
             print(f"  {r['case']:<3} {arm:<32} {'; '.join(parts) or '(read label only)'}")
-    print("\nReading labels (denials, clarifications, consent requests, unsupported claims) are in each")
-    print("experiments/<batch>_findings.md; they are not reducible to these automatic fields.")
+    print("\n'local criterion met' is one pre-set check (e.g. the right lookup call), not task success: in D001 P1 a")
+    print("met criterion was followed by a $100 credit without a recorded derivation. Reading labels (denials,")
+    print("clarifications, consent requests, unsupported claims) are in experiments/<batch>_findings.md.")
 
 
 def main() -> int:
+    _quiet()
     pins()
     exposure()
     one_failure()
