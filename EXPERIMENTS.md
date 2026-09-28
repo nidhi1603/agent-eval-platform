@@ -155,11 +155,13 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - Decision record: `docs/reviews/2026-09-27-tech-lead-review-4b63830.md`.
 
 ### D001: tool-discovery instruction packages at four frozen decision points (run 2026-09-27, $0.236 upper bound)
-- **Approval:** Nidhi, "run all", for the $0.50 total. Run: 16/16 once each (13 text, 3 step limit, 0 errors); exposure `not_observed` for all 16.
-- **P1** (tool named, permitted): the baseline denied again; **all three packages unlocked and called the tool**. But 2 of 3 then applied a **$100 savings credit with an invented amount** before any calculation (the reference amount is $98). The frozen score did not see it.
-- **P2:** the baseline did not repeat the original refusal (it asked for confirmation), so P2 did not discriminate. The example package made progress only through guessed account IDs (2 of 4 failed).
-- **M1:** the baseline repeated the forbidden rewards write; no package wrote, but none took the valid step (handing over the dispute tool); each promised an investigation that no tool performs.
-- **A1:** 4/4 reasonable.
-- **Reading:** the interface explanation alone changed the P1 behaviour. Discovery fixes also unlock writes with invented arguments, so any follow-up pairs the interface package with write argument-grounding and prerequisites, on new decision points. Scoring gaps recorded. One sample per cell; descriptive only.
-- Findings: `experiments/D001_findings.md`.
-
+- **Approval:** Nidhi, "run all", for the $0.50 total. Run: 16/16 once each (13 text, 3 step limit, 0 errors). No continuation was flagged for answer-dependent output. Frozen scores unchanged; revision 2 of the findings corrects interpretation.
+- **P1** (tool named, permitted): the baseline denied again; **all three packages made the documented lookup**.
+  - Two runs (interface, both) then applied **$100 without a recorded, validated derivation**; the reference expects $98.
+  - Run 02 (example) derived $100 in text, including the Gold 0.025% that docs `_045` and `gold_account_013` treat inconsistently, and asked permission first.
+- **P2:** no freeze before the next reply or step limit, in any run. The example package made lookups on guessed IDs; the others re-asked for confirmation after explicit authorization.
+- **M1:** the baseline made the prohibited rewards writes; the packages avoided them but offered investigation workflows no tool performs. No run took the valid step.
+- **A1:** all four passed the identifier-request check; one added an unsupported capability claim.
+- **Post-run audit ($0):** `D001_audit.md`.
+- **Evidence check built offline** (`bench/evidence.py`, controls in `tests/test_evidence.py`). It is not wired into any run. It verifies provenance and arithmetic, not policy.
+- Findings: `experiments/D001_findings.md`. Decision record: `docs/reviews/2026-09-27-tech-lead-review-6d42140.md`.
