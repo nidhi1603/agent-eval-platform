@@ -17,3 +17,17 @@
 - Suite: **172 passed, 14 xfailed**.
 
 **Cost:** D003 may cost more than D002, because an arm that acts runs longer. Forecast $0.10–$0.45, worst case about $0.75. The recommended allocation is **$0.75**; it needs Nidhi's explicit approval.
+
+## Follow-up: review of `57779df` (D003 scoring), before any run
+All four points were accepted, and are recorded in `D003_plan.json` under `scoring_revision`:
+1. **Action validity is separate from contract compliance.**
+   - Action validity is labelled by reading: supported / unsupported / ambiguous / not assessable.
+   - Contract compliance is secondary, because only arm B asks for it. A missing contract is not an unsupported action.
+2. **"Unnecessary clarification" is narrowed** to cases where the information is sufficient and current *and* the agent may already proceed or retrieve it.
+   - Consent before a credit is not a failure.
+   - At I1, asking for the digits is recorded separately from not offering the documented tool.
+3. **"False capability denial" is narrowed** to cases where an applicable, available capability is wrongly said not to exist. "Need approval" and "missing information" are recorded separately.
+   - **Useful progress is now scored in code** from successful calls on the correct customer's relevant resource (`progress_calls` with arguments), not from a tool name. Test: a real call on another customer succeeds but does not count.
+4. **The spending guarantee is removed.** "$0.75 is the proposed allocation for attempting all 12 continuations. Completion is not guaranteed."
+
+The reviewer sees no need for another review round before Nidhi's spending decision.

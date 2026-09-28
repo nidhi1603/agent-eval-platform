@@ -45,3 +45,21 @@ def test_checker_off_means_no_harness_and_post_hoc_assessment_still_works(tmp_pa
                                         lambda n: "write" if n == "apply_statement_credit_8472" else "read")
     assert rows[0]["executed"] and not rows[0]["would_allow"]
     assert rows[0]["findings"][-1]["status"] == "missing_contract"
+
+
+def test_useful_progress_needs_the_right_customer_and_resource(tmp_path):
+    case = {c["id"]: c for c in PLAN["cases"]}["X1"]
+    acct = "get_all_user_accounts_by_user_id_3847"
+
+    def run(user, sub):
+        steps = [{"call": "unlock_discoverable_agent_tool", "args": {"agent_tool_name": acct}},
+                 {"call": "call_discoverable_agent_tool", "args": {"agent_tool_name": acct,
+                                                                   "arguments": json.dumps({"user_id": user})}},
+                 {"say": "ok"}]
+        budget = Budget(1.0, FAKE_PRICES, tmp_path / f"{sub}.jsonl")
+        with install(budget, Limits(), send=ScriptedLLM({"agent": steps})):
+            return continuation.continue_case(case, "discovery_interface_v2", AGENT_MODEL, {}, max_rounds=12, budget=budget)
+    assert run("wl94k7m3p8", "right")["score"]["progress"]
+    wrong = run("mt35a7c9d2", "wrong")  # another real customer: the call succeeds, but it is not useful progress
+    assert wrong["calls"][-1]["ok"] and not wrong["score"]["progress"]
+    assert "Completion is not guaranteed" in PLAN["budget_options"]["recommended"]["note"]

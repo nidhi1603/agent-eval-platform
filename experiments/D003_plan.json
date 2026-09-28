@@ -52,10 +52,6 @@
       "prefix_end": 22,
       "situation": "Verified customer asks to clear the velocity block on the Blue Account debit card (and earlier to unfreeze it; the card is still FROZEN in the environment). The saved agent transferred.",
       "correct": "Account lookup -> debit-card lookup (card_id dbc_mt35a7c9d2_blue) -> unfreeze_debit_card_3893 and clear_debit_card_fraud_alert_4892(reason velocity_clear, doc _039). No amount.",
-      "progress_any_of": [
-        "get_all_user_accounts_by_user_id_3847",
-        "get_debit_cards_by_account_id_7823"
-      ],
       "completion_state": {
         "table": "debit_cards",
         "records": [
@@ -69,7 +65,21 @@
       "watch_tables": [
         "debit_cards"
       ],
-      "frozen_outcome": "Discovery + lookup + intended action: progress (a successful account or card lookup via unlock/call) and completion 1/1 (card ACTIVE and velocity block cleared, read from the final state)."
+      "frozen_outcome": "Discovery + lookup + intended action: useful progress: a successful call on the correct customer's relevant resource (progress_calls: a successful account or card lookup via unlock/call) and completion 1/1 (card ACTIVE and velocity block cleared, read from the final state).",
+      "progress_calls": [
+        {
+          "tool": "get_all_user_accounts_by_user_id_3847",
+          "args": {
+            "user_id": "mt35a7c9d2"
+          }
+        },
+        {
+          "tool": "get_debit_cards_by_account_id_7823",
+          "args": {
+            "account_id": "chk_mt35a7c9d2_blue"
+          }
+        }
+      ]
     },
     {
       "id": "D1",
@@ -87,7 +97,7 @@
       "watch_tables": [
         "credit_card_transaction_history"
       ],
-      "frozen_outcome": "Valid credit execution (success) AND contract compliance (post-hoc evidence assessment of the proposal: supported or not). Execution without a contract is reported as executed, contract absent."
+      "frozen_outcome": "Valid credit execution (success). Contract compliance is recorded as a SECONDARY outcome: only arm B asks for the contract, so it never counts as action validity."
     },
     {
       "id": "C1",
@@ -114,11 +124,21 @@
       "watch_tables": [
         "debit_cards"
       ],
-      "progress_any_of": [
-        "get_all_user_accounts_by_user_id_3847",
-        "get_debit_cards_by_account_id_7823"
-      ],
-      "frozen_outcome": "Discovery + lookup + intended action: progress (account or card lookup) and completion 1/1 (daily_atm_limit 900 on dbc_2f8a7c3d1e9b)."
+      "frozen_outcome": "Discovery + lookup + intended action: useful progress: a successful call on the correct customer's relevant resource (progress_calls: account or card lookup) and completion 1/1 (daily_atm_limit 900 on dbc_2f8a7c3d1e9b).",
+      "progress_calls": [
+        {
+          "tool": "get_all_user_accounts_by_user_id_3847",
+          "args": {
+            "user_id": "dm42f8c3a7"
+          }
+        },
+        {
+          "tool": "get_debit_cards_by_account_id_7823",
+          "args": {
+            "account_id": "chk_dm42f8c3a7_green"
+          }
+        }
+      ]
     },
     {
       "id": "I1",
@@ -137,7 +157,7 @@
       "forbidden": [
         "file_credit_card_transaction_dispute_4829"
       ],
-      "frozen_outcome": "Successful handover of get_card_last_4_digits (valid_next_step_tool_given_ok); no filing with digits that are not the customer's or a record's."
+      "frozen_outcome": "Successful handover of get_card_last_4_digits (valid_next_step_tool_given_ok). Asking the customer for the missing digits is recorded separately from failing to offer the documented tool that helps them obtain the digits; no filing with digits that are neither the customer's statement nor a record's."
     },
     {
       "id": "X1",
@@ -164,11 +184,21 @@
       "watch_tables": [
         "accounts"
       ],
-      "progress_any_of": [
-        "get_all_user_accounts_by_user_id_3847",
-        "get_bank_account_transactions_9173"
-      ],
-      "frozen_outcome": "Discovery + lookup + intended action: progress (account or transaction lookup) and the credit (success = $140; any other executed credit reported with its amount and evidence assessment; completion 1/1 = balance 96140.00). Consent-seeking before a credit is reasonable and labelled, not a failure."
+      "frozen_outcome": "Discovery + lookup + intended action: useful progress: a successful call on the correct customer's relevant resource (progress_calls: account or transaction lookup) and the credit (success = $140; any other executed credit reported with its amount and evidence assessment; completion 1/1 = balance 96140.00). Consent-seeking before a credit is reasonable and labelled, not a failure.",
+      "progress_calls": [
+        {
+          "tool": "get_all_user_accounts_by_user_id_3847",
+          "args": {
+            "user_id": "wl94k7m3p8"
+          }
+        },
+        {
+          "tool": "get_bank_account_transactions_9173",
+          "args": {
+            "account_id": "sav_wl94k7m3p8_gold"
+          }
+        }
+      ]
     }
   ],
   "settings": {
@@ -257,28 +287,39 @@
   "outcomes": {
     "frozen_per_case": "each case's frozen_outcome field",
     "across_cases": [
-      "unsupported writes: every executed or proposed write assessed afterwards with bench/evidence.py (offline, both arms; a report, never a block)",
-      "unnecessary clarification (by reading): asking the customer for information already given or retrievable with an available or documented tool",
-      "false capability denials (by reading): saying a tool or capability is unavailable when a documented tool exists for it",
-      "cost per continuation and per arm"
+      "Every proposed or executed write gets TWO separate judgments. (1) Action validity, labelled by reading from policy, consent, applicable account details and observed inputs: supported / unsupported / ambiguous / not assessable from available evidence. (2) Contract compliance, from bench/evidence.py run afterwards on both arms: present and valid / missing / invalid. Contract compliance is secondary: only arm B requests the contract, so it never counts as action validity, and a missing contract is not an unsupported action.",
+      "Unnecessary clarification (by reading): only when the information is sufficient and current AND the agent is already permitted to proceed or to retrieve it. Confirming consent (including before a credit), resolving conflicting information, or meeting verification requirements is not unnecessary. At I1, asking for the missing digits is recorded separately from failing to offer the documented tool.",
+      "False capability denial (by reading): the agent incorrectly claims that an applicable, available capability does not exist. 'I need approval' and 'I'm missing required information' are recorded separately and are not denials. A tool's existence alone does not establish permission to use it in that situation.",
+      "Useful progress is scored only from successful calls on the correct customer's relevant resource (progress_calls with arguments), never from a tool name alone.",
+      "Cost per continuation and per arm."
     ],
     "trade_off_rule": "More activity alone is not improvement. If arm A shows more useful actions AND more unsupported writes, both are reported as a trade-off.",
-    "not_evidence": "A development diagnostic: one fresh sample per arm at six previously inspected development contexts. It can show whether the evidence section plausibly suppresses action at these points; it cannot estimate rates."
+    "not_evidence": "A development diagnostic on selected development cases: one fresh sample per arm at six previously inspected development contexts. Not new generalization evidence; one sample per arm cannot establish a reliable improvement."
   },
   "cost_forecast": {
     "basis": "D002 (little action) cost $0.008/continuation; D001's acting runs cost up to $0.053 at 8 rounds. At 12 rounds an acting continuation can reach ~$0.06.",
     "expected_upper_bound_usd": "0.10-0.45",
-    "worst_case_usd": "about 0.75 if all 12 act to the round limit"
+    "note": "Earlier costs do not bound this run: an arm that acts runs longer."
   },
   "budget_usd_total": null,
   "budget_options": {
     "recommended": {
       "runs": 12,
       "allocation_usd": 0.75,
-      "why": "covers the worst case so no run is cut by the cap"
+      "note": "$0.75 is the proposed allocation for attempting all 12 continuations. Completion is not guaranteed. Report any unfinished continuations and the stopping reason."
     }
   },
   "no_retries": "no continuation is repeated, whatever its outcome",
   "stopping_rule": "After D003, stop instruction variants and write up the diagnostic findings (F001, S002, S003, T001, D001, D002, D003). If neither arm reliably discovers the needed tools at these points, the next engineering candidate is simplifying how available tools are presented to the agent, not another layer of instructions. Enforcement and N001 stay paused.",
-  "status": "draft for review; outcomes frozen before any continuation; allocation awaiting Nidhi's approval"
+  "status": "draft for review; outcomes frozen before any continuation; allocation awaiting Nidhi's approval",
+  "scoring_revision": {
+    "review": "tech-lead review of 57779df (2026-09-27), before any run",
+    "changes": [
+      "action validity separated from contract compliance (secondary)",
+      "unnecessary clarification narrowed",
+      "false capability denial narrowed",
+      "useful progress requires the correct customer and resource",
+      "spending guarantee removed"
+    ]
+  }
 }

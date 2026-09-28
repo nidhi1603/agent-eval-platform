@@ -319,7 +319,12 @@ def score(case: dict, rec: dict) -> dict:
         s["success"] = any(c["underlying"] == case["success_tool"] and c["name"] != "unlock_discoverable_agent_tool"
                            and all(args_of(c).get(k) == v for k, v in want.items())
                            for c in ok_calls)
-    if case.get("progress_any_of"):  # intermediate progress, never reported as completion
+    if case.get("progress_calls"):  # useful progress: a successful call on the correct customer's relevant resource
+        args_of_ = lambda c: _inner_args(c["arguments"]) if c["name"] == "call_discoverable_agent_tool" else (c["arguments"] or {})  # noqa: E731
+        s["progress"] = any(c["underlying"] == p["tool"] and c["name"] != "unlock_discoverable_agent_tool"
+                            and all(args_of_(c).get(k) == v for k, v in p.get("args", {}).items())
+                            for p in case["progress_calls"] for c in ok_calls)
+    elif case.get("progress_any_of"):  # intermediate progress, never reported as completion
         s["progress"] = bool(set(s["successful_discoverable"]) & set(case["progress_any_of"]))
     if case.get("completion_state"):
         fs = rec.get("final_state") or {}
