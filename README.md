@@ -4,7 +4,7 @@ Run LLM-agent benchmark trials as isolated Kubernetes Jobs and measure what matt
 
 The target benchmark is Sierra's [τ³-Banking](https://taubench.com) (τ-bench knowledge domain), where the best frontier model reaches about 55% pass^1 and 35% pass^4. The platform is the measurement layer for a policy-compliant support-agent harness built on top of it.
 
-> **Results so far:** a benchmark integrity defect (reported upstream as sierra-research/tau2-bench#574), a measured baseline, a blinded paired test of one instruction change, and an offline tool-discovery check. See [docs/WRITEUP.md](docs/WRITEUP.md). These live runs use the local runner in `bench/`, not the Kubernetes platform below, which still runs only a deterministic `stub` agent. Status and known weaknesses: [docs/STATUS.md](docs/STATUS.md).
+> **Results:** a reproducible banking-agent evaluation on τ-Knowledge (tau2-bench v1.0.1, pinned). It found a benchmark exposure defect (reported upstream as sierra-research/tau2-bench#574) and ran seven experiments on why the agent fails and what harness changes do. Conclusion: tool discovery was inconsistent, and the diagnostics exposed trade-offs between action, evidence requirements and correctness; no reliable performance improvement was established. Write-up: [docs/WRITEUP.md](docs/WRITEUP.md). Offline demonstration, no API key: `make demo`. These runs use the local runner in `bench/`, not the Kubernetes platform below, which still runs only a deterministic `stub` agent.
 
 ## Architecture
 
