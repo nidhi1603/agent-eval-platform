@@ -153,3 +153,13 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **N001 counts (accepted):** the table had 11 inappropriate drafts, the prose said 10. The per-row labels were right; the reviewer's own summary sentence left out F01 (covered by a customer self-service tool). Reconciled in the file, and the wording no longer implies prevalence or measured benefit.
 - **Nudge candidate:** kept as a candidate, not built until after D001, with the reviewer's added requirements (protected reads vs lookups, applicability, honest log wording, required transfers preserved).
 - Decision record: `docs/reviews/2026-09-27-tech-lead-review-4b63830.md`.
+
+### D001: tool-discovery instruction packages at four frozen decision points (run 2026-09-27, $0.236 upper bound)
+- **Approval:** Nidhi, "run all", for the $0.50 total. Run: 16/16 once each (13 text, 3 step limit, 0 errors); exposure `not_observed` for all 16.
+- **P1** (tool named, permitted): the baseline denied again; **all three packages unlocked and called the tool**. But 2 of 3 then applied a **$100 savings credit with an invented amount** before any calculation (the reference amount is $98). The frozen score did not see it.
+- **P2:** the baseline did not repeat the original refusal (it asked for confirmation), so P2 did not discriminate. The example package made progress only through guessed account IDs (2 of 4 failed).
+- **M1:** the baseline repeated the forbidden rewards write; no package wrote, but none took the valid step (handing over the dispute tool); each promised an investigation that no tool performs.
+- **A1:** 4/4 reasonable.
+- **Reading:** the interface explanation alone changed the P1 behaviour. Discovery fixes also unlock writes with invented arguments, so any follow-up pairs the interface package with write argument-grounding and prerequisites, on new decision points. Scoring gaps recorded. One sample per cell; descriptive only.
+- Findings: `experiments/D001_findings.md`.
+
