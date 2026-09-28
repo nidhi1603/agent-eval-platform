@@ -210,3 +210,12 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Stopping rule:** after D003, stop instruction variants and write up the findings. Enforcement and N001 stay paused.
 - Decision record: `docs/reviews/2026-09-27-tech-lead-review-cccd6e0.md`.
 
+### D003: interface vs interface + evidence instructions, checker off (run 2026-09-27, $0.189 upper bound)
+- **Approval:** Nidhi, "run D003 with a $0.75 total". Run: 12/12 once each, all ending in text; exposure `not_observed`.
+- **Useful progress at W1, C1, X1:** A 1/3 (X1), B 1/3 (C1); intended action completed 0/3 in both.
+- **Other cases:** I1 handover A 0/1, B 1/1. D1's valid credit executed in both (contract missing in B, secondary). L1's read preserved in both.
+- **Writes and text claims:** 0 unsupported writes. False capability denials: A 0, B 2. Unnecessary clarification: A 1, B 0.
+- **Reading:** no evidence the evidence section suppresses action. Between-sample variation (B's own instructions gave 0/3 in D002, 1/3 here) matches any between-arm difference. Discovery stays poor under both.
+- **Stopping rule applies:** no more instruction variants; write up next.
+- Findings: `experiments/D003_findings.md`.
+
