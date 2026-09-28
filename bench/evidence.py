@@ -24,6 +24,7 @@ missing/invalid evidence, never as a policy violation.
 - Numbers from error receipts (including `error=False` results that begin "Error") are never evidence. The customer's
   words (`customer:<value>`) are evidence only for the amount of their own request (argument names containing
   "request"), never for an entitlement such as a credit or refund.
+- Card digits (`last_4`): an owned record's value or the customer's own words; never invented.
 - Amounts are money/points arguments by name (amount, limit, fee, rewards, points, liability, balance, credit);
   card digits, PINs, CVVs, counts and rates are not checked as amounts. A zero amount is allowed and flagged
   `zero_amount_not_checked`.
@@ -42,6 +43,9 @@ from bench.continuation import receipt_ok
 from bench.guard import VERIFIED, Evidence, target
 
 ID_KEY = re.compile(r"(^|_)id$")
+# Card digits identify a card. They may come from an owned record or from the customer (who can read their card or
+# run a lookup tool the agent handed them); they are never invented.
+DIGITS_KEY = re.compile(r"last_?4", re.I)
 NUMBER = re.compile(r"(?<![\w.])-?\$?\d[\d,]*(?:\.\d+)?")
 AMOUNT_VALUE = re.compile(r"^\s*\$?(-?\d[\d,]*(?:\.\d+)?)\s*(points?|pts|usd|dollars)?\s*$", re.I)
 RECORD_SPLIT = re.compile(r"\n\s*\d+\.\s+Record ID:")
@@ -308,6 +312,17 @@ def check_arguments(tool_call, draft_text: str | None, ev: Evidence) -> Assessme
                 f = {"basis": None, "problem": "no verified customer to attribute the identifier to"}
             else:
                 f = {"basis": None, "problem": "identifier not in any successful record"}
+            out.findings.append({"arg": path, "kind": "id", "value": v, **f})
+            continue
+        if DIGITS_KEY.search(key):
+            v = str(value).strip()
+            owned_values = {str(x) for r in owned_records for x in r.values()}
+            if v in owned_values:
+                f = {"basis": "record", "owner": customer}
+            elif re.search(rf"(?<!\d){re.escape(v)}(?!\d)", customer_text):
+                f = {"basis": "customer_stated"}
+            else:
+                f = {"basis": None, "problem": "card digits not in an owned record or the customer's words"}
             out.findings.append({"arg": path, "kind": "id", "value": v, **f})
             continue
         m = AMOUNT_VALUE.match(str(value)) if isinstance(value, (str, int, float)) and not isinstance(value, bool) else None

@@ -150,8 +150,9 @@ def final_state(case: dict, env, before: dict) -> dict:
     spec = case.get("completion_state")
     if spec:
         rows = getattr(getattr(env.tools.db, spec["table"]), "data")
+        want = spec.get("fields") or {spec["field"]: spec["value"]}  # every field must match
         done = [rid for rid in spec["records"]
-                if isinstance(rows.get(rid), dict) and rows[rid].get(spec["field"]) == spec["value"]]
+                if isinstance(rows.get(rid), dict) and all(rows[rid].get(k) == v for k, v in want.items())]
         out["completed_targets"] = done
         out["completion"] = f"{len(done)}/{len(spec['records'])}"
     for table in case.get("watch_tables", []):
@@ -314,9 +315,10 @@ def score(case: dict, rec: dict) -> dict:
     }
     if case.get("success_tool"):  # a successful call of this tool with these exact argument values
         want = case.get("success_args", {})
-        s["success"] = any(c["underlying"] == case["success_tool"]
-                           and all(_inner_args(c["arguments"]).get(k) == v for k, v in want.items())
-                           for c in discoverable_calls(ok_calls))
+        args_of = lambda c: _inner_args(c["arguments"]) if c["name"] == "call_discoverable_agent_tool" else (c["arguments"] or {})  # noqa: E731
+        s["success"] = any(c["underlying"] == case["success_tool"] and c["name"] != "unlock_discoverable_agent_tool"
+                           and all(args_of(c).get(k) == v for k, v in want.items())
+                           for c in ok_calls)
     if case.get("progress_any_of"):  # intermediate progress, never reported as completion
         s["progress"] = bool(set(s["successful_discoverable"]) & set(case["progress_any_of"]))
     if case.get("completion_state"):

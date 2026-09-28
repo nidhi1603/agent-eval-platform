@@ -233,4 +233,7 @@ def test_digits_pins_and_counts_are_not_amounts_and_zero_is_flagged():
         "agent_tool_name": "file_credit_card_transaction_dispute_4829",
         "arguments": json.dumps({"card_last_4_digits": "5320", "months": 3, "pin": "2589", "delivery_fee": 0})}}
     a = evidence.check_arguments(call, None, Evidence(messages=P1))
-    assert [f["arg"] for f in a.findings] == ["delivery_fee"] and a.allowed and a.flags == ["zero_amount_not_checked"]
+    assert [f["arg"] for f in a.findings] == ["card_last_4_digits", "delivery_fee"]
+    assert a.flags == ["zero_amount_not_checked"] and not a.allowed  # 5320 is in no record and nobody said it
+    said = copy.deepcopy(P1) + [{"role": "user", "content": "The last four are 5320."}]
+    assert evidence.check_arguments(call, None, Evidence(messages=said)).allowed

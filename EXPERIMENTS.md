@@ -165,3 +165,17 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Post-run audit ($0):** `D001_audit.md`.
 - **Evidence check built offline** (`bench/evidence.py`, controls in `tests/test_evidence.py`). It is not wired into any run. It verifies provenance and arithmetic, not policy.
 - Findings: `experiments/D001_findings.md`. Decision record: `docs/reviews/2026-09-27-tech-lead-review-6d42140.md`.
+
+### Review of d2c716e: evidence check hardened; D002 planned (2026-09-27, $0)
+- **Accepted and reproduced:** two bypasses (unit constants; numbers from error receipts and customer claims).
+  - Amounts now need a sourced contract (`record:` / `policy:` / `customer:` for requests only).
+  - Decimal arithmetic with half-up rounding.
+  - Separate statuses for missing and invalid evidence; none is a policy verdict.
+- **Found while implementing:**
+  - card digits, PINs and counts were being treated as amounts;
+  - card digits were not checked as identifiers;
+  - the scorer missed built-in reads and multi-field final states.
+- **Arms:** `record` vs `enforce` (one private correction, then withhold), with identical instructions (`discovery_interface_evidence_v1`).
+- **D002 plan (draft, unapproved):** six new dev contexts × two arms = 12 continuations. The expected assessments are frozen; all 12 offline context tests pass. Forecast $0.20–$0.45 upper bound; recommended allocation $0.60.
+- Decision record: `docs/reviews/2026-09-27-tech-lead-review-d2c716e.md`.
+
