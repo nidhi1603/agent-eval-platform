@@ -23,7 +23,7 @@ last_build: dict = {}
 
 
 def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple = (), nudges: tuple = (),
-            evidence_mode: str | None = None, tool_adapter: str | None = None, **kwargs):
+            evidence_mode: str | None = None, tool_adapter: str | None = None, harness: dict | None = None, **kwargs):
     """Registered with tau2. Builds the standard tau2 LLMAgent from allowlisted inputs only. A non-baseline
     variant appends its frozen instruction text (bench/variants/) to the domain policy; nothing else changes."""
     from tau2.agent.llm_agent import LLMAgent
@@ -41,6 +41,7 @@ def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple 
         "nudges": list(nudges),
         "evidence_mode": evidence_mode,
         "tool_adapter": tool_adapter,
+        "harness": harness_record(harness),
     })
     if evidence_mode not in (None, "record", "enforce"):
         raise ValueError(f"evidence_mode must be None, 'record' or 'enforce', not {evidence_mode!r}")
@@ -50,8 +51,17 @@ def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple 
     if tool_adapter and guarded:
         raise ValueError("the direct-tool adapter is tested on its own: do not combine it with guards, nudges or "
                          "the evidence check, or a change in results could not be attributed")
+    if harness is not None:
+        if guarded or tool_adapter or variant != variants.BASELINE:
+            raise ValueError("harness v1 is one system: it already contains the adapter and its checks; do not combine "
+                             "it with guards, nudges, the evidence check, a separate adapter or an instruction variant")
+        harness_record(harness)  # validates
     cls = LLMAgent
-    if tool_adapter:
+    if harness is not None:
+        from bench import harness as harness_mod
+
+        cls = harness_mod.make_harness_agent_class()
+    elif tool_adapter:
         from bench import adapter
 
         cls = adapter.make_direct_tools_agent_class()
@@ -61,6 +71,9 @@ def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple 
         cls = guard.make_guarded_agent_class()
     built = cls(tools=tools, domain_policy=variants.apply(domain_policy, variant), llm=kwargs["llm"],
                 llm_args=deepcopy(kwargs.get("llm_args") or {}))
+    if harness is not None:
+        spec = harness_record(harness)
+        built.gates, built.feedback, built.use_adapter = tuple(spec["gates"]), spec["feedback"], spec["adapter"]
     if guarded:
         built.guard_rules = tuple(guard_rules)
         built.harness_nudges = tuple(nudges)  # toolkit (and db, if needed) are attached once the environment exists
@@ -68,7 +81,29 @@ def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple 
     return built
 
 
-def register(variant: str = "baseline", guard_rules: tuple = (), nudges: tuple = (), tool_adapter: str | None = None) -> str:
+def harness_record(harness: dict | None) -> dict | None:
+    """The validated harness spec: {"gates": [...], "feedback": "structured"|"generic"|"block", "adapter": bool}.
+    Missing keys take the v1 defaults (all gates, structured feedback, adapter on)."""
+    if harness is None:
+        return None
+    from bench import harness as harness_mod
+
+    unknown = set(harness) - {"name", "gates", "feedback", "adapter"}
+    if unknown:
+        raise ValueError(f"unknown harness settings {sorted(unknown)}")
+    gates = list(harness.get("gates", harness_mod.GATES))
+    if set(gates) - set(harness_mod.GATES):
+        raise ValueError(f"unknown harness gates {sorted(set(gates) - set(harness_mod.GATES))}; "
+                         f"available: {list(harness_mod.GATES)}")
+    feedback = harness.get("feedback", "structured")
+    if feedback not in harness_mod.FEEDBACK_MODES:
+        raise ValueError(f"harness feedback must be one of {harness_mod.FEEDBACK_MODES}, not {feedback!r}")
+    return {"name": harness_mod.HARNESS_NAME, "gates": [g for g in harness_mod.GATES if g in gates],
+            "feedback": feedback, "adapter": bool(harness.get("adapter", True))}
+
+
+def register(variant: str = "baseline", guard_rules: tuple = (), nudges: tuple = (), tool_adapter: str | None = None,
+             harness: dict | None = None) -> str:
     """Register the factory for one variant (and optional proposal-time guard) with tau2; return its name."""
     from functools import partial
 
@@ -91,9 +126,22 @@ def register(variant: str = "baseline", guard_rules: tuple = (), nudges: tuple =
         name += "_nudged_" + "_".join(sorted(nudges))
     if tool_adapter:
         name += "_" + tool_adapter
+    spec = harness_record(harness)
+    if spec:
+        from bench import harness as harness_mod
+
+        name += "_" + spec["name"]
+        if spec["feedback"] != "structured":
+            name += "_fb-" + spec["feedback"]
+        if not spec["adapter"]:
+            name += "_no-adapter"
+        dropped = [g for g in harness_mod.GATES if g not in spec["gates"]]
+        if dropped:
+            name += "_without-" + "-".join(dropped)
     if name not in registry.get_agents():
         registry.register_agent_factory(partial(factory, variant=variant, guard_rules=tuple(sorted(guard_rules)),
-                                                nudges=tuple(sorted(nudges)), tool_adapter=tool_adapter), name)
+                                                nudges=tuple(sorted(nudges)), tool_adapter=tool_adapter,
+                                                harness=spec), name)
     return name
 
 

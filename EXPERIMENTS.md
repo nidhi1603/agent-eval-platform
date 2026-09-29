@@ -263,3 +263,23 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - **Plan:** build harness v1 (adapter + knowledge persistence + clock/verification rules + a write gate with remediation) at $0. Then a dev pilot baseline vs v1, then ablation, then held-out, then a full custom run.
   - **Supersedes the adapter-only A002.**
 
+
+### Harness v1 built; Stage 0 controls pass (2026-09-29, $0)
+- **What it is:** the adapter plus four checks that say what is missing and where to get it (`bench/harness.py`).
+  - Before **give-ups** (a transfer, or "I can't"): search again, and use the tools you were shown.
+  - Before **verification**: use the clock reading.
+  - Before **writes**: verify first; use only identifiers you have seen.
+  - One correction per turn, then release (advice and clock) or withhold (writes).
+- **Why give-ups are gated:** most failures in R001 were giving up, not wrong writes. Prior work (PolicyGuard, PolicyGuide, Outcome Monitors) gives the agent its policy up front; here it must be retrieved, and none of those papers checks whether the agent searched enough before giving up.
+- **Positive control (the 19 saved failures):** the checks fire at the failure point in 7/7 tool-use, 2/2 invented-time and 3/8 retrieval failures.
+- **Negative control (reference solutions of all 30 dev tasks, scripted, official evaluator):** same reward 30/30; hard checks fire 0/30; the advisory fires on 2 correct transfers (one extra call each); prompts are 1.09× the baseline.
+- **Design changes the control forced before any spend:**
+  - ownership-based identifier enforcement dropped (it held correct writes in 8/30);
+  - customer-tool name matching fixed;
+  - the unused-tools advisory narrowed.
+- **Tests:** 214 passed, 14 xfailed. Record: `research/harness_v1/README.md`.
+
+### H001: baseline vs harness v1, dev pilot (PLAN FROZEN, not approved)
+- **Design:** 10 hash-selected dev tasks × 2 arms × 2 attempts = 40 full conversations; settings identical to S002/S003; balanced order.
+- **Decision rule:** the harness must pass at least 4 more of 20 and have no more unauthorized writes.
+- **Cost:** forecast about $4–5; cap $6.00. It needs a credit top-up (about $2.05 left) and Nidhi's approval in chat. Plan: `experiments/H001_plan.json`.

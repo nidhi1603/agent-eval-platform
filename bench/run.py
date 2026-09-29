@@ -77,6 +77,7 @@ class RunOptions:
     agent_guard: tuple[str, ...] = ()  # proposal-time permission rules (bench/guard.py); blocked calls logged
     agent_nudges: tuple[str, ...] = ()  # proposal-time advisory checks (bench/nudge.py); each firing logged
     agent_tool_adapter: str | None = None  # "direct_tools" (bench/adapter.py); every harness action logged
+    agent_harness: dict | None = None  # harness v1 spec (bench/harness.py, agent.harness_record); every check logged
 
 
 def run(opts: RunOptions) -> tuple[dict, Path]:
@@ -128,7 +129,8 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
 
         from bench import independence
 
-        agent_name = agent.register(opts.agent_variant, opts.agent_guard, opts.agent_nudges, opts.agent_tool_adapter)
+        agent_name = agent.register(opts.agent_variant, opts.agent_guard, opts.agent_nudges, opts.agent_tool_adapter,
+                                    opts.agent_harness)
         task = get_tasks(pins.DOMAIN, task_ids=[opts.task_id])[0]
         trace["task"] = {"id": task.id, "split": "dev",
                          "reward_basis": [str(b.value) for b in task.evaluation_criteria.reward_basis],
@@ -165,6 +167,11 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
                 orchestrator.agent.discoverable_names = agent_names | user_names  # static metadata: which names exist
                 if any(guard.RULES[r]["evidence"] == "environment_db" for r in opts.agent_guard):
                     orchestrator.agent.guard_db = orchestrator.environment.tools.db
+            if opts.agent_harness is not None:
+                # static tool definitions and which names are discoverable (agent or customer); never the database
+                orchestrator.agent.adapter_toolkit = orchestrator.environment.tools
+                orchestrator.agent.agent_tool_names = frozenset(orchestrator.environment.tools.get_discoverable_tools())
+                orchestrator.agent.user_tool_names = frozenset(orchestrator.environment.user_tools.get_discoverable_tools())
             if opts.agent_tool_adapter:
                 # static tool definitions: a tool is offered only after its unlock succeeds (bench/adapter.py)
                 orchestrator.agent.adapter_toolkit = orchestrator.environment.tools
@@ -210,6 +217,15 @@ def _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0) -> Pa
             trace["tool_adapter"] = {"name": adapter_name, "events": getattr(ag, "adapter_events", None),
                                      "offered": sorted(getattr(ag, "offered", {}) or {}),
                                      "note": "harness unlock turns and wrapper translation; see bench/adapter.py"}
+        harness_spec = (trace.get("config") or {}).get("agent", {}).get("harness")
+        if harness_spec:
+            ag = getattr(orchestrator, "agent", None)
+            trace["harness"] = {**harness_spec, "events": getattr(ag, "harness_events", None),
+                                "adapter_events": getattr(ag, "adapter_events", None),
+                                "offered": sorted(getattr(ag, "offered", {}) or {}),
+                                "regenerations": getattr(ag, "regenerations", None),
+                                "placement": "proposal time, inside the agent: held drafts and their feedback enter "
+                                             "only the model's own history, never the trajectory"}
         trace["spend"] = _spend_record(simulation, budget)
         trace["attribution"] = attribute(trace["termination_reason"], (trace.get("evaluation") or {}).get("reward"),
                                          error, trace["messages"], trace["spend"]["ledger"])
@@ -250,6 +266,7 @@ def _config_record(opts: RunOptions) -> dict:
                   "guard_rules": list(opts.agent_guard),
                   "nudges": list(opts.agent_nudges),
                   "tool_adapter": opts.agent_tool_adapter,
+                  "harness": agent.harness_record(opts.agent_harness),
                   "model_requested": opts.agent_model, "llm_args": opts.agent_llm_args},
         "user_simulator": {"implementation": "tau2 user_simulator", "model_requested": opts.user_model,
                            "llm_args": opts.user_llm_args},
@@ -446,6 +463,8 @@ def main(argv=None) -> int:
     p.add_argument("--retrieval-config", default="alltools")
     p.add_argument("--agent-variant", default="baseline", help="bench/variants/<name>.md, or baseline")
     p.add_argument("--tool-adapter", choices=["direct_tools"], help="bench/adapter.py; default: none")
+    p.add_argument("--harness", type=json.loads, help='harness v1 spec as JSON, e.g. \'{}\' for the full v1 '
+                   '(bench/harness.py); keys: gates, feedback, adapter')
     p.add_argument("--max-steps", type=int, default=200)
     p.add_argument("--max-errors", type=int, default=10)
     p.add_argument("--seed", type=int, default=300)
@@ -466,6 +485,7 @@ def main(argv=None) -> int:
         max_steps=a.max_steps, max_errors=a.max_errors, seed=a.seed, timeout_s=a.timeout_s,
         budget_usd=a.budget_usd, limits=Limits(max_output_tokens=a.max_output_tokens, max_attempts=a.max_attempts),
         scripted=a.scripted, out_dir=a.out_dir, agent_variant=a.agent_variant, agent_tool_adapter=a.tool_adapter,
+        agent_harness=a.harness,
     )
     trace, path = run(opts)
     spend = (trace.get("spend") or {}).get("incurred") or {}

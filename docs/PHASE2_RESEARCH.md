@@ -155,3 +155,29 @@ Remaining credit: about $2.05.
 ## 8. Recommended next step
 
 **Stage 0 now ($0):** build harness v1 on top of the adapter, with controls and offline replay. Then a frozen plan for the Stage 1 dev pilot, costed, for Nidhi's decision. A002 (adapter alone) is superseded by Stage 1, since the analysis predicts it would be uninformative.
+
+## 9. Update, 2026-09-29: closest prior work, and what harness v1 claims
+
+A review of ChatGPT's advice (packet `agent-eval-platform_chatgpt_advice_review.md`) found that remediation after a
+blocked action is already published *on tau2*:
+
+| Work | What it does | Result |
+|---|---|---|
+| **PolicyGuard** (2606.29225) | Verifies writes, blocks with a specific remediation message | Airline pass^4 +6 to +12 |
+| **PolicyGuide** (2608.19861) | Compiles the policy into a workflow graph; step-specific remediation; transfers gated | Mean pass^4 0.42 → 0.62 across airline, retail and telecom |
+| **Outcome Monitors** (2608.19303) | A receipt that names recovery tools | The recovery-tool list is the active ingredient |
+
+**What all three assume:** the full policy is available up front. None evaluates banking_knowledge.
+
+**The difference harness v1 claims:**
+- policies and tools must be *retrieved*;
+- tools are discovered partway through the conversation;
+- **give-ups are gated on whether the agent searched enough**, not only on writes.
+
+**The costs these papers report,** which we should expect too:
+- over-blocking (PolicyGuard's retail write tasks: 0.579 → 0.327);
+- loops caused by static error messages;
+- 2–5× cost for verifiers that are themselves language models.
+
+Harness v1's checks are deterministic, cost no extra model calls to check, and give one correction per turn. The
+build and its controls are in `research/harness_v1/README.md`.

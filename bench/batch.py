@@ -38,6 +38,21 @@ def _exposure_status(trace: dict) -> str:
     return "not_observed"
 
 
+def _harness_activity(trace: dict) -> dict | None:
+    """Counts of harness v1 interventions in one run (None when the harness was off)."""
+    h = trace.get("harness")
+    if not h:
+        return None
+    events = h.get("events") or []
+    held: dict[str, int] = {}
+    for e in events:
+        if e.get("event") == "held":
+            held[e["gate"]] = held.get(e["gate"], 0) + 1
+    return {"held_by_gate": held, "released": sum(e.get("event") == "released" for e in events),
+            "withheld": sum(e.get("event") == "withheld" for e in events), "regenerations": h.get("regenerations"),
+            "tools_offered": len(h.get("offered") or [])}
+
+
 def schedule(plan: dict) -> list[dict]:
     """The ordered list of runs. A plain plan lists tasks (one baseline run each); a paired plan lists
     runs as {task_id, arm}, with each arm's settings overrides in plan["arms"]."""
@@ -67,6 +82,7 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None) -> d
             retrieval_config=s["retrieval_config"], seed=s["seed"], max_steps=s["max_steps"],
             budget_usd=remaining, limits=Limits(), agent_variant=s.get("agent_variant", "baseline"),
             agent_tool_adapter=s.get("tool_adapter"),
+            agent_harness=s.get("harness"),
             **({"out_dir": out_dir} if out_dir else {}),
         )
         trace, path = run(opts)
@@ -77,6 +93,8 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None) -> d
             "arm": arm,
             "attempt": item.get("attempt", 0),
             "tool_adapter": (((trace.get("config") or {}).get("agent") or {}).get("tool_adapter")),
+            "harness": (((trace.get("config") or {}).get("agent") or {}).get("harness")),
+            "harness_activity": _harness_activity(trace),
             "agent_variant": (((trace.get("config") or {}).get("agent") or {}).get("variant") or {}),
             "status": "finished" if trace.get("execution", {}).get("finished") else "interrupted_or_failed",
             "run_id": trace.get("run_id"),
