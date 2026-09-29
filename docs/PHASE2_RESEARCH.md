@@ -181,3 +181,12 @@ blocked action is already published *on tau2*:
 
 Harness v1's checks are deterministic, cost no extra model calls to check, and give one correction per turn. The
 build and its controls are in `research/harness_v1/README.md`.
+
+## 10. Correction, 2026-09-29: targets must be graded under v1.0.1
+
+- **The paper's numbers use pre-1.0.1 grading.** The paper's 25.52 (arXiv 2603.04370, March 2026) was graded before the tau2 v1.0.1 fixes (2026-07-15). The CHANGELOG says those fixes move `banking_knowledge` scores **only upward**, by up to about 9 points pass^1 (for example, GPT-5.5 xhigh went from 37.37 to 46.39). It also says scores from before and after must not be compared.
+- **So 25.5 is not a valid target for our v1.0.1 runs.** Comparing DeepSeek V4 Flash's 39.4 (v1.0.1, open PR #465) with 25.5 was also wrong.
+- **Valid references** (all v1.0.1, `alltools`, merged submission files):
+  - GPT-5.5 xhigh: 44.59 pass^1 / 29.90 pass^4;
+  - leader Qwen 3.8 Max: 55.15 / 35.05.
+- **The comparison that shows a harness helps:** the same model's own standard v1.0.1 score, in the same retrieval configuration.
