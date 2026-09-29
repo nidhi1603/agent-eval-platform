@@ -52,8 +52,16 @@ from bench.guard import (CLOCK, Evidence, GuardConfigError, VERIFIED, _verificat
 
 HARNESS_NAME = "harness_v1"
 GATES = ("search_before_giving_up", "clock_before_verification", "verification_before_write", "ids_observed")
-HARD = {"clock_before_verification", "verification_before_write", "ids_observed"}
-RELEASE_WHEN_EXHAUSTED = {"search_before_giving_up", "clock_before_verification"}
+V2_GATES = GATES + ("duplicate_write", "plan_before_acting", "procedure_checklist", "needs_covered",
+                    "transfer_after_asking", "claims_need_receipts")
+VERSIONS = {"v1": GATES, "v2": V2_GATES}
+ALL_GATES = V2_GATES
+HARD = {"clock_before_verification", "verification_before_write", "ids_observed", "duplicate_write"}
+SOFT = tuple(g for g in V2_GATES if g not in HARD)
+PLAN_GATES = {"plan_before_acting", "needs_covered"}  # either one turns on the task_plan tool
+ONCE_PER_CONVERSATION = {"plan_before_acting"}
+RELEASE_WHEN_EXHAUSTED = {"clock_before_verification"} | set(SOFT)
+MAX_PLAN_CALLS_PER_TURN = 3
 FEEDBACK_MODES = ("structured", "generic", "block")
 MIN_SEARCHES = 3
 MAX_CORRECTIONS = 1      # regenerations for one turn: more retries do not help (Verifier Tax; PolicyGuide is one-shot)
@@ -76,7 +84,13 @@ WITHHELD = {
                                   "your full name and the email address or phone number on your account?"),
     "ids_observed": ("I haven't made that change yet: I still need to confirm the exact account details it applies "
                          "to. Could you tell me which account or card you mean?"),
+    "duplicate_write": "That change has already been made; I haven't repeated it.",
 }
+COMPLETION_CLAIM = re.compile(
+    r"\b(?:has|have) been (?:frozen|unfrozen|closed|opened|submitted|applied|credited|filed|updated|processed|activated|"
+    r"ordered|reset|approved|logged|transferred)\b|\bI(?:[’']ve| have) (?:now )?(?:frozen|unfrozen|closed|opened|submitted|"
+    r"applied|credited|filed|updated|processed|activated|ordered|reset|approved)\b|\bis now (?:frozen|closed|open|active)\b",
+    re.I)
 
 
 @dataclass
@@ -258,7 +272,146 @@ def gate_ids_observed(proposal: dict, ev: Evidence, ctx: dict) -> list[Finding]:
     return out
 
 
+# ---- v2 gates (bench/ledger.py) ---------------------------------------------------------------------------------
+
+def _ledger(ev: Evidence, ctx: dict):
+    from bench import ledger
+
+    if "ledger" not in ctx:
+        ctx["ledger"] = ledger.build(ev.messages, ctx["tool_type"])
+    return ctx["ledger"]
+
+
+def _acting(proposal: dict, ctx: dict) -> dict:
+    """What kind of consequential step this draft is: writes, a transfer, or a capability denial."""
+    calls = [c for c in proposal.get("tool_calls") or [] if c["name"] != "task_plan"]
+    writes = [c for c in calls if c["name"] not in ("unlock_discoverable_agent_tool", "give_discoverable_user_tool")
+              and ctx["tool_type"](target(c)[0]) == "write" and target(c)[0] != "log_verification"]
+    transfer = [c for c in calls if c["name"] == TRANSFER]
+    return {"writes": writes, "transfer": transfer, "denial": not calls and is_denial(proposal.get("content"))}
+
+
+def _canonical(args) -> str:
+    import json
+
+    return json.dumps(args or {}, sort_keys=True, default=str)
+
+
+def gate_duplicate_write(proposal: dict, ev: Evidence, ctx: dict) -> list[Finding]:
+    led = _ledger(ev, ctx)
+    done = {(w["tool"], _canonical(w["args"])): w for w in led.writes}
+    out = []
+    for c in _acting(proposal, ctx)["writes"]:
+        name, args = target(c)
+        w = done.get((name, _canonical(args)))
+        if w:
+            out.append(Finding("duplicate_write",
+                               f"Not executed: {name} with exactly these arguments already succeeded in this conversation "
+                               f"(receipt: \"{w['receipt'][:120]}\"). Repeating it would change the account twice. If "
+                               "the customer needs a different change, use the arguments for that change.",
+                               [c["id"]], {"tool": name}))
+    return out
+
+
+def gate_plan_before_acting(proposal: dict, ev: Evidence, ctx: dict) -> list[Finding]:
+    act = _acting(proposal, ctx)
+    if not (act["writes"] or act["transfer"] or act["denial"]) or _ledger(ev, ctx).plan is not None:
+        return []
+    return [Finding("plan_before_acting",
+                    "Harness check (not shown to the customer): before you change an account, transfer, or say something "
+                    "can't be done, record your plan with task_plan: every separate thing the customer wants, and for "
+                    "each what you must find out (procedure, eligibility, amounts, tool), with what you have already "
+                    "found and its document ID.", [c["id"] for c in act["writes"] + act["transfer"]])]
+
+
+def gate_procedure_checklist(proposal: dict, ev: Evidence, ctx: dict) -> list[Finding]:
+    """Before the agent first uses a discovered tool (a write, or handing it to the customer), show it the procedure
+    card compiled from the documents it retrieved (bench/compiler.py). Skipped for a tool already shown, and when the
+    agent's plan already cites the card's document as a source."""
+    from bench import compiler
+
+    calls = proposal.get("tool_calls") or []
+    wanted = []
+    for c in calls:
+        if c["name"] == "give_discoverable_user_tool":
+            wanted.append((c, (c.get("arguments") or {}).get("discoverable_tool_name")))
+        elif c in _acting(proposal, ctx)["writes"]:
+            wanted.append((c, target(c)[0]))
+    shown = ctx.get("checklists_shown") or set()
+    wanted = [(c, t) for c, t in wanted if t and t not in shown]
+    if not wanted:
+        return []
+    if "cards" not in ctx:
+        kb = [r.get("content") or "" for c, r in ev.results() if c["name"] == KB and not r.get("error")]
+        ctx["cards"] = compiler.cards_from_results(kb, ctx["agent_tools"] | ctx["user_tools"])
+    cited = {n.source for r in (_ledger(ev, ctx).plan or []) for n in r.needs if n.status == "found"}
+    out = []
+    for c, tool in wanted:
+        cards = [k for k in ctx["cards"].get(tool, []) if k.doc_id not in cited
+                 and (k.requirements or k.steps or k.customer_points)]
+        if not cards:
+            continue
+        body = "\n".join(k.text(tool) for k in cards[:2])
+        out.append(Finding("procedure_checklist",
+                           "Harness check (not shown to the customer): before this step, check it against the "
+                           f"procedure you retrieved.\n{body}\nConfirm each requirement from what you have established "
+                           "(tool results, the customer's answers). If one is not met, or the customer must first be "
+                           "asked or told something, do that instead; otherwise continue. This check does not authorize "
+                           "the action.", [c["id"]], {"tool": tool, "docs": [k.doc_id for k in cards[:2]]}))
+    return out
+
+
+def gate_needs_covered(proposal: dict, ev: Evidence, ctx: dict) -> list[Finding]:
+    act = _acting(proposal, ctx)
+    led = _ledger(ev, ctx)
+    if not (act["writes"] or act["transfer"] or act["denial"]) or led.plan is None:
+        return []
+    open_needs, unsupported = led.open_needs(), led.unsupported_found()
+    if not open_needs and not unsupported:
+        return []
+    parts = ["Harness check (not shown to the customer): your plan is not covered yet."]
+    if open_needs:
+        parts.append("Still open: " + "; ".join(f"{n} (for: {r})" for r, n in open_needs[:MAX_NAMES]) +
+                     ". Search for each with a query that names it, then update task_plan (found with the doc ID, or "
+                     "not_found after trying different wording).")
+    if unsupported:
+        parts.append("Marked found, but the cited document was not in any search result you received: " +
+                     "; ".join(f"{n} ({src or 'no source'})" for n, src in unsupported[:MAX_NAMES]) + ".")
+    parts.append("If a remaining need cannot matter for this step, mark it not_found or remove it, and continue.")
+    return [Finding("needs_covered", " ".join(parts), [c["id"] for c in act["writes"] + act["transfer"]],
+                    {"open": open_needs, "unsupported": unsupported})]
+
+
+def gate_transfer_after_asking(proposal: dict, ev: Evidence, ctx: dict) -> list[Finding]:
+    transfer = _acting(proposal, ctx)["transfer"]
+    if not transfer or _ledger(ev, ctx).transfer_mentioned_then_customer_replied:
+        return []
+    return [Finding("transfer_after_asking",
+                    "Harness check (not shown to the customer): the policy says not to transfer without asking the "
+                    "customer first, unless a retrieved procedure requires an immediate transfer. If none does, ask "
+                    "whether they would like to be transferred to a human agent.", [c["id"] for c in transfer])]
+
+
+def gate_claims_need_receipts(proposal: dict, ev: Evidence, ctx: dict) -> list[Finding]:
+    text = proposal.get("content") or ""
+    if proposal.get("tool_calls") or not COMPLETION_CLAIM.search(text):
+        return []
+    led = _ledger(ev, ctx)
+    if led.writes or led.tools_given:  # a successful change, or a tool the customer ran themselves
+        return []
+    return [Finding("claims_need_receipts",
+                    "Harness check (not shown to the customer): this reply says a change was made, but no change has "
+                    "succeeded in this conversation. Make the change with the right tool first, or tell the customer "
+                    "accurately what has and has not been done.", [], {"claim": COMPLETION_CLAIM.search(text).group(0)})]
+
+
 GATE_FUNCS = {
+    "duplicate_write": gate_duplicate_write,
+    "plan_before_acting": gate_plan_before_acting,
+    "procedure_checklist": gate_procedure_checklist,
+    "needs_covered": gate_needs_covered,
+    "transfer_after_asking": gate_transfer_after_asking,
+    "claims_need_receipts": gate_claims_need_receipts,
     "search_before_giving_up": gate_search_before_giving_up,
     "clock_before_verification": gate_clock_before_verification,
     "verification_before_write": gate_verification_before_write,
@@ -273,14 +426,19 @@ def review(proposal: dict, ev: Evidence, ctx: dict, gates=GATES) -> list[Finding
         raise GuardConfigError("harness checks need tool-type metadata (the toolkit was not attached)")
     found: list[Finding] = []
     flagged: set[str] = set()
-    for g in ("verification_before_write", "clock_before_verification", "ids_observed"):
+    for g in ("verification_before_write", "clock_before_verification", "ids_observed", "duplicate_write"):
         if g in gates:
             for f in GATE_FUNCS[g](proposal, ev, ctx):
                 if not set(f.call_ids) & flagged:
                     found.append(f)
                     flagged |= set(f.call_ids)
-    if not found and "search_before_giving_up" in gates:
-        found += gate_search_before_giving_up(proposal, ev, ctx)
+    if found:
+        return found
+    skip = ctx.get("skip_soft") or set()
+    for g in ("plan_before_acting", "procedure_checklist", "needs_covered", "search_before_giving_up",
+              "transfer_after_asking", "claims_need_receipts"):
+        if g in gates and g not in skip:
+            found += GATE_FUNCS[g](proposal, ev, ctx)
     return found
 
 
@@ -320,10 +478,23 @@ def make_harness_agent_class():
             super().__init__(*a, **kw)
             self.harness_events: list[dict] = []
             self.regenerations = 0
+            self.soft_fired: dict[str, int] = {}
+            self.plan_calls = 0
+            self.checklists_shown: set[str] = set()
+
+        @property
+        def planning(self) -> bool:
+            return bool(PLAN_GATES & set(self.gates))
 
         def _generate(self, state):
+            from tau2.environment.tool import as_tool
+
+            from bench import ledger
+
             tools = list(self.tools) + [t for n, t in sorted(self.offered.items())
                                         if n not in {x.name for x in self.tools}]
+            if self.planning:
+                tools.append(as_tool(ledger.task_plan))
             # llm_agent's own `generate`, looked up at call time, so the budget meters and tags it as "agent"
             return llm_agent_module.generate(model=self.llm, tools=tools, messages=state.system_messages + state.messages,
                                              call_name="agent_response", **self.llm_args)
@@ -334,20 +505,47 @@ def make_harness_agent_class():
                     "tool_type": lookup, "events": self.harness_events,
                     "offered_reads": [n for n in sorted(self.offered) if lookup(n) == "read"]}
 
-        def _hold(self, proposal, findings, state):
-            """Put the draft and its private feedback into the model's history (never the trajectory)."""
-            state.messages.append(proposal)
-            by_call = {cid: f for f in findings for cid in f.call_ids}
+        def _hold(self, proposal, findings, state, in_history=False):
+            """Put the draft and its private feedback into the model's history (never the trajectory). When the draft
+            is the remainder of a proposal whose task_plan call already ran, the proposal is already there."""
+            if not in_history:
+                state.messages.append(proposal)
+            by_call: dict[str, list] = {}
+            for f in findings:
+                for cid in f.call_ids:
+                    by_call.setdefault(cid, []).append(f)
             whole = [f for f in findings if not f.call_ids]
+            whole_text = "\n".join(dict.fromkeys(feedback_text(f, self.feedback) for f in whole))
             for tc in proposal.tool_calls or []:
-                f = by_call.get(tc.id)
-                text = feedback_text(f, self.feedback) if f else (
-                    feedback_text(whole[0], self.feedback) if whole else
-                    "Not executed: another call in the same message was held by a harness check.")
+                fs = by_call.get(tc.id)
+                text = ("\n".join(dict.fromkeys(feedback_text(f, self.feedback) for f in fs)) if fs else
+                        whole_text or "Not executed: another call in the same message was held by a harness check.")
                 state.messages.append(ToolMessage(id=tc.id, role="tool", requestor="assistant", content=text,
-                                                  error=f is not None))
+                                                  error=bool(fs)))
             if not proposal.tool_calls:
-                state.messages.append(SystemMessage(role="system", content=feedback_text(whole[0], self.feedback)))
+                state.messages.append(SystemMessage(role="system", content=whole_text))
+
+        def _run_plan_calls(self, proposal, state):
+            """Execute task_plan calls locally. The full proposal and the plan results go into the model's history, in
+            that order. Returns the proposal's other calls as a new draft, or None if there are none."""
+            from bench import ledger
+
+            state.messages.append(proposal)
+            for tc in (x for x in proposal.tool_calls if x.name == ledger.PLAN_TOOL):
+                self.plan_calls += 1
+                plan, err = ledger.parse_plan(tc.arguments)
+                if err:
+                    text = f"Plan not recorded: {err}. Call task_plan again with the documented structure."
+                else:
+                    open_n = [n.need for r in plan for n in r.needs if n.status == "open"]
+                    text = (f"Plan recorded: {len(plan)} request(s), {sum(len(r.needs) for r in plan)} need(s)"
+                            + (f"; still open: {'; '.join(open_n[:MAX_NAMES])}." if open_n else "; none open."))
+                state.messages.append(ToolMessage(id=tc.id, role="tool", requestor="assistant", content=text,
+                                                  error=bool(err)))
+                self.harness_events.append({"event": "plan_invalid" if err else "plan_recorded", "error": err,
+                                            "requests": None if err else (tc.arguments or {}).get("requests")})
+            rest = [tc for tc in proposal.tool_calls if tc.name != ledger.PLAN_TOOL]
+            return proposal.model_copy(update={"tool_calls": rest}) if rest else None
 
         def generate_next_message(self, message, state):
             if self.adapter_toolkit is None:
@@ -359,15 +557,34 @@ def make_harness_agent_class():
                     return harness, state  # not added to the model's history
             gates = active_gates(self.gates, self.feedback)
             proposal = self._generate(state)
+            in_history = False          # True when `proposal` is the remainder of one already in the history
             corrections = 0
-            advised = False
+            plan_turns = 0
+            advised: set[str] = set()   # soft checks given this turn: each advises once, then releases
             while True:
+                if self.planning and any(tc.name == "task_plan" for tc in proposal.tool_calls or []):
+                    plan_turns += 1
+                    rest = self._run_plan_calls(proposal, state)
+                    if rest is None:
+                        if plan_turns >= MAX_PLAN_CALLS_PER_TURN:
+                            self.harness_events.append({"event": "plan_loop_stopped"})
+                            proposal = self._generate(state)
+                            calls = [tc for tc in proposal.tool_calls or [] if tc.name != "task_plan"] or None
+                            proposal = proposal.model_copy(update={"tool_calls": calls, "content": proposal.content or (
+                                None if calls else "Could you tell me a little more about what you need?")})
+                            in_history = False
+                        else:
+                            proposal, in_history = self._generate(state), False  # a plan call is not a correction
+                            continue
+                    else:
+                        proposal, in_history = rest, True
                 ev = Evidence(messages=messages_as_dicts(state.messages),
                               tool_type=toolkit_type_lookup(self.adapter_toolkit))
                 draft = messages_as_dicts([proposal])[0]
-                findings = review(draft, ev, self._ctx(ev), gates)
-                if advised:  # the soft check advises once per give-up; a repeated give-up is released
-                    findings = [f for f in findings if f.gate != "search_before_giving_up"]
+                ctx = self._ctx(ev)
+                ctx["skip_soft"] = advised | {g for g in ONCE_PER_CONVERSATION if self.soft_fired.get(g)}
+                ctx["checklists_shown"] = self.checklists_shown
+                findings = review(draft, ev, ctx, gates)
                 if not findings:
                     break
                 budget_left = corrections < MAX_CORRECTIONS and self.regenerations < MAX_REGENERATIONS
@@ -377,6 +594,10 @@ def make_harness_agent_class():
                         self.harness_events.append({"event": "withheld", "gates": [f.gate for f in hard_kept],
                                                     "draft_text": proposal.content,
                                                     "tool_calls": draft.get("tool_calls")})
+                        if in_history:  # every call in the history needs a result before the next message
+                            for tc in proposal.tool_calls or []:
+                                state.messages.append(ToolMessage(id=tc.id, role="tool", requestor="assistant",
+                                                                  content="Not executed.", error=True))
                         reply = AssistantMessage(role="assistant", content=WITHHELD[hard_kept[0].gate])
                         state.messages.append(reply)
                         return reply, state
@@ -387,12 +608,17 @@ def make_harness_agent_class():
                                                 "attempt": corrections, "detail": f.detail,
                                                 "message": feedback_text(f, self.feedback),
                                                 "draft_text": proposal.content, "tool_calls": draft.get("tool_calls")})
-                advised = advised or any(f.gate == "search_before_giving_up" for f in findings)
-                self._hold(proposal, findings, state)
+                    if f.gate in SOFT:
+                        advised.add(f.gate)
+                        self.soft_fired[f.gate] = self.soft_fired.get(f.gate, 0) + 1
+                    if f.gate == "procedure_checklist":
+                        self.checklists_shown.add(f.detail["tool"])
+                self._hold(proposal, findings, state, in_history=in_history)
                 corrections += 1
                 self.regenerations += 1
-                proposal = self._generate(state)  # every regenerated proposal is reviewed again
-            state.messages.append(proposal)
+                proposal, in_history = self._generate(state), False  # every regenerated proposal is reviewed again
+            if not in_history:
+                state.messages.append(proposal)
             return (self._translate(proposal) if self.use_adapter else proposal), state
 
     return HarnessAgent

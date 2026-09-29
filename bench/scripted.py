@@ -6,7 +6,7 @@ harness, never a benchmark result, and its trace is labelled MOCK.
 
 Script format (JSON):
     {"description": "...",
-     "agent": [{"say": "text"} | {"call": "tool_name", "args": {...}}, ...],
+     "agent": [{"say": "text"} | {"call": "tool_name", "args": {...}} | {"calls": [{"call", "args"}, ...]}, ...],
      "user":  [...same...]}
 Steps are consumed in order per role. The simulated user ends the conversation by saying
 "###STOP###", exactly as the real user simulator does.
@@ -56,12 +56,13 @@ class ScriptedLLM:
         self.used[role] += 1
         step = self.steps[role][i]
         message: dict = {"role": "assistant", "content": step.get("say")}
-        if "call" in step:
+        calls = step.get("calls") or ([{"call": step["call"], "args": step.get("args", {})}] if "call" in step else [])
+        if calls:  # "calls": [{"call", "args"}, ...] puts several tool calls in one message
             message["tool_calls"] = [{
                 "id": f"call_{uuid.uuid4().hex[:12]}",
                 "type": "function",
-                "function": {"name": step["call"], "arguments": json.dumps(step.get("args", {}))},
-            }]
+                "function": {"name": c["call"], "arguments": json.dumps(c.get("args", {}))},
+            } for c in calls]
         try:
             prompt_tokens = litellm.token_counter(model="gpt-4o", messages=messages, tools=tools)
         except Exception:  # noqa: BLE001 - token counts here only feed fake prices
@@ -69,7 +70,7 @@ class ScriptedLLM:
         completion_tokens = max(1, len(json.dumps(message)) // 4)
         return ModelResponse(
             model=model,
-            choices=[{"index": 0, "finish_reason": "tool_calls" if "call" in step else "stop", "message": message}],
+            choices=[{"index": 0, "finish_reason": "tool_calls" if calls else "stop", "message": message}],
             usage={"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens,
                    "total_tokens": prompt_tokens + completion_tokens},
         )

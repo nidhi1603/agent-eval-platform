@@ -88,18 +88,24 @@ def harness_record(harness: dict | None) -> dict | None:
         return None
     from bench import harness as harness_mod
 
-    unknown = set(harness) - {"name", "gates", "feedback", "adapter"}
+    unknown = set(harness) - {"name", "version", "gates", "feedback", "adapter"}
     if unknown:
         raise ValueError(f"unknown harness settings {sorted(unknown)}")
-    gates = list(harness.get("gates", harness_mod.GATES))
-    if set(gates) - set(harness_mod.GATES):
-        raise ValueError(f"unknown harness gates {sorted(set(gates) - set(harness_mod.GATES))}; "
-                         f"available: {list(harness_mod.GATES)}")
+    version = harness.get("version", "v1")  # v1 is what H001 froze; v2 adds the ledger checks (bench/ledger.py)
+    if version not in harness_mod.VERSIONS:
+        raise ValueError(f"harness version must be one of {list(harness_mod.VERSIONS)}, not {version!r}")
+    gates = list(harness.get("gates", harness_mod.VERSIONS[version]))
+    if set(gates) - set(harness_mod.ALL_GATES):
+        raise ValueError(f"unknown harness gates {sorted(set(gates) - set(harness_mod.ALL_GATES))}; "
+                         f"available: {list(harness_mod.ALL_GATES)}")
     feedback = harness.get("feedback", "structured")
     if feedback not in harness_mod.FEEDBACK_MODES:
         raise ValueError(f"harness feedback must be one of {harness_mod.FEEDBACK_MODES}, not {feedback!r}")
-    return {"name": harness_mod.HARNESS_NAME, "gates": [g for g in harness_mod.GATES if g in gates],
-            "feedback": feedback, "adapter": bool(harness.get("adapter", True))}
+    out = {"name": f"harness_{version}", "gates": [g for g in harness_mod.ALL_GATES if g in gates],
+           "feedback": feedback, "adapter": bool(harness.get("adapter", True))}
+    if version != "v1":  # v1 records keep their original shape
+        out["version"] = version
+    return out
 
 
 def register(variant: str = "baseline", guard_rules: tuple = (), nudges: tuple = (), tool_adapter: str | None = None,
@@ -135,7 +141,7 @@ def register(variant: str = "baseline", guard_rules: tuple = (), nudges: tuple =
             name += "_fb-" + spec["feedback"]
         if not spec["adapter"]:
             name += "_no-adapter"
-        dropped = [g for g in harness_mod.GATES if g not in spec["gates"]]
+        dropped = [g for g in harness_mod.VERSIONS[spec.get("version", "v1")] if g not in spec["gates"]]
         if dropped:
             name += "_without-" + "-".join(dropped)
     if name not in registry.get_agents():

@@ -38,12 +38,34 @@ def _inner(action) -> dict:
     return args
 
 
-def script_for(task) -> dict:
+DOC_ID = __import__("re").compile(r"ID:\s*(doc_\S+)")
+
+
+def plan_step(task, queries) -> dict:
+    """A plan the careful agent would record after its searches: one need per query, marked found with the first
+    document that search actually returns (BM25, computed here at $0)."""
+    from tau2.data_model.simulation import TextRunConfig
+    from tau2.runner.build import build_text_orchestrator
+
+    from bench import agent
+
+    env = build_text_orchestrator(TextRunConfig(domain=pins.DOMAIN, agent=agent.register("baseline"), llm_agent="x",
+                                                llm_user="y", retrieval_config="bm25"), task, seed=300).environment
+    needs = []
+    for q in queries:
+        docs = DOC_ID.findall(env.tools.KB_search(q))
+        needs.append({"need": q, "status": "found" if docs else "not_found", "source": docs[0] if docs else ""})
+    return {"call": "task_plan", "args": {"requests": [{"request": "the customer's request", "needs": needs}]}}
+
+
+def script_for(task, plan: bool = False) -> dict:
     acts = task.evaluation_criteria.actions or []
     names = [a.arguments.get("agent_tool_name") or a.arguments.get("discoverable_tool_name") for a in acts]
     first_tool = next((n for n in names if n), None)
     queries = GENERIC_QUERIES + [first_tool.rsplit("_", 1)[0].replace("_", " ") if first_tool else "account help"]
     agent = [{"call": "KB_search", "args": {"query": q}} for q in queries]
+    if plan:
+        agent.append(plan_step(task, queries))
     digits = sorted({str(v) for x in acts if x.requestor == "assistant" for k, v in _inner(x).items()
                      if "last_4" in k or "last_four" in k})
     user = [{"say": "Hi, I need help with my account." + (f" My card's last 4 digits are {', '.join(digits)}."
@@ -97,7 +119,16 @@ def run_one(task_id, script, harness, tmp):
     return trace
 
 
+SPECS = {"v1": ({}, {"gates": ["clock_before_verification", "verification_before_write", "ids_observed"]}),
+         "v2": ({"version": "v2"}, {"version": "v2", "gates": ["clock_before_verification", "verification_before_write",
+                                                               "ids_observed", "duplicate_write"]})}
+
+
 def main(argv):
+    version = "v1"
+    if argv and argv[0].startswith("--version="):
+        version, argv = argv[0].split("=", 1)[1], argv[1:]
+    full, hard_only = SPECS[version]
     from loguru import logger
     from tau2.runner.helpers import get_tasks
 
@@ -108,20 +139,21 @@ def main(argv):
         tmp = Path(d)
         for tid in ids:
             task = get_tasks(pins.DOMAIN, task_ids=[tid])[0]
-            s = script_for(task)
+            s = script_for(task, plan=version == "v2")
             b = run_one(tid, s, None, tmp)
-            h = run_one(tid, s, {}, tmp)
+            h = run_one(tid, s, full, tmp)
             ev = (h.get("harness") or {}).get("events") or []
             fired = [e for e in ev if e["event"] in ("held", "withheld", "released")]
-            soft_fired = any(e.get("gate") == "search_before_giving_up" for e in fired)
+            from bench.harness import SOFT
+
+            soft_fired = any(e.get("gate") in SOFT for e in fired)
             if soft_fired:
                 # a soft advisory makes the model generate again, which consumes the next scripted step and
                 # misaligns the script; rerun with only the hard checks to test them and the reward
                 h_soft = h
-                h = run_one(tid, s, {"gates": ["clock_before_verification", "verification_before_write",
-                                                 "ids_observed"]}, tmp)
+                h = run_one(tid, s, hard_only, tmp)
                 ev = ((h.get("harness") or {}).get("events") or []) + [
-                    e for e in (h_soft.get("harness") or {}).get("events") or [] if e.get("gate") == "search_before_giving_up"]
+                    e for e in (h_soft.get("harness") or {}).get("events") or [] if e.get("gate") in SOFT]
                 fired = [e for e in ev if e["event"] in ("held", "withheld", "released")]
             row = {"task": tid, "baseline_reward": (b.get("evaluation") or {}).get("reward"),
                    "harness_reward": (h.get("evaluation") or {}).get("reward"),
@@ -136,11 +168,14 @@ def main(argv):
             print(tid, row["baseline_reward"], row["harness_reward"], row["tools_offered"],
                   round(row["agent_input_tokens"]["harness"] / max(row["agent_input_tokens"]["baseline"], 1), 2),
                   [f.get("gate") or f.get("gates") for f in row["fired"]], (row["harness_error"] or "")[:120], flush=True)
-    out = ROOT / "research" / "harness_v1" / "reference_controls.json"
+    out = ROOT / "research" / "harness_v1" / ("reference_controls.json" if version == "v1" else
+                                              f"reference_controls_{version}.json")
     if not argv:
         out.write_text(json.dumps(rows, indent=1, default=str))
+    from bench.harness import SOFT
+
     same = sum(r["baseline_reward"] == r["harness_reward"] for r in rows)
-    hard = sum(any(f.get("gate") != "search_before_giving_up" and f.get("event") == "held" for f in r["fired"]) or
+    hard = sum(any(f.get("gate") not in SOFT and f.get("event") == "held" for f in r["fired"]) or
                any(f.get("event") == "withheld" for f in r["fired"]) for r in rows)
     b_tok = sum(r["agent_input_tokens"]["baseline"] for r in rows)
     h_tok = sum(r["agent_input_tokens"]["harness"] for r in rows)

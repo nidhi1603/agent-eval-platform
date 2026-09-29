@@ -1,10 +1,12 @@
 """Run a pre-registered batch of dev tasks sequentially under one shared spending allocation.
 
-    uv run --extra bench python -m bench.batch experiments/S002_plan.json --approved-usd 1.00
+    uv run --extra bench python -m bench.batch experiments/S002_plan.json --approved-usd 1.00 [--workers 4]
 
-The plan file (task list, settings, allocation) is committed before running. Each run's cap is the
-allocation minus the conservative upper-bound spend of earlier runs, so runs never overlap and the
-batch never admits spend beyond the allocation. No task is retried. Every scheduled task gets an
+The plan file (task list, settings, allocation) is committed before running. Sequentially, each run's cap
+is the allocation minus the conservative upper-bound spend of earlier runs. In parallel (--workers N), each
+run reserves the plan's per_run_cap_usd before it starts, so concurrent runs never overspend together.
+Finished rows are journaled (experiments/<batch>_journal.jsonl) as they land, and a rerun resumes from the
+journal instead of repeating conversations. No task is retried. Every scheduled task gets an
 outcome: a finished run, an interrupted run, or "not_run" when nothing was left to admit a call.
 Results go to experiments/<batch_id>_results.json.
 """
@@ -64,61 +66,134 @@ def schedule(plan: dict) -> list[dict]:
     return [{"task_id": t, "arm": None} for t in plan["tasks"]]
 
 
-def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None) -> dict:
+def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dict:
+    """One scheduled conversation under its own spending cap. Top level, so a worker process can run it."""
+    task_id, arm = item["task_id"], item["arm"]
+    s = settings
+    opts = RunOptions(
+        task_id=task_id, agent_model=s["agent_model"], agent_llm_args=dict(s["agent_args"]),
+        user_model=s["user_model"], user_llm_args=dict(s["user_args"]),
+        retrieval_config=s["retrieval_config"], seed=s["seed"], max_steps=s["max_steps"],
+        budget_usd=cap, limits=Limits(), agent_variant=s.get("agent_variant", "baseline"),
+        agent_tool_adapter=s.get("tool_adapter"),
+        agent_harness=s.get("harness"),
+        **({"out_dir": Path(out_dir)} if out_dir else {}),
+    )
+    trace, path = run(opts)
+    spend = (trace.get("spend") or {}).get("incurred") or {}
+    return {
+        "task_id": task_id,
+        "arm": arm,
+        "attempt": item.get("attempt", 0),
+        "tool_adapter": (((trace.get("config") or {}).get("agent") or {}).get("tool_adapter")),
+        "harness": (((trace.get("config") or {}).get("agent") or {}).get("harness")),
+        "harness_activity": _harness_activity(trace),
+        "agent_variant": (((trace.get("config") or {}).get("agent") or {}).get("variant") or {}),
+        "status": "finished" if trace.get("execution", {}).get("finished") else "interrupted_or_failed",
+        "run_id": trace.get("run_id"),
+        "official_reward": (trace.get("evaluation") or {}).get("reward"),
+        "termination_reason": trace.get("termination_reason"),
+        "attribution": trace.get("attribution"),
+        "persisted": trace.get("persisted"),
+        "cap_given_usd": cap,
+        "spend_upper_bound_usd": spend.get("upper_bound_usd"),
+        "spend_cache_aware_usd": spend.get("cache_aware_estimate_usd"),
+        "unresolved_reservations_usd": spend.get("unresolved_reservations_usd"),
+        "counts": trace.get("counts"),
+        "flags": (trace.get("research_eligibility") or {}).get("flags"),
+        # exposure is recorded alongside the official outcome; exposed runs are never dropped from the batch
+        "answer_dependent_outputs_seen": _exposure(trace),
+        "exposure_status": _exposure_status(trace),
+        "answer_independence_conclusive": (trace.get("answer_independence") or {}).get("conclusive"),
+        "trace": str(path),
+    }
+
+
+def _key(item: dict) -> tuple:
+    return item["task_id"], item.get("arm"), item.get("attempt", 0)
+
+
+def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, workers: int = 1,
+              journal: Path | None = None) -> dict:
+    """Run every scheduled conversation, never admitting spend beyond `approved_usd`.
+
+    workers == 1: one at a time; each run's cap is whatever the allocation has left (the original behaviour).
+    workers > 1: separate processes. Before a run starts, the plan's `per_run_cap_usd` is reserved from the
+    allocation; when it ends, its conservative upper-bound spend replaces the reservation. A run starts only if
+    the unreserved allocation covers a full reservation, so concurrent runs can never overspend together.
+    `journal` (a .jsonl file) receives each finished row as it lands; rows already in it are not run again (resume)
+    and their spend counts against the allocation."""
     if abs(approved_usd - plan["budget_usd_total"]) > 1e-9:
         raise SystemExit(f"approved ${approved_usd} does not match the plan's ${plan['budget_usd_total']}")
-    spent_upper = 0.0
-    rows = []
-    for item in schedule(plan):
-        task_id, arm = item["task_id"], item["arm"]
-        s = {**plan["settings"], **(plan["arms"][arm] if arm else {})}
-        remaining = round(approved_usd - spent_upper, 6)
-        if remaining <= 0:
-            rows.append({"task_id": task_id, "arm": arm, "status": "not_run", "reason": "batch allocation exhausted"})
-            continue
-        opts = RunOptions(
-            task_id=task_id, agent_model=s["agent_model"], agent_llm_args=dict(s["agent_args"]),
-            user_model=s["user_model"], user_llm_args=dict(s["user_args"]),
-            retrieval_config=s["retrieval_config"], seed=s["seed"], max_steps=s["max_steps"],
-            budget_usd=remaining, limits=Limits(), agent_variant=s.get("agent_variant", "baseline"),
-            agent_tool_adapter=s.get("tool_adapter"),
-            agent_harness=s.get("harness"),
-            **({"out_dir": out_dir} if out_dir else {}),
-        )
-        trace, path = run(opts)
-        spend = (trace.get("spend") or {}).get("incurred") or {}
-        spent_upper += spend.get("upper_bound_usd") or 0.0
-        rows.append({
-            "task_id": task_id,
-            "arm": arm,
-            "attempt": item.get("attempt", 0),
-            "tool_adapter": (((trace.get("config") or {}).get("agent") or {}).get("tool_adapter")),
-            "harness": (((trace.get("config") or {}).get("agent") or {}).get("harness")),
-            "harness_activity": _harness_activity(trace),
-            "agent_variant": (((trace.get("config") or {}).get("agent") or {}).get("variant") or {}),
-            "status": "finished" if trace.get("execution", {}).get("finished") else "interrupted_or_failed",
-            "run_id": trace.get("run_id"),
-            "official_reward": (trace.get("evaluation") or {}).get("reward"),
-            "termination_reason": trace.get("termination_reason"),
-            "attribution": trace.get("attribution"),
-            "persisted": trace.get("persisted"),
-            "cap_given_usd": remaining,
-            "spend_upper_bound_usd": spend.get("upper_bound_usd"),
-            "spend_cache_aware_usd": spend.get("cache_aware_estimate_usd"),
-            "unresolved_reservations_usd": spend.get("unresolved_reservations_usd"),
-            "counts": trace.get("counts"),
-            "flags": (trace.get("research_eligibility") or {}).get("flags"),
-            # exposure is recorded alongside the official outcome; exposed runs are never dropped from the batch
-            "answer_dependent_outputs_seen": _exposure(trace),
-            "exposure_status": _exposure_status(trace),
-            "answer_independence_conclusive": (trace.get("answer_independence") or {}).get("conclusive"),
-            "trace": str(path),
-        })
+    schedule_ = schedule(plan)
+    order = {_key(it): i for i, it in enumerate(schedule_)}
+    done: dict[tuple, dict] = {}
+    if journal and journal.exists():
+        for line in journal.read_text().splitlines():
+            if line.strip():
+                row = json.loads(line)
+                done[_key(row)] = row
+    spent_upper = sum(r.get("spend_upper_bound_usd") or 0.0 for r in done.values())
+    todo = [it for it in schedule_ if _key(it) not in done]
+
+    def settings_for(item):
+        return {**plan["settings"], **(plan["arms"][item["arm"]] if item["arm"] else {})}
+
+    def record(row):
+        done[_key(row)] = row
+        if journal:
+            with journal.open("a") as f:
+                f.write(json.dumps(row, default=str) + "\n")
+
+    rows_not_run = []
+    if workers <= 1:
+        for item in todo:
+            remaining = round(approved_usd - spent_upper, 6)
+            if remaining <= 0:
+                rows_not_run.append({"task_id": item["task_id"], "arm": item["arm"], "attempt": item.get("attempt", 0),
+                                     "status": "not_run", "reason": "batch allocation exhausted"})
+                continue
+            row = _run_one(item, settings_for(item), remaining, str(out_dir) if out_dir else None)
+            spent_upper += row.get("spend_upper_bound_usd") or 0.0
+            record(row)
+    else:
+        import multiprocessing as mp
+        from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+
+        per_run = plan.get("per_run_cap_usd")
+        if not per_run:
+            raise SystemExit("parallel runs need the plan's per_run_cap_usd (the reservation for each conversation)")
+        queue, inflight, reserved = list(todo), {}, 0.0
+        with ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn")) as pool:
+            while queue or inflight:
+                while queue and len(inflight) < workers and approved_usd - spent_upper - reserved >= per_run - 1e-9:
+                    item = queue.pop(0)
+                    fut = pool.submit(_run_one, item, settings_for(item), per_run, str(out_dir) if out_dir else None)
+                    inflight[fut] = item
+                    reserved += per_run
+                if not inflight:
+                    break  # nothing running and nothing affordable: the rest cannot start
+                finished, _ = wait(inflight, return_when=FIRST_COMPLETED)
+                for fut in finished:
+                    item = inflight.pop(fut)
+                    reserved -= per_run
+                    try:
+                        row = fut.result()
+                    except Exception as e:  # noqa: BLE001 - a crashed worker still leaves an outcome row
+                        row = {"task_id": item["task_id"], "arm": item["arm"], "attempt": item.get("attempt", 0),
+                               "status": "interrupted_or_failed", "reason": f"worker error: {type(e).__name__}: {e}"[:300],
+                               "spend_upper_bound_usd": per_run}  # unknown spend counts as the full reservation
+                    spent_upper += row.get("spend_upper_bound_usd") or 0.0
+                    record(row)
+        rows_not_run = [{"task_id": it["task_id"], "arm": it["arm"], "attempt": it.get("attempt", 0),
+                         "status": "not_run", "reason": "batch allocation exhausted"} for it in queue]
+    rows = sorted(list(done.values()) + rows_not_run, key=lambda r: order.get(_key(r), 10**9))
     return {
         "pairs": _pairs(rows) if "runs" in plan else None,
         "batch_id": plan["batch_id"],
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "approved_usd": approved_usd,
+        "workers": workers,
         "spend_upper_bound_usd": round(spent_upper, 6),
         "scheduled": len(rows),
         "by_status": {st: sum(r["status"] == st for r in rows) for st in {r["status"] for r in rows}},
@@ -156,9 +231,11 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("plan", type=Path)
     p.add_argument("--approved-usd", type=float, required=True, help="must equal the plan's budget_usd_total")
+    p.add_argument("--workers", type=int, default=1, help="parallel conversations (needs per_run_cap_usd in the plan)")
     a = p.parse_args(argv)
     plan = json.loads(a.plan.read_text())
-    summary = run_batch(plan, a.approved_usd)
+    journal = REPO_ROOT / "experiments" / f"{plan['batch_id']}_journal.jsonl"
+    summary = run_batch(plan, a.approved_usd, workers=a.workers, journal=journal)
     out = REPO_ROOT / "experiments" / f"{plan['batch_id']}_results.json"
     out.write_text(json.dumps(summary, indent=2, default=str) + "\n")
     print(json.dumps({k: summary[k] for k in ("batch_id", "spend_upper_bound_usd", "by_status")}, indent=2))

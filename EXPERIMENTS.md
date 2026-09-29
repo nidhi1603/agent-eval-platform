@@ -283,3 +283,19 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Design:** 10 hash-selected dev tasks × 2 arms × 2 attempts = 40 full conversations; settings identical to S002/S003; balanced order.
 - **Decision rule:** the harness must pass at least 4 more of 20 and have no more unauthorized writes.
 - **Cost:** forecast about $4–5; cap $6.00. It needs a credit top-up (about $2.05 left) and Nidhi's approval in chat. Plan: `experiments/H001_plan.json`.
+
+### Harness v2 built (2026-09-29, $0)
+- **The idea: retrieve → compile → track → recover.**
+  - **Track:** a task ledger kept by code, plus a harness-local `task_plan` tool.
+  - **Compile:** the just-in-time procedure compiler turns each retrieved document that names a tool into verbatim requirements, steps and customer points.
+  - **Recover:** new checks.
+    - Soft: procedure checklist before a tool's first use, plan before acting, needs covered, ask before transfer, no completion claims without receipts.
+    - Hard: duplicate writes.
+- **Positive control:** fires at a failure point in 17/19 saved failures (v1: 13/19). Newly reached: the unauthorized rewards write, the policy failure at a tool handover, the statement credit.
+- **Negative control (30 dev reference solutions):** same reward 30/30, hard firings 0/30, prompts 1.09×. The soft checks fire 32 times (mostly the checklist), at one extra call each.
+- **Dropped from the backlog:** a verification check before customer-tool handover. Reference 015 shows the policy doesn't require it.
+- **Parallel batch runner:** `--workers N`. Each run reserves `per_run_cap_usd`, so the allocation is never exceeded; a journal lets a batch resume.
+- **Tests:** 232 passed, 14 xfailed. Record: `research/harness_v2/README.md`.
+- **Not built yet:**
+  - context compaction;
+  - the `alltools` configuration, which needs Nidhi's OK to install sandbox-runtime and about $0.10 of embeddings.

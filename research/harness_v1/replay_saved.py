@@ -36,6 +36,8 @@ def traces():
 
 
 def main():
+    version = "v2" if "--version=v2" in sys.argv else "v1"
+    gates = harness.VERSIONS[version]
     from loguru import logger
 
     logger.remove()
@@ -43,17 +45,17 @@ def main():
     rows = []
     for name, p in traces():
         t = json.loads(p.read_text())
-        fires = harness.replay_saved(t["messages"], agent_tools, user_tools, tool_type)
+        fires = harness.replay_saved(t["messages"], agent_tools, user_tools, tool_type, gates)
         first = {}
         for f in fires:
             first.setdefault(f["gate"], f)
         rows.append({"run": f"{p.parent.parent.name}/{name}", "reward": (t.get("evaluation") or {}).get("reward"),
                      "fires": len(fires), "first": {g: {"i": f["i"], **{k: v for k, v in f["detail"].items()
-                                                                        if k in ("trigger", "searches", "tool", "stated")}}
+                                                                        if k in ("trigger", "searches", "tool", "stated", "docs")}}
                                                     for g, f in first.items()}})
     for r in rows:
         print(r["run"], r["reward"], json.dumps(r["first"]))
-    out = ROOT / "research" / "harness_v1" / "replay_saved.json"
+    out = ROOT / "research" / "harness_v1" / ("replay_saved.json" if version == "v1" else f"replay_saved_{version}.json")
     out.write_text(json.dumps(rows, indent=1))
     print(f"\n{sum(1 for r in rows if r['first'])}/{len(rows)} conversations have at least one firing; saved {out.name}")
 
