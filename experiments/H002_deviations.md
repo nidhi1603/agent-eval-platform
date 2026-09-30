@@ -24,3 +24,4 @@
 4. **Workers reduced from 3 to 2** for the rest of the batch.
 
 Nothing else changed: tasks, arms, order, settings, cap, decision rule.
+5. **Found at analysis: an output-cap truncation.** task_041, harness_v2, attempt 0 was interrupted when the agent used all 4,096 output tokens on reasoning and returned an empty message. tau2 rejects an empty AssistantMessage. `bench/trace.py` attributes it to "harness", but the cause is the output-token cap, which is shared by all arms. The outcome is kept; the label is corrected in the findings.

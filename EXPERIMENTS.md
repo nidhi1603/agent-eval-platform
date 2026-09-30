@@ -313,7 +313,18 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Wording corrected:**
   - reach vs detection (015 does not count; 16/19 with relevant content);
   - plan statuses are about discovery, not prerequisite states.
-- **H002 (PLAN FROZEN, not approved):** baseline / v1 / v2 on H001's 10 dev tasks × 2 attempts = 60 full conversations. BM25 pilot; balanced order (each arm 1st/2nd/3rd 6–7 times). Comparisons: v1 vs baseline, v2 vs baseline, v2 vs v1.
+- **H002 (RUN 2026-09-30, see below):** baseline / v1 / v2 on H001's 10 dev tasks × 2 attempts = 60 full conversations. BM25 pilot; balanced order (each arm 1st/2nd/3rd 6–7 times). Comparisons: v1 vs baseline, v2 vs baseline, v2 vs v1.
   - **Decision rule:** at least +4 of 20 over the baseline with no more unauthorized writes; prefer v1 if the two harnesses are within 3.
   - **Budget:** cap $12.00, $0.60 reserved per run, 3 workers, resume journal. Forecast about $7–9 (upper bound).
   - Plan: `experiments/H002_plan.json`.
+
+### H002 run: baseline 0/20, v1 1/20, v2 0/20; a null result on passes (2026-09-30, $9.49 upper bound)
+- **Pre-registered outcome:** neither harness meets the decision rule. There were 0 unauthorized writes and 0 valid writes blocked in every arm.
+- **Exploratory:** the harnesses fixed the behaviours they targeted.
+  - transfers: 0.65 → 0.05;
+  - denials: 0.65 → 0.10–0.20;
+  - discovered-tool use: about 16×;
+  - progress through the reference solution: 13% → 31–32%.
+- **The bottleneck has moved:** 78% of reference writes are never attempted. The agents finish believing they are done, with required-document recall still at 0.35 and fewer than 3 searches.
+- **v2:** +27% cost and +29% latency, no benefit over v1.
+- **Records:** `experiments/H002_findings.md`, `H002_deviations.md`, `research/h002/`.
