@@ -131,6 +131,9 @@ def run_one(task_id, script, harness, tmp):
 SPECS = {"v1": ({}, {"gates": ["clock_before_verification", "verification_before_write", "ids_observed"]}),
          "v2": ({"version": "v2"}, {"version": "v2", "gates": ["clock_before_verification", "verification_before_write",
                                                                "ids_observed", "duplicate_write"]}),
+         # v3: v1's checks plus capability search (bench/capability.py)
+         "v3": ({"version": "v3"}, {"version": "v3", "gates": ["clock_before_verification", "verification_before_write",
+                                                               "ids_observed"]}),
          # v1 plus dependency-following tool search (bench/depsearch.py): the H004 treatment arm
          "v1dep": ({"dep_search": True}, {"dep_search": True, "gates": ["clock_before_verification",
                                                                          "verification_before_write", "ids_observed"]})}
@@ -182,7 +185,8 @@ def main(argv):
                    "dependency_searches": sum(e["event"] == "dependency_search" for e in ev),
                    "dependency_docs_added": sum(len(e.get("docs_added") or []) for e in ev
                                                 if e["event"] == "dependency_search"),
-                   "dependency_errors": sum(e["event"] == "dependency_search_error" for e in ev)}
+                   "dependency_errors": sum(e["event"] == "dependency_search_error" for e in ev),
+                   "capability_searches": [f"{e['trigger']}:{e['kind']}" for e in ev if e["event"] == "capability_search"]}
             rows.append(row)
             print(tid, row["baseline_reward"], row["harness_reward"], row["tools_offered"],
                   round(row["agent_input_tokens"]["harness"] / max(row["agent_input_tokens"]["baseline"], 1), 2),

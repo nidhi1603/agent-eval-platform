@@ -75,6 +75,7 @@ def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple 
         spec = harness_record(harness)
         built.gates, built.feedback, built.use_adapter = tuple(spec["gates"]), spec["feedback"], spec["adapter"]
         built.dep_search = bool(spec.get("dep_search"))
+        built.capability_search = bool(spec.get("capability_search"))
     if guarded:
         built.guard_rules = tuple(guard_rules)
         built.harness_nudges = tuple(nudges)  # toolkit (and db, if needed) are attached once the environment exists
@@ -90,7 +91,7 @@ def harness_record(harness: dict | None) -> dict | None:
         return None
     from bench import harness as harness_mod
 
-    unknown = set(harness) - {"name", "version", "gates", "feedback", "adapter", "dep_search"}
+    unknown = set(harness) - {"name", "version", "gates", "feedback", "adapter", "dep_search", "capability_search"}
     if unknown:
         raise ValueError(f"unknown harness settings {sorted(unknown)}")
     version = harness.get("version", "v1")  # v1 is what H001 froze; v2 adds the ledger checks (bench/ledger.py)
@@ -107,6 +108,10 @@ def harness_record(harness: dict | None) -> dict | None:
            "feedback": feedback, "adapter": bool(harness.get("adapter", True))}
     if version != "v1":  # v1 records keep their original shape
         out["version"] = version
+    if version == "v3":  # v1's checks plus capability search (bench/capability.py)
+        if not out["adapter"]:
+            raise ValueError("v3 needs the adapter: the tools its searches find are offered through it")
+        out["capability_search"] = True
     if harness.get("dep_search"):  # dependency-following tool search (bench/depsearch.py); absent = off
         if not out["adapter"]:
             raise ValueError("dep_search needs the adapter: the documents it adds are offered through it")

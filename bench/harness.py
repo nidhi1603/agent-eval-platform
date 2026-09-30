@@ -54,7 +54,7 @@ HARNESS_NAME = "harness_v1"
 GATES = ("search_before_giving_up", "clock_before_verification", "verification_before_write", "ids_observed")
 V2_GATES = GATES + ("duplicate_write", "plan_before_acting", "procedure_checklist", "needs_covered",
                     "transfer_after_asking", "claims_need_receipts")
-VERSIONS = {"v1": GATES, "v2": V2_GATES}
+VERSIONS = {"v1": GATES, "v2": V2_GATES, "v3": GATES}  # v3 = v1's checks + capability search (bench/capability.py)
 ALL_GATES = V2_GATES
 HARD = {"clock_before_verification", "verification_before_write", "ids_observed", "duplicate_write"}
 SOFT = tuple(g for g in V2_GATES if g not in HARD)
@@ -178,6 +178,10 @@ def gate_search_before_giving_up(proposal: dict, ev: Evidence, ctx: dict) -> lis
         return []
     what = "transfer the customer to a human agent" if transfer else "tell the customer this can't be done"
     parts = [f"Harness check (not shown to the customer): you are about to {what}. Before you do:"]
+    if ctx.get("capability_advice"):
+        from bench.capability import ADVICE
+
+        parts.append(ADVICE)
     if len(queries) < MIN_SEARCHES:
         done = "; ".join(f'"{q[:80]}"' for q in queries[-3:]) or "none"
         parts.append(f"- You have searched the knowledge base {len(queries)} time(s) (queries: {done}). The procedure for "
@@ -483,6 +487,7 @@ def make_harness_agent_class():
         feedback: str = "structured"
         use_adapter: bool = True
         dep_search: bool = False     # dependency-following tool search (bench/depsearch.py)
+        capability_search: bool = False  # v3: bench/capability.py
         user_tool_names: frozenset = frozenset()
 
         def __init__(self, *a, **kw):
@@ -494,6 +499,9 @@ def make_harness_agent_class():
             self.checklists_shown: set[str] = set()
             self._dep = None
             self.model_state = None      # the model's own history, saved in the trace's harness audit section
+            self.capability_done: set[str] = set()
+            self._capability_note: str | None = None
+            self._capability_n = 0
 
         def _dependency_search(self, state, start: int) -> None:
             """Append dependency-search documents to the model's own copy of KB_search results that arrived at
@@ -555,7 +563,7 @@ def make_harness_agent_class():
         def _ctx(self, ev):
             lookup = ev.tool_type
             return {"agent_tools": set(self.agent_tool_names), "user_tools": set(self.user_tool_names),
-                    "tool_type": lookup, "events": self.harness_events,
+                    "tool_type": lookup, "events": self.harness_events, "capability_advice": self.capability_search,
                     "offered_reads": [n for n in sorted(self.offered) if lookup(n) == "read"]}
 
         def _hold(self, proposal, findings, state, in_history=False):
@@ -600,17 +608,57 @@ def make_harness_agent_class():
             rest = [tc for tc in proposal.tool_calls if tc.name != ledger.PLAN_TOOL]
             return proposal.model_copy(update={"tool_calls": rest}) if rest else None
 
+        def _capability_turn(self, search, state, draft=None):
+            """A harness turn that runs one capability search through the benchmark's own search tools; no model
+            call. The call goes into the model's history so that its results pair up when they arrive. A draft that
+            triggered it (a question to the customer) is dropped: neither sent nor kept."""
+            from tau2.data_model.message import ToolCall
+
+            from bench import capability
+
+            self._capability_n += 1
+            calls = capability.search_calls(search, {t.name for t in self.tools}, self._capability_n)
+            self.capability_done.add(search.kind)
+            if not calls:
+                self.harness_events.append({"event": "capability_search_unavailable", "kind": search.kind})
+                return None
+            msg = AssistantMessage(role="assistant", content=None, tool_calls=[
+                ToolCall(id=c["id"], name=c["name"], arguments=c["arguments"], requestor="assistant") for c in calls])
+            state.messages.append(msg)
+            self._capability_note = search.note
+            self.harness_events.append({"event": "capability_search", "trigger": search.trigger, "kind": search.kind,
+                                        "query": search.query, "tools": [c["name"] for c in calls],
+                                        "call_ids": [c["id"] for c in calls],
+                                        "draft_not_sent": draft.content if draft is not None else None})
+            return msg
+
         def generate_next_message(self, message, state):
             if self.adapter_toolkit is None:
                 raise RuntimeError("HarnessAgent needs adapter_toolkit (the environment's toolkit)")
             self.model_state = state
             self._absorb(message, state)
+            if self.capability_search:
+                from bench import capability
+
+                search = capability.after_verification(messages_as_dicts(state.messages), self.capability_done)
+                turn = self._capability_turn(search, state) if search else None
+                if turn is not None:
+                    return turn, state
             if self.use_adapter:
                 harness = self._unlock_turn(state)
                 if harness is not None:
                     return harness, state  # not added to the model's history
+            if self._capability_note:  # the search results are in: say why the harness searched
+                state.messages.append(SystemMessage(role="system", content=self._capability_note))
+                self._capability_note = None
             gates = active_gates(self.gates, self.feedback)
             proposal = self._generate(state)
+            if self.capability_search:
+                search = capability.before_asking(messages_as_dicts([proposal])[0], messages_as_dicts(state.messages),
+                                                  self.capability_done)
+                turn = self._capability_turn(search, state, draft=proposal) if search else None
+                if turn is not None:
+                    return turn, state
             in_history = False          # True when `proposal` is the remainder of one already in the history
             corrections = 0
             plan_turns = 0

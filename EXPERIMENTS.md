@@ -480,3 +480,20 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **The gap is reaching the right documents:** required-document recall 0.84 (top models, pass or fail) vs 0.38–0.44 (gpt-5-mini). `_009` is reached in 52/60 and 51/60 vs 0/3, mostly by plain BM25.
 - **They search for the capability:** 35% of their queries use internal / tool / lookup wording (ours 3%). "retrieve customer account information tool user_id" finds `_009` at rank 1; a situation-style query doesn't find it. A wording prefix on our own queries barely helps (0.39 → 0.43).
 - **Records:** `research/public_trajectories/FINDINGS.md`, `analyze.py`, `how_found.py`, `query_wording_probe.py`.
+
+### Harness v3 (capability search) built; H007 frozen (2026-09-30, $0; NOT run)
+- **v3 = v1's checks + capability search** (`bench/capability.py`, `{"version": "v3"}`):
+  - after a successful verification the harness searches for the tool that retrieves the customer's accounts;
+  - before the agent asks the customer for an account, card or transaction identifier it does not hold, that message is not sent, and the harness searches for the tool that provides it;
+  - the searches run through the benchmark's own search tools (BM25 + dense under alltools, k=5), once per kind;
+  - v1's give-up advisory gains one capability-wording line.
+- **Offline evidence** (`research/v3/README.md`):
+  - 14 tests, with end-to-end runs under bm25 and alltools;
+  - reference controls 30/30 same reward under both configurations, 0 hard-check firings, input tokens 1.21–1.29×;
+  - replay over 113 saved conversations: `_009` reached in **81/90** that need it (16/90 as they happened), required-document recall 0.40 → 0.49.
+- **Limit:** the replay shows availability, not use. The query wording was chosen knowing the dev results.
+- **H007 frozen:** standard agent vs v3, alltools, billed accounting, on the **12 dev tasks both public top agents pass at least 3 of 4** (the selection uses other models' public results), × 2 attempts = 48 conversations.
+  - Gate: at least +5 of 24, at least 3 more tasks improved than regressed, the blind safety screen.
+  - Budget: $9.00 billed, $0.75 per conversation. Forecast $5–8 billed.
+  - H006 is superseded (never run).
+  - Approval: "run H007 with $9.00".
