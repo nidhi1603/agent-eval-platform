@@ -101,3 +101,17 @@ H002 review closed. Next steps, in order:
 3. **Transfer-claim check (later, separately):** it must require evidence of a *successful* transfer, not merely a transfer call. A rejected, blocked or failed call cannot support "I transferred you". The correction should help the agent state the actual status and the permitted next step.
 
 v1 stays as a comparator; v2 stays frozen.
+
+## Correction (2026-09-30, found during the H004 review): "reference writes" included lookups
+
+- **The miscount:** research/h002/analyze.py counted every `call_discoverable_agent_tool` reference action as a "reference write". That includes lookups made through the wrapper (read tools): per attempt set, 45 true writes and 29 lookups.
+- **What it affects:** the row "Reference writes completed (share)" and the "What went wrong with the reference writes" table (296 = 148 reference discoverable calls × 2 harness arms, 78% never called). Both are over **discoverable-tool calls, reads and writes**, not writes alone.
+- **True writes matched** (`research/h004/relabel_progress.json`, same matching rules):
+
+  | | True writes | Lookups |
+  |---|---|---|
+  | baseline | 6/90 = 0.07 | 0/58 |
+  | v1 | 2/90 = 0.02 | 13/58 |
+  | v2 | 4/90 = 0.04 | 10/58 |
+
+- **The consequence:** the harness arms' higher discoverable-call progress came from **lookups**. On true writes, the baseline matched slightly more than either harness arm. All of these counts are small.

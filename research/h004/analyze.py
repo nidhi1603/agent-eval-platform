@@ -50,7 +50,10 @@ def row(r, task, tool_docs, tool_type):
                 agent_calls.append((c, res, ok))
     refs = task.evaluation_criteria.actions or []
     ok_refs = [matched(a, calls) for a in refs]
+    # H002's "reference writes" were every call_discoverable_agent_tool reference action, reads included; split them
     writes = [(a, o) for a, o in zip(refs, ok_refs) if a.name == WRITE_WRAPPER]
+    true_writes = [(a, o) for a, o in writes if tool_type(a.arguments.get("agent_tool_name")) == "write"]
+    disc_reads = [(a, o) for a, o in writes if tool_type(a.arguments.get("agent_tool_name")) == "read"]
     required = set(task.required_documents or [])
     traj_docs = {d for c, res, _ in agent_calls if c["name"] == "KB_search" for d in DOC.findall(res.get("content") or "")}
     view = h.get("model_view") or []
@@ -69,7 +72,9 @@ def row(r, task, tool_docs, tool_type):
     ledger = [e for e in (t.get("spend") or {}).get("ledger") or [] if e.get("role") == "agent"]
     return {**base, "traced": True,
             "ref_matched": sum(ok_refs), "ref_actions": len(refs),
-            "ref_writes_matched": sum(o for _, o in writes), "ref_writes": len(writes),
+            "ref_writes_matched": sum(o for _, o in writes), "ref_writes": len(writes),  # = discoverable calls (H002 name)
+            "ref_true_writes_matched": sum(o for _, o in true_writes), "ref_true_writes": len(true_writes),
+            "ref_disc_reads_matched": sum(o for _, o in disc_reads), "ref_disc_reads": len(disc_reads),
             "first_unmatched": next((f"{a.requestor}:{key(a.requestor, a.name, a.arguments)[1]}"
                                      for a, o in zip(refs, ok_refs) if not o), None),
             "req_recall_trajectory": round(len(traj_docs & required) / max(len(required), 1), 3),
@@ -131,7 +136,9 @@ def main():
         return {"n": len(xs), "passes_complete_pairs": passes, "of": len(xc),
                 "pass_tasks": sorted({x["task"] for x in xc if (x["reward"] or 0) >= 1}),
                 "ref_progress_per_task_mean": round(sum(x["ref_matched"] / max(x["ref_actions"], 1) for x in xs) / n, 3),
-                "write_progress_pooled": f"{sum(x['ref_writes_matched'] for x in xs)}/{sum(x['ref_writes'] for x in xs)}",
+                "discoverable_call_progress_pooled (H002's 'write progress')": f"{sum(x['ref_writes_matched'] for x in xs)}/{sum(x['ref_writes'] for x in xs)}",
+                "true_write_progress_pooled": f"{sum(x['ref_true_writes_matched'] for x in xs)}/{sum(x['ref_true_writes'] for x in xs)}",
+                "discoverable_read_progress_pooled": f"{sum(x['ref_disc_reads_matched'] for x in xs)}/{sum(x['ref_disc_reads'] for x in xs)}",
                 "write_progress_per_task_mean": round(sum(x["ref_writes_matched"] / x["ref_writes"] for x in wt) / max(len(wt), 1), 3),
                 "req_recall_model_view": round(sum(x["req_recall_model_view"] for x in xs) / n, 3),
                 "req_recall_trajectory": round(sum(x["req_recall_trajectory"] for x in xs) / n, 3),

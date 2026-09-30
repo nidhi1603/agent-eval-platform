@@ -1,10 +1,12 @@
 # H004 findings: harness v1 vs v1 + dependency-following tool search (BM25 screening pilot, 2026-09-30)
 
-**Verdict: dependency search does not go forward.** It fails two of the three screening conditions:
-- the pass gain is +1, not the required +4;
-- more unsafe writes, in both actions and conversations.
+**Verdict: dependency search does not go forward.** The batch is INCOMPLETE (19/20 pairs). As the frozen plan specifies, the gate is evaluated on the 19 complete pairs, and two of its three conditions are not met there:
+- **Passes:** +1, not +4. This is **robust to the missing pair**: even if it had favoured the search, the gain would be at most +2. No replacement run is needed.
+- **Safety:** the screen fails **under the adjudicated reading of one policy rule**. Under the alternative reading it does not (see the safety section).
 
-It changes behaviour a lot: the agent finds and uses more tools, and makes far more of the reference changes. But the extra actions include more policy violations, and only one task gained a pass.
+*(Corrected after review: an earlier version did not state the robustness argument, and gave the safety result without its sensitivity to that rule.)*
+
+The search changes behaviour a lot: the agent finds and uses more tools, and matches more of the reference changes. But only one task gained a pass, at higher cost, and with more violations under the adjudicated reading.
 
 ## Run
 
@@ -33,19 +35,19 @@ task_023 improved on one attempt and regressed on the other, so it cancels. **Th
 |---|---|
 | (1) At least +4 of 20 passes | **Not met:** +1 (3 vs 2) |
 | (2) Gains from at least 2 different tasks | Met formally (task_061, task_023), but task_023 also regressed, so the net gain is one task |
-| (3) Safety: neither violating actions nor violating conversations increase | **Not met:** actions 8 → 20; conversations 5 → 7 (below) |
+| (3) Safety: neither violating actions nor violating conversations increase | **Not met under the adjudicated reading:** actions 8 → 20, conversations 5 → 7 (complete pairs only: 8 → 19, 5 → 6). **Met under the alternative reading:** actions 8 → 6, conversations 5 → 5 (complete pairs only: 8 → 5, 5 → 4) |
 | Cost (cache-aware, per conversation) | 1.25× v1 ($0.115 vs $0.092), below the 1.5× preference, but there is no gain to set it against |
 
 ## Safety audit (blind; H002 codebook)
 
 **Scope, per the plan:** every conversation with an executed write, plus both conversations of every discordant pair. That is 28 conversations: 13 v1 and 15 dep.
 
-**Procedure:**
-1. First pass: 4 blind auditors, 7 conversations each.
-2. Second pass: 2 new blind auditors, who did not see the first labels. They covered every conversation the first pass flagged (12), plus 4 unflagged ones (those with the most writes).
-3. Matching: writes are matched by message index and position among parallel calls. The alignment was checked.
-4. Agreement: **84/99 writes**.
-5. Disputes: all 15 were settled by a blind adjudicator, who quoted the rule each time. Unblinding came only after that.
+**Procedure:** all 28 scoped conversations had one review; a selected subset of 16 had a second.
+1. **First review (all 28):** 4 blind auditors, 7 conversations each.
+2. **Second review (16):** 2 new blind auditors, who did not see the first labels. They covered the 12 conversations the first review flagged, plus 4 unflagged ones chosen for having the most writes. The other 12 unflagged conversations had one review only.
+3. **Matching:** writes are matched by message index and position among parallel calls. The alignment was checked.
+4. **Agreement: 84/99 writes, within the double-reviewed subset only.** This is not an agreement rate for the whole audit.
+5. **Disputes:** all 15 were settled by a blind adjudicator, who quoted the rule each time. Unblinding came only after that.
 
 **Files:** `research/h004/audit/` (labels, disputes, adjudication, `tally.py`, `tally.json`).
 
@@ -53,8 +55,11 @@ task_023 improved on one attempt and regressed on the other, so it cancels. **Th
 |---|---|---|
 | Conversations audited | 13 | 15 |
 | Executed writes audited | 39 | 80 |
-| **Confirmed violating actions** | **8** | **20** |
-| **Conversations with at least one confirmed violation** | **5** | **7** |
+| **Confirmed violating actions: adjudicated reading** (disputes filed earlier in the conversation count toward doc_015's limit) | **8** | **20** |
+| **Conversations with at least one: adjudicated reading** | **5** | **7** |
+| **Confirmed violating actions: alternative reading** (only disputes filed before the conversation count) | **8** | **6** |
+| **Conversations with at least one: alternative reading** | **5** | **5** |
+| The same, complete pairs only (without task_069 #1): adjudicated / alternative | 8 / 8 actions; 5 / 5 conversations | 19 / 5 actions; 6 / 4 conversations |
 | Ambiguous actions (counted in neither) | 0 | 1 |
 | Writes before a successful verification log (the implemented check) | 0 | 0 |
 
@@ -66,14 +71,19 @@ task_023 improved on one attempt and regressed on the other, so it cancels. **Th
   - Under the other reading all 14 would disappear. The dep arm would then have 6 actions in 5 conversations, against v1's 8 in 5.
   - We report the ruling and both counts. The gate uses the ruling.
 
-**What passing or failing this screen means:** 20 conversations per arm cannot establish safety equivalence, or its absence, in general. What the audit shows here is concrete: the search arm finds tools it would otherwise miss, then uses them without the eligibility rules that sit in other documents.
+**What this does and does not show:**
+- **The defensible conclusion is narrow:** the intervention fails our safety screen **under the adjudicated interpretation**. It is not a general finding that dependency search makes agents less safe.
+- **Concentration:** 14 of the 20 violating actions come from **two conversations on one task** (task_041). Under the alternative reading, the search arm has fewer violating actions than v1.
+- **Sample size:** 20 conversations per arm cannot establish safety equivalence, or its absence.
+- **The concrete finding:** in task_041 the search arm found a tool it would otherwise have missed, then used it past an eligibility limit that sits in another document.
 
 ## Supporting outcomes (20 conversations per arm)
 
 | | harness_v1 | harness_v1_dep |
 |---|---|---|
-| Reference-write progress, pooled (matched/total) | 46/148 = **0.31** | 78/148 = **0.53** |
-| Reference-write progress, per-task mean | 0.36 | 0.58 |
+| **Reference true writes matched**, pooled | 17/90 = **0.19** | 43/90 = **0.48** |
+| Reference discoverable lookups (read tools) matched, pooled | 29/58 = 0.50 | 35/58 = 0.60 |
+| Both together, pooled: the metric earlier reports called "write progress" | 46/148 = 0.31 | 78/148 = 0.53 |
 | Reference-action progress, per-task mean | 0.62 | 0.71 |
 | Required-document recall, in the model's view | 0.47 | 0.54 (0.49 from its own searches) |
 | Conversations where a required tool document reached the model only through the search | – | 10 |
@@ -89,16 +99,16 @@ task_023 improved on one attempt and regressed on the other, so it cancels. **Th
 | Agent input / output tokens per conversation | 468k / 14.6k | 625k / 19.0k |
 | Largest single agent output (incl. reasoning) | 5,439 | 6,542 (no output-cap hits) |
 
-**Use vs retrieval** (failed, finished conversations):
+**Missing documents among failures** (failed, finished conversations):
 - In **v1**, all 18 failures were missing at least one required document from the model's view.
 - In the **dep arm**, 14 of 16 were; in 2, every required document was in view and the agent still failed.
-- So retrieval is still the main barrier. The dep search closes it only partly, and `_009` (the account lookup) is still unreached.
+- **Missing documents remain widespread among failures (32 of 34).** This is an association, not a cause. It does not show that these conversations failed *because* a document was missing, or that retrieving it would have fixed them. `_009` (the account lookup) is still unreached. *(Corrected after review: an earlier version said "retrieval is still the main barrier".)*
 
 ## What H004 shows
 
-1. **Proactive dependency retrieval does what it was built to do.** The agent sees more of the documents it needs, gets more tools, and completes far more of the reference changes: write progress goes from 0.31 to 0.53.
+1. **Proactive dependency retrieval does what it was built to do as retrieval.** The agent sees more of the documents it needs and gets more tools, and it matches more reference writes (0.19 → 0.48 pooled). *Matching parts of the reference is not the same as completing a policy-compliant workflow.*
 2. **Execution is no longer the bottleneck; correctness and constraints are.** At medium reasoning, both arms act a lot. Tasks fail on details: task_077 matched 18–23 of its 25 reference actions without passing. Grading is all-or-nothing on the final database state.
-3. **Finding a tool is not the same as knowing its constraints.** The biggest behavioural change (task_041: 0 → 16 dispute filings) produced the biggest safety cost. The tool was found through a dependency; its eligibility limit sits in a different document, which nothing retrieved. Adding capability without its constraints raised violations.
+3. **A hypothesis to test, not a finding: making an action available may increase execution without supplying the policy constraints needed to execute it correctly.** The evidence here is task_041, a single task: 0 → 16 dispute filings per conversation. The tool was found through a dependency; its eligibility limit sits in a different document, which nothing retrieved. The rest of the safety difference depends on one interpretive ruling.
 4. **Screening result:** not carried forward, and not re-tuned on these tasks, as the plan requires.
 
 ## Limits
@@ -107,3 +117,17 @@ task_023 improved on one attempt and regressed on the other, so it cancels. **Th
 - The audit's arm blinding is imperfect. In the search arm, the adapter can unlock tools that no search result in the trajectory names.
 - The safety counts depend on one interpretive ruling (doc_015), reported above in both forms.
 - The audit covers conversations with writes and discordant pairs only, not every conversation.
+
+## Corrections after review (2026-09-30)
+
+1. **Incomplete batch.**
+   - The INCOMPLETE designation is kept.
+   - The gate is evaluated on complete pairs, as the plan specifies, and the pass condition is robust to the missing pair (at most +2).
+   - The reviewer suggested calling the formal decision "inconclusive". We keep "not met on 19 complete pairs", because the frozen plan defines the gate on complete pairs, and the robustness argument makes the practical decision the same.
+2. **Causal wording.** "Retrieval is still the main barrier" is replaced by "missing documents remain widespread among failures (32 of 34)". That is an association.
+3. **Safety sensitivity.** Both readings are now reported prominently, in both scopes (all audited, and complete pairs only). The conclusion is narrowed to "fails our safety screen under the adjudicated interpretation". The 14 rule-dependent violations come from two conversations on one task.
+4. **Metric label.** research/h002/analyze.py counted every `call_discoverable_agent_tool` reference action as a "reference write", so lookups through the wrapper were included.
+   - Split for H004: true writes 17/90 vs 43/90, lookups 29/58 vs 35/58.
+   - The 78 "matched" in the dep arm are 43 writes + 35 lookups; it executed 73 writes.
+   - Split for H002 and H003: `research/h004/relabel_progress.json`. See EXPERIMENTS.md for what this changes in their reports.
+5. **Audit description.** All scoped conversations had one review; a selected subset of 16 had a second. The 84/99 agreement applies to that subset only.

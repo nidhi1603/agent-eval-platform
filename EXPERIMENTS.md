@@ -375,7 +375,23 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - (1) +4: not met (+1);
   - (3) safety: not met. Blind, double-audited: violating actions 8 → 20, conversations 5 → 7. 14 of the 20 are task_041 dispute filings past the doc_015 limit, a ruling-dependent count (both counts reported).
 - **Behaviour:**
-  - pooled write progress 0.31 → 0.53; executed writes 33 → 73; required-document recall in view 0.47 → 0.54;
+  - reference true writes matched 17/90 → 43/90 (the earlier "0.31 → 0.53" included lookups); executed writes 33 → 73; required-document recall in view 0.47 → 0.54;
   - cost 1.25× cache-aware, latency 1.3×.
 - **Lesson:** finding a tool through a dependency, without its eligibility constraints, adds actions and violations faster than passes. Still, 32 of 34 failed conversations lacked a required document (v1 18/18, dep 14/16).
 - **Records:** `experiments/H004_findings.md`, `research/h004/`, `research/h004/audit/`.
+
+### Review of H004: corrections (2026-09-30, $0)
+- **Incomplete batch:** the label is kept. The gate is evaluated on 19 complete pairs (as frozen). The pass condition is robust to the missing pair (at most +2 < +4), so no replacement run.
+- **Causal wording:** "retrieval is the main barrier" becomes "missing documents remain widespread among failures (32/34)", an association.
+- **Safety:** it now fails our screen **under the adjudicated reading**. The two readings:
+  - adjudicated: 8 vs 20 actions, 5 vs 7 conversations;
+  - alternative: 8 vs 6 actions, 5 vs 5 conversations, which passes;
+  - complete pairs only: 8/19/5 actions, 5/6/4 conversations (v1, dep adjudicated, dep alternative).
+
+  14 of the rule-dependent violations come from 2 conversations on one task.
+- **Audit description:** all 28 had one review; a subset of 16 had a second. 84/99 agreement is for that subset only.
+- **Metric mislabelled since H002:** "reference writes" were all discoverable-tool reference calls, lookups included.
+  - True writes: H002 baseline 6/90, v1 2/90, v2 4/90; H003 1/14 (0.07: its go rule was met by the pass, unchanged); H004 v1 17/90, dep 43/90.
+  - H002's "78% of reference writes never called" is over discoverable calls.
+  - Correction notes: `experiments/H002_findings.md`, `research/h004/relabel_progress.json`.
+- **Next:** `alltools` setup (needs Nidhi's OK to install the npm sandbox runtime). Then the paid comparison is the **standard agent vs v1**, both under `alltools` with identical settings and no dependency search. Constraint-with-capability retrieval is held as a hypothesis for later.
