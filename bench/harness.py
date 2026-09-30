@@ -103,19 +103,29 @@ class Finding:
 
 # ---- what the agent has seen --------------------------------------------------------------------------------
 
+def _retrieval_ok(c: dict, r: dict) -> bool:
+    """A retrieval call that counts: KB searches as before (no error); a shell command only if it produced output."""
+    from bench.kb_evidence import RETRIEVAL_TOOLS, SHELL, succeeded
+
+    return c["name"] in RETRIEVAL_TOOLS and not r.get("error") and (c["name"] != SHELL or succeeded(r))
+
+
 def searches(ev: Evidence) -> list[str]:
-    return [str((c.get("arguments") or {}).get("query", "")) for c, r in ev.results()
-            if c["name"] == KB and not r.get("error")]
+    """Queries (or shell commands) of the agent's retrieval calls: KB_search, or under alltools KB_search_bm25,
+    KB_search_dense and shell (bench/kb_evidence.py)."""
+    from bench.kb_evidence import query_of
+
+    return [query_of(c) for c, r in ev.results() if _retrieval_ok(c, r)]
 
 
 def kb_names(ev: Evidence, names: set[str]) -> list[str]:
-    """Registry names from `names` in successful KB results, in the order first seen. Matched as whole words against
+    """Registry names from `names` in successful retrieval results, in the order first seen. Matched as whole words against
     the registry, not by pattern: customer tools such as get_card_last_4_digits have no numeric suffix."""
     pattern = re.compile(r"\b(" + "|".join(sorted(map(re.escape, names), key=len, reverse=True)) + r")\b") if names else None
     out: list[str] = []
     for c, r in ev.results():
         text = r.get("content") or ""
-        if pattern and c["name"] == KB and not r.get("error") and not text.lstrip().startswith("Error"):
+        if pattern and _retrieval_ok(c, r) and not text.lstrip().startswith("Error"):  # output only, never a command
             for m in pattern.finditer(text):
                 if m.group(1) not in out:
                     out.append(m.group(1))

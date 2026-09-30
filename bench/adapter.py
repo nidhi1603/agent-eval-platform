@@ -12,8 +12,9 @@ only that interface, so the hypothesis can be tested:
     requiring the model to unlock and invoke them through wrappers?
 
 What the adapter does, and the rules it keeps:
-1. **Only names the agent has received.** It scans successful KB_search results in the agent's own conversation for
-   discoverable AGENT-tool names from the benchmark's registry. Customer tools (give_discoverable_user_tool) are
+1. **Only names the agent has received.** It scans the output of successful retrieval calls in the agent's own
+   conversation (KB_search, or under alltools KB_search_bm25 / KB_search_dense / shell; bench/kb_evidence.py) for
+   discoverable AGENT-tool names from the benchmark's registry. A shell command's own text never counts. Customer tools (give_discoverable_user_tool) are
    never offered as agent functions; that path is unchanged.
 2. **Schemas through the permitted interface.** For each newly seen name the adapter issues the benchmark's own
    unlock call (a harness turn, no model call). Only after a successful unlock receipt is the tool offered, with
@@ -42,13 +43,19 @@ ADAPTER_NAME = "direct_tools"
 
 
 def names_in_kb_results(messages, agent_tool_names) -> set[str]:
-    """Discoverable agent-tool names in successful KB_search results of this conversation (model-view messages)."""
+    """Discoverable agent-tool names in the output of successful retrieval calls in this conversation (model-view
+    messages). KB_search behaves exactly as before; the alltools search tools and shell output count the same way."""
+    from bench.kb_evidence import RETRIEVAL_TOOLS, SHELL, succeeded
+
     call_names = {tc.id: tc.name for m in messages if getattr(m, "role", None) == "assistant"
                   for tc in (getattr(m, "tool_calls", None) or [])}
     found: set[str] = set()
     for m in messages:
-        if getattr(m, "role", None) == "tool" and call_names.get(m.id) == KB and not m.error:
+        name = call_names.get(getattr(m, "id", None)) if getattr(m, "role", None) == "tool" else None
+        if name in RETRIEVAL_TOOLS and not m.error:
             text = m.content or ""
+            if name == SHELL and not succeeded({"content": text}):
+                continue
             if not text.lstrip().startswith("Error"):
                 found |= set(WORD.findall(text)) & set(agent_tool_names)
     return found

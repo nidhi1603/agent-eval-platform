@@ -129,6 +129,13 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
 
         from bench import independence
 
+        if opts.retrieval_config.startswith(("alltools", "terminal_use")):
+            # shared infrastructure for every arm: deny shell reads of the answer key, this repo and its .env
+            from bench import sandbox_policy
+
+            sandbox_policy.patch()
+            trace["sandbox_policy"] = {"deny_read_added": sandbox_policy.extra_deny_read(),
+                                       "note": "bench/sandbox_policy.py; verify with research/alltools/containment_check.py"}
         agent_name = agent.register(opts.agent_variant, opts.agent_guard, opts.agent_nudges, opts.agent_tool_adapter,
                                     opts.agent_harness)
         task = get_tasks(pins.DOMAIN, task_ids=[opts.task_id])[0]
@@ -238,6 +245,10 @@ def _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0) -> Pa
                                 "regenerations": getattr(ag, "regenerations", None),
                                 "placement": "proposal time, inside the agent: held drafts and their feedback enter "
                                              "only the model's own history, never the trajectory"}
+        if trace.get("sandbox_policy") is not None:
+            from bench import sandbox_policy
+
+            trace["shell_audit"] = sandbox_policy.audit(trace.get("messages") or [])
         trace["spend"] = _spend_record(simulation, budget)
         trace["attribution"] = attribute(trace["termination_reason"], (trace.get("evaluation") or {}).get("reward"),
                                          error, trace["messages"], trace["spend"]["ledger"])

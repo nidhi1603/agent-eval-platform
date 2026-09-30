@@ -395,3 +395,19 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - H002's "78% of reference writes never called" is over discoverable calls.
   - Correction notes: `experiments/H002_findings.md`, `research/h004/relabel_progress.json`.
 - **Next:** `alltools` setup (needs Nidhi's OK to install the npm sandbox runtime). Then the paid comparison is the **standard agent vs v1**, both under `alltools` with identical settings and no dependency search. Constraint-with-capability retrieval is held as a hypothesis for later.
+
+### Close of the H004 review; alltools compatibility built offline (2026-09-30, $0)
+- **Wording:** the reviewer accepted "INCOMPLETE; gate not met on 19 completed pairs".
+- **Evidence record** (`bench/kb_evidence.py`): one record for every retrieval tool, (document, level, text shown, source call, step).
+  - KB_search, KB_search_bm25 and KB_search_dense results are **full**.
+  - Shell: `cat` of a file is **full**; grep lines and head/sed are **excerpts**; ls, INDEX and grep -l only **discover**.
+  - Errors and empty results record nothing.
+  - Tools are discovered from retrieval **output** only, never from a shell command's text.
+- **Adapter and v1 checks** now read all retrieval tools. KB_search behaviour is unchanged (all prior tests pass). The v2 ledger and dependency search still read KB_search only; both are frozen or disabled.
+- **Containment gap found in tau2's sandbox** (its docs call it best-effort): srt reads are deny-only, and the escape filter removes quoted strings before checking. So `cat "$HOME"/...` is likely not caught, and the task files (the answer key) and this repo's `.env` were probably readable.
+  - `bench/sandbox_policy.py` adds them to the deny list for every arm, and records a shell audit in each trace.
+  - It must be verified empirically after the install (`research/alltools/containment_check.py`, which reports READABLE or DENIED only and never prints contents).
+- **Metrics** (`bench/metrics.py`): reference actions are bucketed by channel and underlying type: discoverable writes, discoverable reads, base writes, base reads, customer, other. Agent calls are counted as read calls, attempted writes and successful writes. A regression test reproduces H004's corrected 17/90 and 43/90.
+- **Standard arm:** a test asserts the standard agent is tau2's `LLMAgent`, unmodified.
+- **Tests:** 282 pass.
+- **Waiting on Nidhi's permission:** `npm install -g @anthropic-ai/sandbox-runtime@0.0.23` and `brew install ripgrep`. After that, at $0: the containment check, scripted alltools runs (fake embeddings), and the 30 reference controls under alltools. Real embeddings (about $0.10) are needed only for live runs.
