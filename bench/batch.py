@@ -77,6 +77,7 @@ def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dic
         budget_usd=cap, limits=Limits(), agent_variant=s.get("agent_variant", "baseline"),
         agent_tool_adapter=s.get("tool_adapter"),
         agent_harness=s.get("harness"),
+        scripted=Path(s["scripted"]) if s.get("scripted") else None,  # mock smoke tests only
         **({"out_dir": Path(out_dir)} if out_dir else {}),
     )
     trace, path = run(opts)
@@ -108,6 +109,15 @@ def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dic
         "duration_s": trace.get("duration_s"),
         "trace": str(path),
     }
+
+
+QUOTA = ("insufficient_quota", "exceeded your current quota", "billing")
+
+
+def _out_of_credit(row: dict) -> bool:
+    """The provider refused for lack of credit: later runs would fail the same way, so none should start."""
+    text = json.dumps({k: row.get(k) for k in ("attribution", "reason", "termination_reason")}, default=str).lower()
+    return any(q in text for q in QUOTA)
 
 
 def _key(item: dict) -> tuple:
@@ -147,6 +157,7 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
                 f.write(json.dumps(row, default=str) + "\n")
 
     rows_not_run = []
+    stopped = False  # set when the provider reports no credit: unstarted runs stay unjournaled, so they can resume
     if workers <= 1:
         for item in todo:
             remaining = round(approved_usd - spent_upper, 6)
@@ -154,12 +165,18 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
                 rows_not_run.append({"task_id": item["task_id"], "arm": item["arm"], "attempt": item.get("attempt", 0),
                                      "status": "not_run", "reason": "batch allocation exhausted"})
                 continue
+            if stopped:
+                rows_not_run.append({"task_id": item["task_id"], "arm": item["arm"], "attempt": item.get("attempt", 0),
+                                     "status": "not_run", "reason": "stopped: provider reported no credit"})
+                continue
             row = _run_one(item, settings_for(item), remaining, str(out_dir) if out_dir else None)
             spent_upper += row.get("spend_upper_bound_usd") or 0.0
             record(row)
+            stopped = stopped or _out_of_credit(row)
     else:
         import multiprocessing as mp
         from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+        from concurrent.futures.process import BrokenProcessPool
 
         per_run = plan.get("per_run_cap_usd")
         if not per_run:
@@ -167,9 +184,15 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
         queue, inflight, reserved = list(todo), {}, 0.0
         with ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn")) as pool:
             while queue or inflight:
-                while queue and len(inflight) < workers and approved_usd - spent_upper - reserved >= per_run - 1e-9:
-                    item = queue.pop(0)
-                    fut = pool.submit(_run_one, item, settings_for(item), per_run, str(out_dir) if out_dir else None)
+                while (queue and not stopped and len(inflight) < workers
+                       and approved_usd - spent_upper - reserved >= per_run - 1e-9):
+                    item = queue[0]
+                    try:
+                        fut = pool.submit(_run_one, item, settings_for(item), per_run, str(out_dir) if out_dir else None)
+                    except BrokenProcessPool:
+                        stopped = True  # unstarted runs stay unjournaled and resumable
+                        break
+                    queue.pop(0)
                     inflight[fut] = item
                     reserved += per_run
                 if not inflight:
@@ -186,8 +209,11 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
                                "spend_upper_bound_usd": per_run}  # unknown spend counts as the full reservation
                     spent_upper += row.get("spend_upper_bound_usd") or 0.0
                     record(row)
+                    stopped = stopped or _out_of_credit(row)
+        why = ("stopped: provider reported no credit, or the worker pool broke" if stopped
+               else "batch allocation exhausted")
         rows_not_run = [{"task_id": it["task_id"], "arm": it["arm"], "attempt": it.get("attempt", 0),
-                         "status": "not_run", "reason": "batch allocation exhausted"} for it in queue]
+                         "status": "not_run", "reason": why} for it in queue]
     rows = sorted(list(done.values()) + rows_not_run, key=lambda r: order.get(_key(r), 10**9))
     return {
         "pairs": _pairs(rows) if "runs" in plan and len(plan.get("arms") or {}) == 2 else None,

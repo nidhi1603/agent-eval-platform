@@ -62,3 +62,18 @@ def test_a_journal_resumes_without_repeating_or_forgetting_spend(tmp_path):
     assert "t0a" not in calls  # the journaled run is not repeated
     assert out["spend_upper_bound_usd"] == pytest.approx(1.0)  # its spend still counts
     assert len(journal.read_text().splitlines()) == 1 + len(calls)
+
+
+def test_no_new_run_starts_after_the_provider_reports_no_credit(monkeypatch):
+    def broke(item, settings, cap, out_dir):
+        row = fake_run_one(item, settings, cap, out_dir)
+        if item["task_id"] == "t1":
+            row.update(status="interrupted_or_failed", attribution={"cause": "interrupted",
+                       "evidence": "RateLimitError: You exceeded your current quota"})
+        return row
+
+    monkeypatch.setattr(batch, "_run_one", broke)
+    out = batch.run_batch({**PLAN, "budget_usd_total": 10.0}, 10.0)
+    statuses = [(r["task_id"], r["status"]) for r in out["results"]]
+    assert statuses[:4] == [("t0", "finished"), ("t0", "finished"), ("t1", "interrupted_or_failed"), ("t1", "not_run")]
+    assert all(r["reason"].startswith("stopped") for r in out["results"] if r["status"] == "not_run")
