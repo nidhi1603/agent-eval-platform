@@ -444,3 +444,10 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Scripted alltools end to end** (`tests/test_alltools_e2e.py`, fake embeddings): standard agent and v1. All three retrieval tools work; v1 is offered a tool discovered from grep output; the shell environment is scrubbed; answer independence is conclusive.
 - **Reference controls under alltools** (`research/harness_v1/reference_controls_alltools.json`): **30/30 same reward, 0 hard-check firings**, soft advisories in 2 tasks, agent input tokens 1.08× the standard agent.
 - **Tests:** 288 pass.
+
+### H005 frozen: standard agent vs harness v1 under alltools (2026-09-30, $0; NOT run)
+- **Question:** does v1 improve gpt-5-mini over tau2's standard agent when both use alltools, with identical settings (medium reasoning, 16k tokens, gpt-5.2 low customer, seed 300)? Dependency search is off.
+- **Design:** H002/H004's 10 dev tasks × 2 attempts = 40 conversations, balanced order. Screening gate as H004: +4/20 on complete pairs, gains from at least 2 tasks net of regressions, the blind double-reviewed safety screen, and cost reported with success.
+- **Preflight:** `research/alltools/dense_check.py` is the first real-embedding check (a dense top-3 hit rate of at least 0.80 on 45 title queries, $0.30 cap). Conversations start only if it passes. Its code path is tested with fake embeddings, which score 0.02, so the check discriminates.
+- **Budget:** $15.00 cap, $1.00 per conversation, 2 workers. Forecast $8–14 (a forecast, not a bound).
+- **Approval:** "run H005 with $15.00". Plan: `experiments/H005_plan.json`.
