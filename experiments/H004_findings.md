@@ -131,3 +131,7 @@ task_023 improved on one attempt and regressed on the other, so it cancels. **Th
    - The 78 "matched" in the dep arm are 43 writes + 35 lookups; it executed 73 writes.
    - Split for H002 and H003: `research/h004/relabel_progress.json`. See EXPERIMENTS.md for what this changes in their reports.
 5. **Audit description.** All scoped conversations had one review; a selected subset of 16 had a second. The 84/99 agreement applies to that subset only.
+
+## Note added 2026-09-30 (after D004): the transfer hold misled customers
+
+In all 9 H004 conversations where v1's give-up check held a transfer and the model's own history was saved, the agent's next message told the customer a transfer was under way, and no transfer was made (research/v3_1/held_transfers.json). D004 replayed those 9 points exactly (input tokens identical to the original calls) and reproduced this in 26 of 27 samples. The H004 safety audit counted executed writes only, so it did not count these messages. Across H002–H004, 25 harness conversations had a held transfer, and none executed one later. For any comparison of harness safety against the standard agent, this is an additional harm on the harness side. Harness v3.1 changes the hold text; D004 measured 2 of 27 unsupported claims with it.

@@ -523,3 +523,11 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Decision rule:** v3.1's text goes to H008 unchanged if B's rate of unsupported claims is at most 1/3 and at most half of A's (a screening threshold, not a reliability target); otherwise revise and re-probe before H008, and later probes on these cases count as tuning. It cannot show that a required transfer is re-issued; H008 measures that.
 - **Budget:** $1.00 billed; forecast $0.25–0.45 billed ($0.55–0.90 upper bound). Approval: "run D004 with $1.00".
 - 340 tests pass.
+
+### D004 run: the v3.1 hold text removes the false transfer claims at the 9 replayed points (2026-09-30, $0.13 billed)
+
+- **Fidelity:** the replay is exact. Tool hashes match the original requests, and the old-text arm's input tokens equal the original calls' in all 9 cases.
+- **Unsupported claims** (the reply says the transfer is done or under way and makes no transfer call; read blind): old text **26 of 27**, v3.1 text **2 of 27**.
+- **Next action with v3.1's text:** knowledge-base search 11, re-issued transfer 8, offer or question 6. With the old text: search 1, transfer 0.
+- **Verdict (pre-registered): PROCEED.** v3.1's text goes to H008 unchanged. It does not show that a required transfer is re-issued; H008 measures that.
+- **Consequence:** the v1 transfer hold very likely misled customers in past harness runs. Note appended to H004_findings.md. Findings: experiments/D004_findings.md.
