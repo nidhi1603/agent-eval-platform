@@ -15,7 +15,15 @@ plus the tools the adapter had offered by then), model and reasoning setting. On
 recorded and classified, never executed. No environment is changed and nothing is graded by tau2.
 
 Reconstruction is checked before any call (`preflight`): v1's text recomputed from the saved history must equal the
-text the model received, and the tools offered then must be a subset of those the run offered in the end.
+text the model received, and the tool list (names and schemas) must hash to the tools_sha256 the original run's
+ledger recorded for the model call at that exact point. After the run, each A reply's input token count can be set
+against that original call's (`original_input_tokens`).
+
+Two outcomes per reply, scored separately (a reply can carry both text and a tool call):
+  next_action   transfer_call | retrieval | other_tool | text_only                      (from the tool calls)
+  claim         done_or_underway | intention_or_offer | unclear | none                   (from the text)
+An UNSUPPORTED claim is done_or_underway in a reply with no transfer call. The automatic claim label is provisional;
+every reply is read blind to arm (research/d004/blind.py) and the read label decides.
 
 Cases were chosen after observing the failure: a development diagnostic of one mechanism, not a pass-rate estimate.
 
@@ -34,26 +42,51 @@ from bench import REPO_ROOT, pins
 
 TRANSFER = "transfer_to_human_agents"
 ARMS = ("A_v1_text", "B_v3_1_text")
-# a reply telling the customer a transfer or escalation is happening or done (research/v3_1/held_transfers.py)
-CLAIM = re.compile(r"transferr?(ed|ing)|connect(ing|ed)? you|handoff|hand(ing|ed)? (you|this) (off|over)|escalat(ed|ing)|"
-                   r"transfer request submitted|\"transfer\": \"completed\"|I.ll transfer you", re.I)
-LABELS = ("transfer_again", "retrieval", "other_tool", "claims_transfer", "other_text")
+NEXT_ACTIONS = ("transfer_call", "retrieval", "other_tool", "text_only")
+CLAIMS = ("done_or_underway", "intention_or_offer", "unclear", "none")
+# says the transfer or escalation has happened or is happening now
+DONE = re.compile(r"\b(?:have|has|'ve|’ve) (?:been )?(?:transferred|escalated|connected|handed)|(?<!try )\btransferring you|"
+                  r"(?<!try )\bconnecting you|\byou(?:'re|’re| are) (?:now )?being (?:transferred|connected)|\bescalating (?:this|you|your)|"
+                  r"\b(?:initiated|started|submitted|created) (?:a |the )?(?:handoff|transfer|escalation)|"
+                  r"\b(?:handoff|transfer|escalation)(?: request)? (?:is |has been )?(?:initiated|submitted|completed|in progress)|"
+                  r"\"transfer\": \"completed\"|\bI(?:'m|’m| am) (?:now )?(?:transferring|connecting|escalating|handing)|"
+                  r"\bI(?:'ll|’ll| will) (?:now )?(?:transfer|connect|escalate)[^.?!]{0,60}\bnow\b|"  # "I'll transfer you ... now"
+                  r"\byou(?:'ll|’ll| should| will) be (?:connected|transferred) (?:shortly|soon|in a moment)", re.I)
+# a future or conditional transfer: "I'll transfer you", "would you like me to connect you"
+INTENT = re.compile(r"\bI(?:'ll|’ll| will) (?:try (?:to )?|now )?(?:transfer|connect|escalate|hand)|\btry (?:transferring|connecting)|"
+                    r"\bI can (?:transfer|connect|escalate)|\bwould you like (?:me to|to be) (?:transfer|connect)|"
+                    r"\b(?:shall|should) I (?:transfer|connect|escalate)|\bdo you want me to (?:transfer|connect|escalate)", re.I)
+MENTION = re.compile(r"transfer|escalat|human (?:agent|specialist)|specialist team|hand ?off", re.I)
 
 
 class PlanError(Exception):
     """The plan does not match what would run. Raised before any network call."""
 
 
-def classify(message: dict) -> str:
-    """The pre-registered automatic label of one reply (a dict with content and tool_calls)."""
+def next_action(message: dict) -> str:
     names = [c["name"] for c in message.get("tool_calls") or []]
     if TRANSFER in names:
-        return "transfer_again"
+        return "transfer_call"
     if any(n.startswith("KB_search") or n == "shell" for n in names):
         return "retrieval"
-    if names:
-        return "other_tool"
-    return "claims_transfer" if CLAIM.search(message.get("content") or "") else "other_text"
+    return "other_tool" if names else "text_only"
+
+
+def claim(text: str | None) -> str:
+    """Provisional automatic claim label; the blind reading decides."""
+    text = text or ""
+    if DONE.search(text):
+        return "done_or_underway"
+    if INTENT.search(text):
+        return "intention_or_offer"
+    return "unclear" if MENTION.search(text) else "none"
+
+
+def classify(message: dict) -> dict:
+    """The pre-registered automatic outcomes of one reply (a dict with content and tool_calls)."""
+    act, cl = next_action(message), claim(message.get("content"))
+    return {"next_action": act, "claim_auto": cl,
+            "unsupported_claim_auto": cl == "done_or_underway" and act != "transfer_call"}
 
 
 def _tau2(messages: list[dict]):
@@ -109,6 +142,20 @@ class Case:
         self.user_tools = frozenset(self.env.user_tools.get_discoverable_tools())
         self.before = self.view[:i]
         self.offered = sorted(names_in_kb_results(_tau2(self.before), self.agent_tools))
+        # the original run's ledger entry for the model call that answered the hold (tools, input tokens)
+        from bench.harness import WITHHELD
+
+        def by_model(msgs, start):  # tau2's opening greeting, fixed replies and harness turns are not model calls
+            return [m for k, m in enumerate(msgs, start) if m["role"] == "assistant" and k > 0
+                    and m.get("content") not in WITHHELD.values()
+                    and not any(c["id"].startswith(("capability_", "adapter_unlock_")) for c in m.get("tool_calls") or [])]
+
+        calls = [e for e in (self.trace.get("spend") or {}).get("ledger") or []
+                 if e.get("role") == "agent" and e.get("kind") == "chat" and e.get("status") == "ok"]
+        self.aligned = len(by_model(self.view, 0)) == len(calls)  # one completed model call per model message
+        n = len(by_model(self.view[:i + 1], 0))                    # model messages through the held proposal
+        self.held_call = calls[n - 1] if 0 < n <= len(calls) else None
+        self.original_call = calls[n] if n < len(calls) else None   # the call that answered the hold
 
     def ctx(self, v3_1: bool) -> dict:
         return {"agent_tools": set(self.agent_tools), "user_tools": set(self.user_tools), "tool_type": self.tool_type,
@@ -130,11 +177,20 @@ class Case:
             raise PlanError(f"case {self.spec['id']}: the check does not hold this transfer when recomputed")
         return found[0].message
 
+    def tools_sha256(self) -> str:
+        """The tool list as the probe will send it, hashed as bench/budget.py hashes every request's tools."""
+        a = self.agent("probe", {})
+        tools = list(a.tools) + [t for n, t in sorted(a.offered.items()) if n not in {x.name for x in a.tools}]
+        return hashlib.sha256(json.dumps([t.openai_schema for t in tools], sort_keys=True).encode()).hexdigest()
+
     def checks(self) -> dict:
         """Reconstruction checks (all must be true before any call)."""
-        final = set((self.trace.get("harness") or {}).get("offered") or [])
+        sha = self.tools_sha256()
+        params = lambda e: (e or {}).get("request_params") or {}  # noqa: E731
         return {"v1_text_recomputed_exactly": self._computed(v3_1=False) == self.feedback("A_v1_text"),
-                "offered_then_subset_of_offered_at_end": set(self.offered) <= final,
+                "model_messages_align_with_the_ledger": self.aligned,
+                "tools_match_the_original_request_after_the_hold": params(self.original_call).get("tools_sha256") == sha,
+                "tools_match_the_original_request_that_proposed_the_transfer": params(self.held_call).get("tools_sha256") == sha,
                 "held_call_marked_error": all(m.get("error") for m in self.results
                                               if m["tool_call_id"] == self.transfer_id)}
 
@@ -166,8 +222,7 @@ def probe(case: Case, arm: str, model: str, llm_args: dict) -> dict:
     state = agent.get_init_state()
     state.messages = _tau2(case.messages(arm))  # as in a live run, where harness notes enter the history mid-run
     reply = messages_as_dicts([agent._generate(state)])[0]
-    return {"reply_text": reply.get("content"), "reply_tool_calls": reply.get("tool_calls") or [],
-            "label": classify(reply)}
+    return {"reply_text": reply.get("content"), "reply_tool_calls": reply.get("tool_calls") or [], **classify(reply)}
 
 
 def _sha(path: Path) -> str:
@@ -199,15 +254,24 @@ def preflight(plan: dict, approved_usd: float) -> tuple[dict, dict[str, Case]]:
              "plan_sha256": hashlib.sha256(json.dumps(plan, sort_keys=True).encode()).hexdigest(),
              "harness_sha256": _sha(REPO_ROOT / "bench" / "harness.py"),
              "feedback_texts": {cid: {arm: c.feedback(arm) for arm in ARMS} for cid, c in cases.items()},
+             "tools_sha256": {cid: c.tools_sha256() for cid, c in cases.items()},
+             "original_input_tokens": {cid: (c.original_call or {}).get("input_tokens") for cid, c in cases.items()},
              "benchmark": pins.verify_benchmark(), "provenance": pins.provenance()}, cases)
 
 
 def summarize(rows: list[dict]) -> dict:
-    out = {}
+    """Automatic outcomes, pooled and per case (the 27 samples per arm are repeated draws from 9 histories)."""
+    done = [r for r in rows if r.get("status") == "done"]
+    out = {"pooled": {}, "per_case": {}}
     for arm in ARMS:
-        xs = [r for r in rows if r["arm"] == arm and r.get("label")]
-        out[arm] = {"samples": len(xs), **{lab: sum(r["label"] == lab for r in xs) for lab in LABELS},
-                    "claims_transfer_rate": round(sum(r["label"] == "claims_transfer" for r in xs) / len(xs), 3) if xs else None}
+        xs = [r for r in done if r["arm"] == arm]
+        out["pooled"][arm] = {"samples": len(xs),
+                              "next_action": {a: sum(r["next_action"] == a for r in xs) for a in NEXT_ACTIONS},
+                              "claim_auto": {c: sum(r["claim_auto"] == c for r in xs) for c in CLAIMS},
+                              "unsupported_claim_auto": sum(r["unsupported_claim_auto"] for r in xs)}
+    for case in dict.fromkeys(r["case"] for r in done):
+        out["per_case"][case] = {arm: f"{sum(r['unsupported_claim_auto'] for r in done if r['case'] == case and r['arm'] == arm)}"
+                                      f"/{sum(r['case'] == case and r['arm'] == arm for r in done)}" for arm in ARMS}
     return out
 
 
@@ -249,14 +313,23 @@ def main(argv=None, send=None, prices=None) -> int:
             except Exception as e:  # noqa: BLE001 - keep the record; stop on a budget error
                 row.update(status="error", error=f"{type(e).__name__}: {e}"[:500])
                 stopped = type(e).__name__ in ("BudgetExceeded", "BoundViolation")
-            row["ledger_calls"] = [c.seq for c in budget.calls[n0:]]
+            new = budget.calls[n0:]
+            row["ledger_calls"] = [c.seq for c in new]
+            row["input_tokens"] = next((c.input_tokens for c in new if c.status == "ok"), None)
+            row["tools_sha256_sent"] = next((c.request_params.get("tools_sha256") for c in new), None)
             rows.append(row)
             (out_dir / "results.json").write_text(json.dumps(rows, indent=2, default=str) + "\n")
+    fidelity = {"tools_sent_equal_original_request": all(r.get("tools_sha256_sent") == manifest["tools_sha256"][r["case"]]
+                                                         for r in rows if r["status"] == "done"),
+                "A_input_tokens_minus_original": {r["case"]: (r["input_tokens"] - manifest["original_input_tokens"][r["case"]])
+                                                  if r.get("input_tokens") is not None else None
+                                                  for r in rows if r["status"] == "done" and r["arm"] == "A_v1_text"}}
     summary = {"batch_id": plan["batch_id"], "finished_at": datetime.now(timezone.utc).isoformat(),
                "by_status": {st: sum(r["status"] == st for r in rows) for st in {r["status"] for r in rows}},
+               "fidelity": fidelity,
                "labels": summarize(rows), "spend": budget.summary(), "results": rows}
     (a.out_dir / f"{plan['batch_id']}_results.json").write_text(json.dumps(summary, indent=2, default=str) + "\n")
-    print(json.dumps({k: summary[k] for k in ("by_status", "labels", "spend")}, indent=2, default=str))
+    print(json.dumps({k: summary[k] for k in ("by_status", "fidelity", "labels", "spend")}, indent=2, default=str))
     return 3 if any(r["status"] != "done" for r in rows) else 0
 
 

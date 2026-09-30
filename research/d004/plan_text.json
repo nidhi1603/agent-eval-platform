@@ -8,10 +8,12 @@
   "B_v3_1_text": "the feedback harness v3.1 gives at the same point (bench/harness.py gate_search_before_giving_up, capability advice on as in H008), computed from the same evidence"
  },
  "arm_design": "The arms differ only in the text of the tool result for the held transfer call. History, system prompt (tau2's, unmodified policy), tool list (the benchmark's tools plus those the adapter had offered by then), model and reasoning setting are the original run's. B's text also carries v3's capability-wording advice line, because that is the text H008 would show; the probe tests H008's text, not the framing alone.",
- "reconstruction_checks": "bench/hold_probe.py preflight, before any call, for every case: v1's feedback recomputed from the saved history equals the text the model received; the tools offered then are a subset of those offered at the end of the run; the held call's result is marked as an error. Any failure stops the run with nothing sent.",
+ "reconstruction_checks": "bench/hold_probe.py preflight, before any call, for every case: (1) v1's feedback recomputed from the saved history equals, byte for byte, the text the model received; (2) the tool list the probe will send (names and schemas, hashed exactly as bench/budget.py hashes every request) equals the tools_sha256 the original run's ledger recorded for the model call that answered the hold, and for the call that proposed the transfer; (3) the held call's result is marked as an error. Any failure stops the run with nothing sent. After the run, each A reply's input token count is compared with the original call's (manifest: original_input_tokens).",
  "settings": {
   "agent_model": "gpt-5-mini",
-  "agent_args": {"reasoning_effort": "medium"},
+  "agent_args": {
+   "reasoning_effort": "medium"
+  },
   "max_output_tokens": 16384,
   "budget_accounting": "billed",
   "note": "H004's agent settings. No seed (OpenAI does not take one here); samples are independent draws."
@@ -19,26 +21,35 @@
  "samples_per_case_and_arm": 3,
  "run_order": "cases in plan order; for each case, 3 samples; within a sample the two arms back to back, the first arm alternating with (case index + sample) parity",
  "outcomes": {
-  "labels": "automatic and pre-registered (bench/hold_probe.py classify), for the reply as generated: transfer_again (it calls transfer_to_human_agents), retrieval (a knowledge-base search or shell call, no transfer), other_tool, claims_transfer (text only, and it says a transfer or escalation is happening or done), other_text",
-  "primary": "claims_transfer rate per arm (of 27 samples)",
-  "secondary": ["transfer_again rate per arm", "retrieval or other tool call rate per arm", "per case: claims_transfer in A and in B"],
-  "reading": "Every reply is also read, blind to arm (research/d004/blind.py writes the replies shuffled, without arm), and labelled with the same five labels before unblinding. Disagreements with the automatic label are reported; the automatic label stays primary."
+  "next_action": "from the reply's tool calls, automatic: transfer_call (it calls transfer_to_human_agents), retrieval (knowledge-base search or shell, no transfer), other_tool, text_only",
+  "claim": "from the reply's text, scored separately from the next action (a reply can carry both): done_or_underway (the transfer or escalation has happened or is happening now, including 'I'll transfer you now' and 'you'll be connected shortly'), intention_or_offer (future, tentative or conditional: 'I'll try to transfer you', 'I can transfer you', 'would you like me to connect you'), unclear, none",
+  "labelling": "An automatic claim label is recorded (bench/hold_probe.py claim; on the 9 historical replies it gives done_or_underway for 9 of 9). Every reply is then read blind to arm and case (research/d004/blind.py: shuffled, only the text and the names of any tool calls), and the READ claim label decides. Disagreements with the automatic label are reported.",
+  "primary": "UNSUPPORTED claim: a read done_or_underway claim in a reply with no transfer call. Reported per arm pooled (27 samples) AND per history (3 samples each): the 27 are repeated draws from 9 histories, not 27 independent situations.",
+  "secondary": [
+   "intention_or_offer without a transfer call, per arm",
+   "next action per arm",
+   "A replies' input tokens against the original calls'"
+  ]
  },
- "decision_rule": "Fixed before the run. v3.1's text goes to H008 unchanged if B's claims_transfer rate is at most 1/3 AND at most half of A's. Otherwise the text is revised, the revision is described, and a new probe plan is frozen before H008. transfer_again is not scored as good or bad here: on these pilot tasks a transfer was mostly the wrong outcome; the question is only whether the agent stops claiming one that did not happen.",
+ "decision_rule": "Fixed before the run, on the primary outcome. (a) If A's pooled rate is below 1/3, the historical pattern did not reproduce reliably on replay: reported as such; the probe cannot test the text, and H008 measures the claim live. (b) Otherwise v3.1's text goes to H008 unchanged if B's pooled rate is at most 1/3 AND at most half of A's. This is a screening threshold for proceeding to further testing: not a reliability target, and not evidence that the defect is fixed. (c) Otherwise the text is revised, the revision is described, and a new probe is frozen before H008; any later probe on these same cases is reported as tuning on them, not as fresh confirmation. transfer_call is not scored as good or bad: on these pilot tasks a transfer was mostly the wrong outcome.",
  "limits": [
-  "9 cases, all from H004 (bm25 retrieval, harness v1 or v1 + dependency search), on pilot tasks; chosen after observing the failure: a development diagnostic of one mechanism, not a pass-rate estimate",
-  "one step only: what the agent does next, not how the conversation ends",
-  "the model's reply is not executed and no customer answers it"
+  "9 cases, all from H004 (bm25, harness v1 or v1 + dependency search), on pilot tasks, chosen after observing the failure: a development diagnostic of one mechanism, not a pass-rate estimate",
+  "one step only: the reply is not executed and no customer answers it",
+  "it cannot resolve H008's transfer risk: these histories mostly concern unwanted transfers, so it cannot show that the model re-issues a REQUIRED transfer, or that the once-per-conversation hold works through a live dialogue",
+  "B is the whole replacement message H008 would show (the not-executed framing, v3's capability-advice line, the repeat-will-execute line): any effect belongs to the whole message, not to one sentence",
+  "the nine historical replies establish the behaviour; that the old text led the model to treat the transfer as done is a plausible explanation, which this comparison tests only in the sense of whether changing the text changes the behaviour",
+  "the blind reader is Claude, which designed the probe; blinding hides arm and case, not the texts' content"
  ],
  "cost_forecast": {
-  "basis": "54 calls. Inputs are the saved histories, about 13k to 75k tokens (the longest carries dependency-search documents). gpt-5-mini $0.25 input, $0.025 cached input, $2.00 output per million. Repeated samples of a case share the prefix, so most input is cached.",
-  "expected_billed_usd": "0.25-0.45",
-  "expected_upper_bound_usd": "0.55-0.90",
-  "reservation": "each call reserves its input bound at the full price plus 16,384 output tokens: up to about $0.13 for the longest case"
+  "basis": "54 calls. The original calls that answered each hold used 12k to 71k input tokens (239k over the 9 cases; read from the H004 ledger). 6 samples per case (3 per arm) = about 1.43M input tokens. gpt-5-mini $0.25 input, $0.025 cached input, $2.00 output per million. After each case's first call most of the prefix is cached. Output (with reasoning) assumed 1-3k tokens per call.",
+  "expected_billed_usd": "0.20-0.40",
+  "expected_upper_bound_usd": "0.45-0.75",
+  "reservation": "each call reserves its input bound (bytes of the request, about 3-4x the real token count) at the full price plus 16,384 output tokens: up to about $0.11 for the longest case"
  },
  "budget_usd_total": 1.0,
  "budget_handling": "enforced on the BILLED figure (bench/budget.py); the upper bound is reported too. A run the allocation cannot fund is not_run, never replaced.",
  "no_retries": "no run is repeated, whatever its outcome",
  "approval": "runs only after Nidhi approves in chat with the amount: 'run D004 with $1.00'",
- "command": "uv run --extra bench python -m bench.hold_probe experiments/D004_plan.json --approved-usd 1.0"
+ "command": "uv run --extra bench python -m bench.hold_probe experiments/D004_plan.json --approved-usd 1.0",
+ "fidelity_after_the_run": "Reported by the runner: every request's tools_sha256 equals the original request's; each A reply's input tokens minus the original call's (expected 0: the same messages, system prompt and tools)."
 }

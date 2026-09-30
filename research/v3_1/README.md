@@ -14,7 +14,7 @@ Evidence, all from saved data ($0):
 | Where the model's own history was saved (9 conversations, H004), the agent's next action after the hold was a message to the customer in 9 of 9, saying a transfer was under way in 9 of 9; it made no tool call afterwards in any | `held_transfers.json` |
 | The check also holds the reference solution's transfer on task_004 and task_012 in the scripted controls | `research/harness_v1/reference_controls_v3.json` |
 
-So the v1 hold did not produce the search it asked for. The agent read the hold as a completed transfer, told the customer so, and the conversation ended with no transfer made. The v1 text opens "you are about to transfer the customer" and never says the call did not run.
+So the v1 hold did not produce the search it asked for: the agent told the customer a transfer was under way, and no transfer was made. A plausible explanation is that it treated the hold as a completed transfer, since the v1 text opens "you are about to transfer the customer" and never says the call did not run. The nine replies establish the behaviour, not the explanation; D004 tests whether changing the text changes the behaviour.
 
 This matches two published results: refusals with no notice are read as completed work (70 of 86 cases, against 0 of 89 with a same-turn notice; arXiv 2609.25686), and an advisory that says the repeated call will execute is overridden when the agent still judges the action right (8 of 30 on tau2 airline, same paper).
 
