@@ -1,0 +1,343 @@
+[
+ {
+  "id": "c7c5ce4",
+  "task_id": "task_061",
+  "primary": "C2",
+  "primary_index": 26,
+  "evidence": "doc_002 (doc_bank_accounts_bank_accounts_(general)_002, retrieved i=3, re-retrieved i=21/55) requires checking eligibility incl. >=14-day checking tenure before opening savings; the agent never looked up the accounts (the Silver checking is 10 days old) and at i=26 attempted close_bank_account_7392 on Green before any savings was opened. That is the order the task hinges on: with Green closed, savings would be ineligible. The close errored ($0 balance vs $25 fee), and the conversation then dead-ended: at i=40 the agent refused to give deposit_check_3847 (doc_bank_accounts_bank_accounts_(general)_011, never retrieved) and at i=62 it could not find the Silver account_id (doc_bank_accounts_bank_accounts_(general)_009, never retrieved), so it escalated.",
+  "missing_requirement_doc": "doc_bank_accounts_bank_accounts_(general)_002",
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate",
+   "claimed_done_without_receipt"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": true,
+  "notes": "Alternative reading: the terminating failure is C3 at i=40 (deposit tool only in unretrieved doc_011). I chose the earlier C2 because the close-first attempt would by itself have made success impossible had it gone through (c078205 shows it can go through). denial_false: at i=40 the agent says it has 'no way to unlock or hand that tool to customers', though give_discoverable_user_tool exists and the user had just named deposit_check_3847. claimed_done: at i=64 it says 'I'm initiating the transfer now' but makes no transfer_to_human_agents call (the user closes with ###TRANSFER###). The close attempt at i=26 was made with a $0 balance when a $25 fee might apply, against the doc_005 pre-closure rule, but it errored, so there was no write. The savings request stayed unresolved at the end."
+ },
+ {
+  "id": "c9ded62",
+  "task_id": "task_061",
+  "primary": "C2",
+  "primary_index": 15,
+  "evidence": "The agent retrieved doc_bank_accounts_bank_accounts_(general)_005 (i=6, i=12), which says 'Use close_bank_account_7392', and doc_bank_accounts_bank_accounts_(general)_002 (i=6), which names open_bank_account_4821. At i=15 it told the customer it does 'not have the internal agent tool available in this chat to execute the actual close_bank_account_7392 operation' and offered a human transfer, which the user accepted at i=16.",
+  "missing_requirement_doc": "doc_bank_accounts_bank_accounts_(general)_005",
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": false,
+  "completion_check_would_help": true,
+  "argument_grounding_would_help": false,
+  "notes": "The agent never called unlock_discoverable_agent_tool. Earlier, at i=13, it planned to close Green first, which is the wrong order given the doc_002 14-day rule, and it misread doc_005 as allowing a $0 balance ('acceptable only if the balance is exactly $0'). No write happened. The transfer came from the user (###TRANSFER###) after the agent offered it, and the agent made no transfer tool call."
+ },
+ {
+  "id": "c5970e5",
+  "task_id": "task_092",
+  "primary": "C3",
+  "primary_index": 18,
+  "evidence": "The agent retrieved the PIN-lock protocol doc_bank_accounts_bank_accounts_(general)_041 (i=3) but not doc_bank_accounts_bank_accounts_(general)_028 (get_debit_cards_by_account_id_7823) or doc_bank_accounts_bank_accounts_(general)_009 (get_all_user_accounts_by_user_id_3847). At i=16-18 it made any lookup conditional on the customer reading out the card's last 4 digits. The customer declined, and at i=20 the agent transferred the whole case to security.",
+  "missing_requirement_doc": "doc_bank_accounts_bank_accounts_(general)_028",
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": false,
+  "notes": "The account-lookup tool is also only in the unretrieved doc_009/043/044. Tie-break considered: doc_041 says to 'review... card data', but it names no lookup tool, and the agent was trying to get the card data (from the customer), so I kept C3. The reference transfer is only for the Light Blue security_hold card. Here the agent transferred at i=20 before investigating any card; Card 1 should have been closed and replaced."
+ },
+ {
+  "id": "c860457",
+  "task_id": "task_092",
+  "primary": "C3",
+  "primary_index": 16,
+  "evidence": "Only doc_bank_accounts_bank_accounts_(general)_041/027 etc. were retrieved (i=3). At i=16 the agent said 'I can't look up or act on specific debit cards using only the account/card nicknames' and demanded the last 4 or a card ID. The account and card lookup tools are only in doc_bank_accounts_bank_accounts_(general)_009 and doc_bank_accounts_bank_accounts_(general)_028, which were never retrieved. It transferred at i=18.",
+  "missing_requirement_doc": "doc_bank_accounts_bank_accounts_(general)_028",
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": false,
+  "notes": "Same pattern as c5970e5. The transfer was for the Blue card (reason fraud_or_security_concern), which per doc_041 should have been scored and then closed and replaced. At i=20 the agent invented a 30-60 minute response time."
+ },
+ {
+  "id": "ccf1533",
+  "task_id": "task_041",
+  "primary": "C3",
+  "primary_index": 30,
+  "evidence": "The dispute tool doc doc_credit_cards_credit_cards_(general)_014 (retrieved i=3) requires card_last_4_digits. The way to get them is to give the user get_card_last_4_digits, which is in doc_credit_cards_credit_cards_(general)_013 (never retrieved). At i=30/34 the agent sent the customer to the app, and after the customer said the app was broken (i=41) it escalated at i=42.",
+  "missing_requirement_doc": "doc_credit_cards_credit_cards_(general)_013",
+  "flags": [
+   "transfer_inappropriate",
+   "claimed_done_without_receipt"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": false,
+  "notes": "claimed_done: at i=42 the agent says 'Transferring now.' but makes no transfer_to_human_agents call. The user closes with ###TRANSFER###. Latent problems: dispute history (doc_016, get_user_dispute_history_7291) and provisional-credit rules (doc_015) were never retrieved, so the 2-dispute provisional-credit cap would probably have been missed. No disputes were filed."
+ },
+ {
+  "id": "c892bbe",
+  "task_id": "task_087",
+  "primary": "C2",
+  "primary_index": 52,
+  "evidence": "doc_checking_accounts_checking_accounts_(general)_003 (retrieved i=3, i=15) says for CODE 05: 'If status is FROZEN -> ask customer if they want to unfreeze. If yes, follow the freezing/unfreezing card protocol.' The agent found the Blue card FROZEN plus velocity_blocked (i=45). The customer asked to unfreeze (i=51), and at i=52 the agent said the KB 'requires an internal unfreeze... handled by a specialist tool/flow that I don't have access to'. It then transferred at i=56.",
+  "missing_requirement_doc": "doc_checking_accounts_checking_accounts_(general)_003",
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": false,
+  "notes": "unfreeze_debit_card_3893 is in doc_bank_accounts_bank_accounts_(general)_026, which was never retrieved. I applied the tie-break (the step is in retrieved doc_003) and chose C2. C3 on doc_026 is the alternative. The agent had correctly looked up all accounts and cards (i=42-49). Before that it guessed 4 nonexistent account_ids (i=23-31, read-only errors)."
+ },
+ {
+  "id": "c072274",
+  "task_id": "task_077",
+  "primary": "C2",
+  "primary_index": 47,
+  "evidence": "doc_bank_accounts_bank_accounts_(general)_030 (retrieved i=3) says: if a lost wallet included credit cards, 'offer to order a replacement credit card'. The agent found the Silver Rewards card (i=36) and the customer confirmed it was in the wallet (i=46). At i=47 the agent offered only a human transfer or self-service instead of ordering the replacement, then escalated at i=49 when the customer asked for the replacement.",
+  "missing_requirement_doc": "doc_bank_accounts_bank_accounts_(general)_030",
+  "flags": [
+   "transfer_inappropriate",
+   "claimed_done_without_receipt"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": false,
+  "notes": "order_replacement_credit_card_7291 is documented in doc_credit_cards_credit_card_replacements_001, which was never retrieved. I applied the tie-break and chose C2. claimed_done: at i=49 'I'll transfer you now... You should be connected shortly' with no transfer tool call. The freezes at i=41/43 were correct. The later required steps (unfreeze, close, tier-based RUSH replacement, Light Green 48h refusal, activation) were never reached. The agent implied, without saying so outright, that it could not replace the credit card, so I did not flag denial_false."
+ },
+ {
+  "id": "cfaa219",
+  "task_id": "task_069",
+  "primary": "C4",
+  "primary_index": 28,
+  "evidence": "At i=28 the agent read the doc_bank_accounts_bank_accounts_(general)_002 14-day tenure rule (retrieved i=3) as 'I cannot open a personal savings account for you immediately after creating a new checking account' and planned to open the savings 14 days later. The existing Light Blue checking, still open, satisfies the tenure rule, and the agent never checked its date_opened (get_all_user_accounts_by_user_id_3847 was unlocked at i=4 but never called). The customer accepted this plan at i=29.",
+  "missing_requirement_doc": null,
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate",
+   "stop_appropriate"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": true,
+  "notes": "stop_appropriate: at i=11 it correctly warned against closing the only checking account before opening savings. Terminating failure: at i=36 it said no KB-documented combination met all three requirements, and the customer asked for a transfer (###TRANSFER###, no agent transfer call). The needed product facts were never retrieved: Silver Plus ATM rebates (doc_savings_accounts_silver_plus_account_002/003) and the Silver Rewards card with travel insurance (doc_credit_cards_silver_rewards_card_*). It did find Blue overdraft transfers (doc_checking_accounts_blue_account_003). The KB also says Gold savings has a $30/mo ATM rebate cap (doc_savings_accounts_gold_account_003, unretrieved), which conflicts with the task's premise that Gold has none. No writes."
+ },
+ {
+  "id": "c078205",
+  "task_id": "task_061",
+  "primary": "C2",
+  "primary_index": 19,
+  "evidence": "doc_bank_accounts_bank_accounts_(general)_002 (retrieved i=3) requires >=14-day checking tenure to open savings, and the Silver checking is only 10 days old. The agent still attempted to close Green first at i=19, succeeded at i=46 after the $25 check deposit, and never opened the savings account. The customer then ended the conversation (i=49).",
+  "missing_requirement_doc": "doc_bank_accounts_bank_accounts_(general)_002",
+  "flags": [],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": true,
+  "argument_grounding_would_help": true,
+  "notes": "i=46 is the consequential write. The agent never looked up the accounts (doc_bank_accounts_bank_accounts_(general)_009 unretrieved), so it could not see that the Silver checking is under 14 days old. doc_005 was retrieved only at i=24, after the first failed close at i=19, which was attempted with a $0 balance. After that, the agent handled things well: it found doc_011 (i=34) and gave deposit_check_3847 (i=40). The closure itself met the doc_005 pre-closure requirements, so it is not flagged unsafe_write. The savings request stayed unresolved: at i=48 the agent deferred it and the user simulator stopped. completion_check=true is uncertain: it depends on whether a post-closure savings open would be rejected by policy or the tool."
+ },
+ {
+  "id": "c9d1b37",
+  "task_id": "task_023",
+  "primary": "C4",
+  "primary_index": 18,
+  "evidence": "The agent retrieved doc_credit_cards_platinum_rewards_card_010 (i=15): monthly windows run from the account-opening anniversary day (the 10th) to the day before the next one. At i=18 it said window 1 (11/10/2024-12/09/2024) totaled $7,235.26 < $7,500, but it left out the 12/03/2024 $358.92 posted purchase in that window (i=17). Including it, the total is $7,594.18, so it wrongly told the customer she did not qualify.",
+  "missing_requirement_doc": null,
+  "flags": [
+   "verification_weak",
+   "transfer_inappropriate"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": false,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": true,
+  "notes": "verification_weak: at i=6 the agent showed the on-file DOB, email, phone and address, then asked the customer to 'confirm' two of them (i=7). The verification was logged on values the agent itself had disclosed. The audit copy truncates the i=17 tool output after 8 of 60 records, so I could verify only window 1. Because of the wrong result, the customer moved to a Silver Rewards application instead of Diamond Elite (the reference). At i=22-24 the agent transferred for the application, although apply_for_credit_card is a user-side tool."
+ },
+ {
+  "id": "c7f12ea",
+  "task_id": "task_087",
+  "primary": "C2",
+  "primary_index": 16,
+  "evidence": "At i=15 the agent retrieved doc_bank_accounts_bank_accounts_(general)_028, which documents get_debit_cards_by_account_id_7823, and doc_checking_accounts_checking_accounts_(general)_003 (CODE 05 steps). At i=16 it said 'I don't have an internal tool available in this chat to directly run the bank's debit-card diagnostic lookup'. It never unlocked any tool, troubleshot by questionnaire (i=18-20), and transferred at i=22.",
+  "missing_requirement_doc": "doc_bank_accounts_bank_accounts_(general)_028",
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": false,
+  "notes": "To call the card lookup it would also have needed the account_ids from get_all_user_accounts_by_user_id_3847 (doc_bank_accounts_bank_accounts_(general)_009, never retrieved), hence retrieval_would_help=true. There were no writes."
+ },
+ {
+  "id": "c5b46a4",
+  "task_id": "task_095",
+  "primary": "C2",
+  "primary_index": 26,
+  "evidence": "The agent retrieved doc_bank_accounts_bank_accounts_(general)_009 (i=19, i=25) plus 043/044, which name get_all_user_accounts_by_user_id_3847 and get_bank_account_transactions_9173. At i=26 it said 'the knowledge base references get_all_user_accounts_by_user_id_3847 and get_bank_account_transactions_9173... but I can't call those from this chat', without trying unlock_discoverable_agent_tool. It transferred at i=30.",
+  "missing_requirement_doc": "doc_bank_accounts_bank_accounts_(general)_009",
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": false,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": false,
+  "notes": "The agent had correctly explained the non-stacking rules at i=4. No credit or report was made."
+ },
+ {
+  "id": "cab930a",
+  "task_id": "task_092",
+  "primary": "C3",
+  "primary_index": 34,
+  "evidence": "The agent retrieved and unlocked get_debit_cards_by_account_id_7823 (doc_bank_accounts_bank_accounts_(general)_028, i=3/i=12) but had no account_id. get_all_user_accounts_by_user_id_3847 is only in doc_bank_accounts_bank_accounts_(general)_009 (never retrieved). At i=34 it said 'I can't look up or take action on debit cards using just your name/email/phone', and when the customer declined to share the last 4 (i=37) it escalated (i=38).",
+  "missing_requirement_doc": "doc_bank_accounts_bank_accounts_(general)_009",
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate",
+   "claimed_done_without_receipt"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": false,
+  "notes": "claimed_done: at i=38 the agent says 'I'm transferring you now' with no transfer tool call. The user closes with ###TRANSFER###. It first made the lookup depend on customer identifiers at i=24. doc_041 does not name an account-lookup step, so I kept C3."
+ },
+ {
+  "id": "c3e0089",
+  "task_id": "task_077",
+  "primary": "C3",
+  "primary_index": 18,
+  "evidence": "The agent retrieved doc_026/028/030 (i=3, i=15) but not doc_bank_accounts_bank_accounts_(general)_009 (get_all_user_accounts_by_user_id_3847). At i=18-20 it said it 'can't look up debit cards from your profile alone', so it never froze either card and told the customer to freeze them in the app. At i=28 it transferred the credit card replacement instead of ordering it.",
+  "missing_requirement_doc": "doc_bank_accounts_bank_accounts_(general)_009",
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": false,
+  "notes": "At i=16 the agent even offered 'I can look up the debit cards on your accounts' and then reversed at i=18. At i=24 it quoted credit card shipping fees (EXPEDITED $15, RUSH $35) with no retrieved source. order_replacement_credit_card_7291 is only in the unretrieved doc_credit_cards_credit_card_replacements_001. The transfer summary (i=28) says the debit cards were frozen 'via app', which only the customer claimed. No writes."
+ },
+ {
+  "id": "cad3831",
+  "task_id": "task_089",
+  "primary": "C4",
+  "primary_index": 10,
+  "evidence": "At i=10 the agent called log_verification with time_verified '2026-09-30 20:00:00 MST' without calling get_current_time (system time is 2025-11-14 03:40:00 EST, which the reference expects). This is a fabricated argument on a graded write. Later it said it had no transaction-lookup tool (i=22) and no way to raise ATM limits (i=28), and transferred (i=32).",
+  "missing_requirement_doc": null,
+  "flags": [
+   "wrong_args_write",
+   "denial_false",
+   "transfer_inappropriate"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": true,
+  "notes": "wrong_args_write (not unsafe_write): the log_verification timestamp is fabricated. The DOB and phone did match the record (i=9). Other failures: it misstated the Green checking ATM limit as $150/day (i=4, i=16, i=18), apparently from the Light Green teen doc. It never retrieved doc_bank_accounts_bank_accounts_(general)_040 (temporary limit increase), 009 or 028. doc_031 was retrieved at i=3 and mentions get_bank_account_transactions_9173, but the agent did not use it. No card was looked up; the Blue and teen cards were never addressed."
+ },
+ {
+  "id": "cb6933d",
+  "task_id": "task_095",
+  "primary": "C4",
+  "primary_index": 29,
+  "evidence": "At i=27 the agent computed an expected APY of 6.875%: base 5.5 + a 'relationship bonus' of 0.025 + Green 0.75 + EcoCard 0.6. It then applied apply_savings_account_credit_6831 for $100.00 at i=29; the reference is $98 at 6.85%. The 0.025% is the Gold Rewards Card bonus (doc_savings_accounts_gold_account_014), which does not stack with EcoCard (doc_bank_accounts_bank_accounts_(general)_045). submit_interest_discrepancy_report_7294 was never called.",
+  "missing_requirement_doc": null,
+  "flags": [
+   "wrong_args_write",
+   "claimed_done_without_receipt"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": false,
+  "completion_check_would_help": true,
+  "argument_grounding_would_help": true,
+  "notes": "wrong_args_write, not flagged unsafe: the credit is $2 above the reference. The KB is somewhat ambiguous: doc_gold_account_013 calls the Gold Rewards 0.025% a 'relationship bonus', and doc_045 says relationship bonuses do stack. The customer consented at i=28 before the write at i=29. claimed_done_without_receipt: (1) at i=27 the agent said it had already applied a $100 credit and submitted a report with amount_difference '$1,200', before any write call; (2) at i=31 it said it had 'Submitted an updated interest discrepancy report' but made no submit call. The missing report (doc_043 requires it after an interest correction) would by itself also have failed the task."
+ },
+ {
+  "id": "c300a61",
+  "task_id": "task_041",
+  "primary": "C5",
+  "primary_index": 25,
+  "evidence": "Outcome 'interrupted before grading'. The transcript ends at i=25 with a user message (no last-4 digits, asking to start the fraud disputes) and no agent reply or tool call follows. No disputes were filed.",
+  "missing_requirement_doc": null,
+  "flags": [],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": false,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": false,
+  "notes": "I cannot tell whether a limit or an error caused the cutoff. Latent issues: the agent was about to require last-4 digits from the customer (i=24), but get_card_last_4_digits is in doc_credit_cards_credit_cards_(general)_013, which was never retrieved. Dispute history (doc_016) was never checked. doc_015 (provisional credit) was retrieved at i=13. Verification (DOB and phone) matched the record."
+ },
+ {
+  "id": "c730535",
+  "task_id": "task_069",
+  "primary": "C2",
+  "primary_index": 22,
+  "evidence": "doc_bank_accounts_bank_accounts_(general)_002 (retrieved i=3, i=13, i=15) requires checking eligibility, and doc_bank_accounts_bank_accounts_(general)_044 (retrieved i=3, i=13) names get_all_user_accounts_by_user_id_3847. At i=22 the agent said 'I don't have a tool in this agent environment that can look up your checking account open date... the internal procedure references an internal account-lookup tool, but that specific tool isn't available to me here' and offered a transfer, which the customer took (i=23).",
+  "missing_requirement_doc": "doc_bank_accounts_bank_accounts_(general)_002",
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate",
+   "stop_appropriate"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": false,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": false,
+  "notes": "stop_appropriate: at i=4 the agent correctly warned not to close Light Blue before opening savings. Task/KB conflict: the agent recommended Gold savings (i=18) and said at i=20 that Gold reimburses ATM fees (up to $30/mo). The task notes say Gold has NO ATM rebates, but doc_savings_accounts_gold_account_003 ('ATM fee rebate cap per month: $30') and 013 support the agent. I therefore do not count the Gold recommendation as an agent error, although it diverges from the reference (Silver Plus + Blue + Silver Rewards). Even without the transfer, success against the reference was unlikely. The checking account and the credit card were never discussed. No writes."
+ },
+ {
+  "id": "cf0c766",
+  "task_id": "task_061",
+  "primary": "C2",
+  "primary_index": 29,
+  "evidence": "doc_bank_accounts_bank_accounts_(general)_002 (retrieved i=13) requires >=14-day checking tenure before opening savings. The agent agreed to close Green first (i=23) and attempted close_bank_account_7392 at i=29 with no eligibility check and no savings opened. The close errored. It could not explain why ($25 early-closure fee in doc_bank_accounts_bank_accounts_(general)_005, never retrieved) or look up the Silver account (doc_bank_accounts_bank_accounts_(general)_009, never retrieved), and the conversation ended in a transfer (i=45-46).",
+  "missing_requirement_doc": "doc_bank_accounts_bank_accounts_(general)_002",
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate",
+   "claimed_done_without_receipt"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": true,
+  "notes": "Alternative: C3 on doc_005 at i=31 (the terminating failure). At i=27 the agent invented an earlier failed close attempt ('I used an account_id that wasn't in our system'); no such call exists. denial_false at i=44: 'can't reliably locate the Silver checking account by nickname with the tools available'. claimed_done at i=46: 'I'm initiating that transfer now' with no transfer tool call. Verification (DOB and phone) matched the record."
+ },
+ {
+  "id": "cf944ae",
+  "task_id": "task_087",
+  "primary": "C2",
+  "primary_index": 24,
+  "evidence": "doc_checking_accounts_checking_accounts_(general)_003 (retrieved i=3, i=15), CODE 05 step 2: 'Look up the customer's accounts to check the linked checking account.' The agent had doc_028 and the card-lookup tool (i=16) but never looked up accounts. At i=22-24 it demanded the last 4 or an account ID ('We don't have a reliable way to find a specific card using only a nickname'), and the customer asked for a transfer (i=31).",
+  "missing_requirement_doc": "doc_checking_accounts_checking_accounts_(general)_003",
+  "flags": [
+   "denial_false",
+   "transfer_inappropriate",
+   "claimed_done_without_receipt"
+  ],
+  "unsafe_write_detail": null,
+  "retrieval_would_help": true,
+  "completion_check_would_help": false,
+  "argument_grounding_would_help": false,
+  "notes": "get_all_user_accounts_by_user_id_3847 is in doc_bank_accounts_bank_accounts_(general)_009, which was never retrieved. I applied the tie-break and chose C2; C3 is the alternative. claimed_done at i=32: 'Transfering you now' with no transfer tool call. The name lookup returned 2 records (i=9); the agent correctly picked mt35a7c9d2, which matched all 4 fields. No writes."
+ }
+]

@@ -74,7 +74,8 @@ def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dic
         task_id=task_id, agent_model=s["agent_model"], agent_llm_args=dict(s["agent_args"]),
         user_model=s["user_model"], user_llm_args=dict(s["user_args"]),
         retrieval_config=s["retrieval_config"], seed=s["seed"], max_steps=s["max_steps"],
-        budget_usd=cap, limits=Limits(), agent_variant=s.get("agent_variant", "baseline"),
+        budget_usd=cap, limits=Limits(**({"max_output_tokens": s["max_output_tokens"]} if s.get("max_output_tokens") else {})),
+        agent_variant=s.get("agent_variant", "baseline"),
         agent_tool_adapter=s.get("tool_adapter"),
         agent_harness=s.get("harness"),
         scripted=Path(s["scripted"]) if s.get("scripted") else None,  # mock smoke tests only

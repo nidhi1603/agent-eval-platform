@@ -319,12 +319,12 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - Plan: `experiments/H002_plan.json`.
 
 ### H002 run: baseline 0/20, v1 1/20, v2 0/20; a null result on passes (2026-09-30, $9.49 upper bound)
-- **Pre-registered outcome:** neither harness meets the decision rule. There were 0 unauthorized writes and 0 valid writes blocked in every arm.
+- **Pre-registered outcome:** neither harness meets the decision rule. The implemented check detected no writes before verification, and no valid writes were blocked. Other violation categories have not been assessed yet.
 - **Exploratory:** the harnesses fixed the behaviours they targeted.
   - transfers: 0.65 → 0.05;
   - denials: 0.65 → 0.10–0.20;
   - discovered-tool use: about 16×;
   - progress through the reference solution: 13% → 31–32%.
 - **The bottleneck has moved:** 78% of reference writes are never attempted. The agents finish believing they are done, with required-document recall still at 0.35 and fewer than 3 searches.
-- **v2:** +27% cost and +29% latency, no benefit over v1.
+- **v2 vs v1:** +42% cost (upper bound), +22% (cache-aware), +29% latency, no benefit. *(Corrected from "+27%", which was vs the baseline.)*
 - **Records:** `experiments/H002_findings.md`, `H002_deviations.md`, `research/h002/`.

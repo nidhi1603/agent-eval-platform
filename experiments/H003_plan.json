@@ -1,0 +1,83 @@
+{
+ "batch_id": "H003",
+ "kind": "calibration: baseline only, full conversations (official tau2 grade); BM25",
+ "purpose": "Before any paired comparison at a higher reasoning setting: does gpt-5-mini at reasoning_effort=medium, with an output allowance large enough for its reasoning, complete meaningful parts of these workflows, and does the output cap still truncate turns? This is a go/no-go check for a later baseline vs harness_v1 comparison (v2 dropped on overhead, a scope decision).",
+ "not_a_comparison": "One arm, no harness. It says nothing about whether any harness helps.",
+ "tasks": [
+  "task_069",
+  "task_058",
+  "task_023",
+  "task_089",
+  "task_077"
+ ],
+ "selection_rule": "The first 5 of H002's 10 tasks (H001 hash order). Fixed before any run.",
+ "arms": {
+  "baseline_medium": {
+   "agent_variant": "baseline"
+  }
+ },
+ "trials_per_arm": 1,
+ "runs": [
+  {
+   "task_id": "task_069",
+   "arm": "baseline_medium",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_058",
+   "arm": "baseline_medium",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_023",
+   "arm": "baseline_medium",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_089",
+   "arm": "baseline_medium",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_077",
+   "arm": "baseline_medium",
+   "attempt": 0
+  }
+ ],
+ "settings": {
+  "agent_model": "gpt-5-mini",
+  "agent_args": {
+   "reasoning_effort": "medium"
+  },
+  "user_model": "gpt-5.2",
+  "user_args": {
+   "reasoning_effort": "low"
+  },
+  "retrieval_config": "bm25",
+  "seed": 300,
+  "max_steps": 200,
+  "max_output_tokens": 16384
+ },
+ "settings_note": "Changes from H002, disclosed: agent reasoning_effort low -> medium; max_output_tokens 4096 -> 16384 for all calls (H002 had one turn exhaust 4,096 on reasoning). Customer simulator, retrieval (bm25), seed and max_steps unchanged. Any later paired comparison must use these same settings in both arms.",
+ "outcomes": {
+  "primary": "official reward per conversation (5)",
+  "calibration_checks": [
+   "turns that hit the output cap, and interruptions by cause",
+   "cost per conversation (upper bound and cache-aware) and latency, against H002's low-reasoning baseline on the same tasks",
+   "reference-action progress (secondary diagnostic, rules below)"
+  ],
+  "reference_action_progress_rules": "research/h002/analyze.py as committed with this plan: a reference action counts as matched when a successful call exists with the same requestor and underlying tool (through the discoverable wrappers) and all compared arguments equal after str().strip().lower(); compared arguments are the action's compare_args minus wrapper keys, or all inner arguments for discoverable calls whose compare_args are only wrapper keys; order is ignored. Reported per task (matched/total), then averaged over tasks; reads and writes separately; interrupted conversations reported separately and included with what they matched. Diagnostic only: a match is not evidence of correct consent, order or policy."
+ },
+ "go_rule": "Proceed to a paired baseline vs harness_v1 comparison at these settings only if (a) no turn hits the output cap and no conversation is interrupted by the cap, and (b) the medium baseline shows meaningfully more workflow progress than the H002 low baseline on the same tasks (reference-write progress above 0.10, or at least one pass). Otherwise reconsider model/setting before spending on a comparison.",
+ "forecast_usd": {
+  "basis": "H002 low-reasoning baseline mean $0.128 upper bound; medium reasoning assumed 1.5-2.5x agent output",
+  "expected": "about 1.00-1.60 for 5 conversations"
+ },
+ "budget_usd_total": 3.0,
+ "execution": {
+  "workers": 1,
+  "budget_handling": "sequential: each run's cap is the unspent allocation; journal and resume as in H002",
+  "approval": "runs only after Nidhi approves in chat with the amount: 'run H003 with $3.00'"
+ },
+ "no_retries": "no conversation is repeated; every scheduled run is reported"
+}
