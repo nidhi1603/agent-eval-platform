@@ -38,7 +38,7 @@ Per history, unsupported claims out of 3 (A / B): C1 3/0, C2 3/0, C3 3/0, C4 3/0
 
 ## Consequence for earlier results
 
-The safety audits in H002-H004 counted write-policy violations only, so they did not count this harm. At the 9 points that can be replayed, the behaviour is established. How often it happened elsewhere, in either arm, is not established. A provisional, unread automatic count is in the note appended to H004_findings.md; it also finds such statements in some standard-agent conversations. Earlier safety headlines are now qualified as "write-policy violations only".
+The safety audits in H002-H004 counted write-policy violations only, so they did not count this harm. At the 9 points that can be replayed, the behaviour is established. A blind read of both arms of H002-H005 (research/claims/FINDINGS.md) found 30 such statements in 27 of 84 harness conversations and none in 29 standard-agent conversations; 26 of the 27 harness conversations had a held transfer. (An earlier, unread automatic count had suggested some in the standard agent; all read as offers.) Earlier safety headlines are now qualified as "write-policy violations only".
 
 On the 8 re-issued transfers: 7 were on tasks whose reference solution has no transfer. That alone does not make them inappropriate; in earlier reviews, customers sometimes asked explicitly for a human. The probe did not judge them.
 

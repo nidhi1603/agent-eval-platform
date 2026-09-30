@@ -543,3 +543,10 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Also measured:** recovery after each held transfer; required-transfer completion on task_004, task_012 and task_035.
 - **Earlier safety headlines** (H002, H004, EXPERIMENTS, WRITEUP) are now qualified as "write-policy violations only".
 - **Unchanged:** tasks, schedule, settings, budget, conditions (1)-(5). Approval: "run H008 with $9.00".
+
+### Retrospective, read blind: unsupported transfer statements in H002-H005 (2026-09-30, $0)
+
+- 428 agent statements were read blind to arm (research/claims/; done by a second Claude session in the same repo, which owns those files).
+- **Standard agent:** 0 unsupported transfer statements in 29 conversations.
+- **Harness arms (v1, v2, v1 + dependency search):** 30 statements in 27 of 84 conversations. None was followed by a transfer, and 26 of those 27 conversations had a held transfer.
+- **Conclusion:** the v1 transfer hold introduced a harm that the write-policy audits did not count. It is a harness-side harm in every earlier harness comparison. H002_findings and H004_findings are now qualified, and the H004 note has the table. v3.1 changes the hold text, and H008 condition (6) counts this harm.
