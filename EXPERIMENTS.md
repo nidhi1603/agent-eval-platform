@@ -497,3 +497,19 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - Budget: $9.00 billed, $0.75 per conversation. Forecast $5–8 billed.
   - H006 is superseded (never run).
   - Approval: "run H007 with $9.00".
+
+### Literature review; harness v3.1 (explicit, once-only transfer hold); H008 frozen (2026-09-30, $0; NOT run)
+
+- **Literature review** (`research/literature/README.md`, 20 papers read in full). Its checks on saved data (`research/literature/checks.py`) found a defect in the give-up check that v3 inherits from v1:
+  - 3 of H007's 12 tasks pass only with a transfer (task_004, task_012, task_035).
+  - The check would have held 16 of the 23 correct transfers the public top agents proposed on those tasks, and 0 of their 9 unwanted ones.
+  - In our runs a held transfer was never executed later (0 of 25 conversations). Where the model's history was saved (9, H004), the agent then told the customer a transfer was under way in 9 of 9 and made no further tool call (`research/v3_1/held_transfers.json`).
+- **v3.1** (`research/v3_1/README.md`) changes only that hold: the feedback says the call was NOT executed and that a repeat will be; a transfer is held at most once per conversation. The firing condition is unchanged. v1, v2 and v3 are unchanged.
+  - Offline: 7 tests; reference controls 30/30 under bm25 and alltools, 0 hard-check firings. 329 tests pass.
+  - Not shown offline: what gpt-5-mini does after the new text.
+- **H008 frozen** (`experiments/H008_plan.json`): H007 with v3.1 as the treatment. Tasks, schedule, settings, budget ($9.00 billed, $0.75 per conversation) and gate conditions (1)-(3) are H007's.
+  - Added before any run: strata (3 action-graded transfer tasks, 9 database-graded tasks; descriptive); gate condition (4), cap-interrupted conversations counted as failures must not change the verdict; (5) no best-of-two scoring; a gate not met is "insufficient evidence at this size".
+  - Noise floor (simulation): two identical agents differ by 3 or more passes of 24 in 29-40% of runs and meet conditions (1) and (2) in 3-6%.
+  - Disclosure: the v3.1 change was motivated by evidence that includes three of the evaluation tasks.
+  - H007 is superseded (never run).
+  - Approval: "run H008 with $9.00".

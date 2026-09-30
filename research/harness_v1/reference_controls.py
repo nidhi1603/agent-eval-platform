@@ -134,6 +134,8 @@ SPECS = {"v1": ({}, {"gates": ["clock_before_verification", "verification_before
          # v3: v1's checks plus capability search (bench/capability.py)
          "v3": ({"version": "v3"}, {"version": "v3", "gates": ["clock_before_verification", "verification_before_write",
                                                                "ids_observed"]}),
+         "v3.1": ({"version": "v3.1"}, {"version": "v3.1", "gates": ["clock_before_verification",
+                                                                       "verification_before_write", "ids_observed"]}),
          # v1 plus dependency-following tool search (bench/depsearch.py): the H004 treatment arm
          "v1dep": ({"dep_search": True}, {"dep_search": True, "gates": ["clock_before_verification",
                                                                          "verification_before_write", "ids_observed"]})}

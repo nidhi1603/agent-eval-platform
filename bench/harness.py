@@ -14,6 +14,8 @@ The four checks (gates):
                              searches, or (if it has used no discovered tool yet) retrieved documents name read tools /
                              customer tools it has not used.
                              Advises once per give-up; if the agent gives up again, the give-up is released.
+                             v3.1 (research/v3_1/README.md): a TRANSFER is held at most once per conversation, and
+                             the feedback says the call was not executed and that calling it again will execute it.
   clock_before_verification  hard. log_verification's time_verified must be a get_current_time reading.
   verification_before_write  hard. A write needs a successful log_verification earlier in the conversation.
   ids_observed               hard. Every identifier and card-digit argument of a write (and log_verification's
@@ -54,7 +56,8 @@ HARNESS_NAME = "harness_v1"
 GATES = ("search_before_giving_up", "clock_before_verification", "verification_before_write", "ids_observed")
 V2_GATES = GATES + ("duplicate_write", "plan_before_acting", "procedure_checklist", "needs_covered",
                     "transfer_after_asking", "claims_need_receipts")
-VERSIONS = {"v1": GATES, "v2": V2_GATES, "v3": GATES}  # v3 = v1's checks + capability search (bench/capability.py)
+# v3 = v1's checks + capability search (bench/capability.py); v3.1 = v3 + the explicit, once-only transfer hold
+VERSIONS = {"v1": GATES, "v2": V2_GATES, "v3": GATES, "v3.1": GATES}
 ALL_GATES = V2_GATES
 HARD = {"clock_before_verification", "verification_before_write", "ids_observed", "duplicate_write"}
 SOFT = tuple(g for g in V2_GATES if g not in HARD)
@@ -76,6 +79,14 @@ DENIAL = re.compile(
     r"can[’']t (?:complete|look up|access|directly|retrieve|perform|process|do that|make that|freeze|open|close|apply|file)|"
     r"cannot (?:access|perform|complete|process|directly)|unable to (?:access|perform|complete|process)|"
     r"no (?:backend )?tool (?:here|available)|outside (?:of )?what I can do)", re.I)
+# v3.1's feedback on a held transfer. In H004 every held transfer we can replay (9 of 9) was followed by the agent
+# telling the customer a transfer was under way, with none executed: the v1 text never says the call did not run.
+TRANSFER_NOT_EXECUTED = ("Harness check (not shown to the customer): your transfer_to_human_agents call was NOT executed. "
+                         "The customer has not been transferred and is still with you, so do not tell them a transfer "
+                         "is under way. Before you transfer:")
+TRANSFER_STILL_OPEN = ("If a transfer is still the right step (a retrieved procedure requires it, or no documented "
+                       "procedure fits after searching), call transfer_to_human_agents again: it will be executed, and "
+                       "this check will not hold it again in this conversation.")
 GENERIC_FEEDBACK = ("Harness check (not shown to the customer): this was not sent or executed. Review the policy and "
                     "the evidence you have, then continue.")
 BLOCK_FEEDBACK = "Not executed: blocked by a policy check."
@@ -166,6 +177,9 @@ def gate_search_before_giving_up(proposal: dict, ev: Evidence, ctx: dict) -> lis
     denial = not calls and is_denial(proposal.get("content"))
     if not (transfer or denial):
         return []
+    explicit = bool(transfer and ctx.get("transfer_hold_once"))  # v3.1
+    if explicit and ctx.get("transfer_holds"):
+        return []  # already held once in this conversation: the agent was told a repeat would go through
     queries = searches(ev)
     reads, users = unused_tools(ev, ctx["agent_tools"], ctx["user_tools"], ctx["tool_type"])
     # The failure signature is never using the discovery mechanism at all. An agent that has already called or handed
@@ -177,7 +191,8 @@ def gate_search_before_giving_up(proposal: dict, ev: Evidence, ctx: dict) -> lis
     if len(queries) >= MIN_SEARCHES and not reads and not users:
         return []
     what = "transfer the customer to a human agent" if transfer else "tell the customer this can't be done"
-    parts = [f"Harness check (not shown to the customer): you are about to {what}. Before you do:"]
+    parts = [TRANSFER_NOT_EXECUTED if explicit else
+             f"Harness check (not shown to the customer): you are about to {what}. Before you do:"]
     if ctx.get("capability_advice"):
         from bench.capability import ADVICE
 
@@ -193,9 +208,14 @@ def gate_search_before_giving_up(proposal: dict, ev: Evidence, ctx: dict) -> lis
     if users:
         parts.append(f"- Documents you retrieved name customer tools you have not handed over: {', '.join(users)} "
                      "(give_discoverable_user_tool).")
-    parts.append("Use a tool only if its documented procedure fits this request and its prerequisites are met. Transfer "
-                 "if a retrieved procedure requires it, or if no documented procedure fits after searching. This check "
-                 "does not authorize any action.")
+    if explicit:
+        parts.append("Use a tool only if its documented procedure fits this request and its prerequisites are met; this "
+                     "check does not authorize any tool call.")
+        parts.append(TRANSFER_STILL_OPEN)
+    else:
+        parts.append("Use a tool only if its documented procedure fits this request and its prerequisites are met. "
+                     "Transfer if a retrieved procedure requires it, or if no documented procedure fits after "
+                     "searching. This check does not authorize any action.")
     return [Finding("search_before_giving_up", "\n".join(parts), [c["id"] for c in transfer],
                     {"searches": len(queries), "unused_reads": reads, "unused_customer_tools": users,
                      "trigger": "transfer" if transfer else "denial"})]
@@ -488,6 +508,7 @@ def make_harness_agent_class():
         use_adapter: bool = True
         dep_search: bool = False     # dependency-following tool search (bench/depsearch.py)
         capability_search: bool = False  # v3: bench/capability.py
+        transfer_hold_once: bool = False  # v3.1: a transfer is held at most once, with explicit feedback
         user_tool_names: frozenset = frozenset()
 
         def __init__(self, *a, **kw):
@@ -495,6 +516,7 @@ def make_harness_agent_class():
             self.harness_events: list[dict] = []
             self.regenerations = 0
             self.soft_fired: dict[str, int] = {}
+            self.transfer_holds = 0
             self.plan_calls = 0
             self.checklists_shown: set[str] = set()
             self._dep = None
@@ -564,6 +586,7 @@ def make_harness_agent_class():
             lookup = ev.tool_type
             return {"agent_tools": set(self.agent_tool_names), "user_tools": set(self.user_tool_names),
                     "tool_type": lookup, "events": self.harness_events, "capability_advice": self.capability_search,
+                    "transfer_hold_once": self.transfer_hold_once, "transfer_holds": self.transfer_holds,
                     "offered_reads": [n for n in sorted(self.offered) if lookup(n) == "read"]}
 
         def _hold(self, proposal, findings, state, in_history=False):
@@ -715,6 +738,8 @@ def make_harness_agent_class():
                         self.soft_fired[f.gate] = self.soft_fired.get(f.gate, 0) + 1
                     if f.gate == "procedure_checklist":
                         self.checklists_shown.add(f.detail["tool"])
+                    if f.gate == "search_before_giving_up" and f.detail.get("trigger") == "transfer":
+                        self.transfer_holds += 1
                 self._hold(proposal, findings, state, in_history=in_history)
                 corrections += 1
                 self.regenerations += 1
