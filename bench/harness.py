@@ -472,6 +472,7 @@ def make_harness_agent_class():
         gates: tuple[str, ...] = GATES
         feedback: str = "structured"
         use_adapter: bool = True
+        dep_search: bool = False     # dependency-following tool search (bench/depsearch.py)
         user_tool_names: frozenset = frozenset()
 
         def __init__(self, *a, **kw):
@@ -481,6 +482,44 @@ def make_harness_agent_class():
             self.soft_fired: dict[str, int] = {}
             self.plan_calls = 0
             self.checklists_shown: set[str] = set()
+            self._dep = None
+
+        def _dependency_search(self, state, start: int) -> None:
+            """Append dependency-search documents to the model's own copy of KB_search results that arrived at
+            state.messages[start:]. The benchmark's trajectory keeps the original message objects."""
+            from tau2.environment.tool import as_tool
+
+            from bench import depsearch
+
+            if self._dep is None:
+                index, docs = depsearch.tool_index(frozenset(self.agent_tool_names) | frozenset(self.user_tool_names),
+                                                   str(depsearch.documents_dir()))
+                params = {n: list(as_tool(self.adapter_toolkit.tools[n]).openai_schema["function"]["parameters"]
+                                  .get("properties", {})) for n in sorted(self.agent_tool_names)}
+                self._dep = depsearch.DependencySearch(index, docs, params)
+            call_names = {tc.id: tc.name for m in state.messages if getattr(m, "role", None) == "assistant"
+                          for tc in (getattr(m, "tool_calls", None) or [])}
+            for i in range(start, len(state.messages)):
+                m = state.messages[i]
+                if getattr(m, "role", None) != "tool" or call_names.get(m.id) != KB or m.error or \
+                        (m.content or "").lstrip().startswith("Error"):
+                    continue
+                earlier = [x.content or "" for x in state.messages[:i] if getattr(x, "role", None) == "tool"]
+                known = {k for text in earlier for k in depsearch.KNOWN_ID.findall(text)}
+                seen = {d for text in earlier for d in depsearch.DOC_ID.findall(text)}
+                extra = self._dep.augment(m.content or "", known, seen, self.harness_events)
+                if extra:
+                    state.messages[i] = m.model_copy(update={"content": (m.content or "") + extra})
+
+        def _absorb(self, message, state) -> None:
+            start = len(state.messages)
+            super()._absorb(message, state)
+            if self.dep_search:
+                try:
+                    self._dependency_search(state, start)
+                except Exception as e:  # noqa: BLE001 - fail open, like a checker: the search result is unchanged
+                    self.harness_events.append({"event": "dependency_search_error",
+                                                "error": f"{type(e).__name__}: {e}"[:300]})
 
         @property
         def planning(self) -> bool:

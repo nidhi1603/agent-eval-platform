@@ -464,7 +464,7 @@ def main(argv=None) -> int:
     p.add_argument("--agent-variant", default="baseline", help="bench/variants/<name>.md, or baseline")
     p.add_argument("--tool-adapter", choices=["direct_tools"], help="bench/adapter.py; default: none")
     p.add_argument("--harness", type=json.loads, help='harness v1 spec as JSON, e.g. \'{}\' for the full v1 '
-                   '(bench/harness.py); keys: gates, feedback, adapter')
+                   '(bench/harness.py); keys: version, gates, feedback, adapter, dep_search')
     p.add_argument("--max-steps", type=int, default=200)
     p.add_argument("--max-errors", type=int, default=10)
     p.add_argument("--seed", type=int, default=300)

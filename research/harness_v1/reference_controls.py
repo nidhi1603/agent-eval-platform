@@ -121,7 +121,10 @@ def run_one(task_id, script, harness, tmp):
 
 SPECS = {"v1": ({}, {"gates": ["clock_before_verification", "verification_before_write", "ids_observed"]}),
          "v2": ({"version": "v2"}, {"version": "v2", "gates": ["clock_before_verification", "verification_before_write",
-                                                               "ids_observed", "duplicate_write"]})}
+                                                               "ids_observed", "duplicate_write"]}),
+         # v1 plus dependency-following tool search (bench/depsearch.py): the H004 treatment arm
+         "v1dep": ({"dep_search": True}, {"dep_search": True, "gates": ["clock_before_verification",
+                                                                         "verification_before_write", "ids_observed"]})}
 
 
 def main(argv):
@@ -163,7 +166,11 @@ def main(argv):
                    "fired": [{k: e.get(k) for k in ("event", "gate", "gates", "detail")} for e in fired],
                    "agent_input_tokens": {"baseline": _agent_tokens(b), "harness": _agent_tokens(h)},
                    "tools_offered": len((h.get("harness") or {}).get("offered") or []),
-                   "checker_errors": sum(e["event"] == "checker_error" for e in ev)}
+                   "checker_errors": sum(e["event"] == "checker_error" for e in ev),
+                   "dependency_searches": sum(e["event"] == "dependency_search" for e in ev),
+                   "dependency_docs_added": sum(len(e.get("docs_added") or []) for e in ev
+                                                if e["event"] == "dependency_search"),
+                   "dependency_errors": sum(e["event"] == "dependency_search_error" for e in ev)}
             rows.append(row)
             print(tid, row["baseline_reward"], row["harness_reward"], row["tools_offered"],
                   round(row["agent_input_tokens"]["harness"] / max(row["agent_input_tokens"]["baseline"], 1), 2),

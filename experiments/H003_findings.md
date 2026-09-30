@@ -9,7 +9,7 @@
 
 ## Primary outcome
 
-| Task | Reward | Reference actions matched | Reference writes matched | Transfers | Largest agent output (tokens) | Cost (upper bound / cache-aware) | Latency |
+| Task | Reward | Reference actions matched | Reference writes matched | Transfers (all at the customer's explicit request) | Largest single agent output, tokens incl. reasoning | Cost (upper bound / cache-aware) | Latency |
 |---|---|---|---|---|---|---|---|
 | task_069 | 0 | 1/7 | 0/3 | 0 | 5,423 | $0.132 / $0.072 | 180 s |
 | task_058 | 0 | 0/4 | 0/1 | 1 | 4,749 | $0.310 / $0.109 | 212 s |
@@ -21,14 +21,18 @@
 ## Go rule, checked condition by condition
 
 **(a) No turn hits the output cap, and no conversation is interrupted by it: met.**
-- The largest single agent output was 5,423 of 16,384 tokens.
-- But **4 of 82 agent calls, in 3 of 5 conversations, exceeded H002's old 4,096 cap.** One of them is in the passing conversation. So at medium reasoning the larger allowance is necessary: under H002's limit those turns would have been cut off.
+- The largest single agent output was 5,423 of 16,384 tokens. Here "output" means output tokens including reasoning tokens, not customer-visible text.
+- **4 of 82 agent calls, in 3 of 5 conversations, generated more than H002's old 4,096 tokens.** One of them is in the passing conversation.
+- This supports keeping the larger allowance for the next experiment. *(Corrected after review: an earlier version said it was "necessary". These runs do not show that the conversations could not have succeeded under a smaller limit.)*
 
 **(b) Meaningfully more workflow progress than the H002 low baseline on the same tasks (reference-write progress above 0.10, or at least one pass): met, through the pass condition only.**
 - **Pass:** task_023. No H002 baseline conversation on these 5 tasks passed (0/10).
-- **Reference-write progress: 1/26 (per-task mean 0.02). It did not clear 0.10.** H002's low baseline was 0/26 per attempt.
+- **Reference-write progress did not clear 0.10, on either calculation** (labelled separately; corrected after review, where one number had mixed them):
+  - **pooled:** 1/26 = **0.038**. This is the rule committed with the plan (research/h002/analyze.py: matched over total).
+  - **per-task mean:** over the 4 tasks with reference writes, **0.018**.
+  - H002's low baseline: 0/26 per attempt.
 
-**Verdict: GO under the rule as written.** It is a narrow go:
+**Verdict: GO under the rule as written.** It is a narrow go, and it does not establish that the new configuration is better:
 - it rests on one pass on the task with the fewest reference actions (2, and no agent writes);
 - write progress is essentially unchanged.
 
@@ -45,13 +49,13 @@
 |---|---|---|---|
 | Passes | 0/10 | 1/5 | – |
 | Reference progress (per-task mean) | 0.23 | 0.26 (almost all of it from task_023's 2/2) | – |
-| Reference writes matched | 0/52 | 1/26 | – |
+| Reference writes matched, pooled | 0/52 (0.00) | 1/26 (0.038) | – |
 | Required-document recall | 0.28 | 0.35 | – |
-| Transfers | 6/10 | 4/5 | – |
+| Transfers (appropriateness not classified here) | 6/10 | 4/5, all at the customer's explicit request | – |
 | Cost per conversation, upper bound | $0.147 | $0.166 | 1.13× |
 | Cost per conversation, cache-aware | $0.053 | $0.073 | 1.38× |
 | Latency per conversation | 78 s | 157 s | **2.0×** |
-| Agent output tokens per conversation | 5,084 | 15,182 | **3.0×** |
+| Agent output tokens per conversation (incl. reasoning) | 5,084 | 15,182 | **3.0×** |
 
 - H002's baseline count includes one conversation interrupted by a 429 (task_058 attempt 0).
 - **Cost was below forecast** because medium reasoning's extra output is priced at gpt-5-mini rates. The customer simulator (GPT-5.2) dominates the upper bound.
@@ -59,13 +63,17 @@
 
 ## What did not change
 
-These are the H002 failure modes, and the same ones appear here:
-- **4 of 5 conversations transferred** to a human, 3 of them without executing any reference write.
-- **task_089 and task_058 transferred before verifying the customer** (first unmatched reference action: `log_verification`). task_089 took 2 searches and 61 s.
+The same H002 failure modes appear here.
+- **4 of 5 conversations ended in a transfer, and every one followed an explicit request from the customer** ("Transfer me to a human agent now, please", "transfer", "Transfer to specialist."). The transfers themselves are therefore not the failure. The failure is earlier: the workflow was not completed before the customer asked to escalate. 3 of those 4 executed no reference write.
+- **task_089 and task_058 never logged a verification** (first unmatched reference action: `log_verification`).
+  - In task_089 the agent answered with generic causes for the declined cards after 2 searches, instead of looking up the accounts.
+  - In task_058 it could not find the EcoCard fee.
+  - In both, the customer then asked for a human.
+  - *(Corrected after review: an earlier version called these "transferred before verifying". Verification timing alone does not make a transfer premature: the policy requires verification to access or change records, and these transfers were customer-requested.)*
 - **task_069 again never unlocked `open_bank_account_4821`**, the same first miss as both H002 baseline attempts. Its required-document recall was 0.37 after 9 searches. This is the retrieval gap identified in the H002 audit (C3; doc `_009`).
 - **task_077 again missed the account lookup tool** `get_all_user_accounts_by_user_id_3847`, which the H002 tool-retrieval probe found BM25 cannot reach from the customer's words.
 
-**So more reasoning alone does not fix the dominant failures:** premature transfer, and not finding the tool or document a workflow needs. That is consistent with the decision to test **dependency-following tool search** next, as one isolated change.
+**So more reasoning alone does not fix the dominant failure:** not finding the tool or document a workflow needs, and so not completing it before the customer gives up. That is consistent with the decision to test **dependency-following tool search** next, as one isolated change.
 
 ## Next step: not run, needs approval
 
@@ -73,4 +81,4 @@ A frozen plan for a paired comparison at these same settings (medium, 16,384). T
 - **H003's go rule names "baseline vs harness_v1".**
 - **The decision recorded after the H002 reviews** is "v1 as the comparator; one isolated intervention: dependency-following tool search". That means **harness_v1 vs harness_v1 + dependency-following search**.
 
-Recommendation: the second. It is the isolated test of the one new idea. The v1-vs-baseline contrast was measured in H002 at low reasoning, and a 3-arm design would cost 1.5× more. The search component is not built yet. It will be built and tested offline at $0, then the plan frozen, before any paid run is requested.
+Recommendation: the second. **The justification is prioritization, not settled evidence.** We are testing the one incremental intervention first. *(Corrected after review: v1 vs baseline was tested in H002 only at low reasoning with the 4,096 allowance, so it is not settled at these settings.)* A 3-arm design would cost 1.5× more. The search component is not built yet. It will be built and tested offline at $0, then the plan frozen, before any paid run is requested.

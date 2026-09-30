@@ -332,11 +332,29 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 ### H003 run: medium-reasoning baseline calibration, 1/5 passes; GO on the pass condition only (2026-09-30, $0.83 upper bound)
 - **Settings:** gpt-5-mini medium reasoning, 16,384 output tokens, bm25, seed 300. 5 tasks × 1 attempt. None interrupted.
 - **Go rule:**
-  - (a) no output-cap hits: met. But 4 of 82 agent calls, in 3 of 5 conversations, exceeded H002's 4,096 cap, including the pass, so the larger allowance is required at medium reasoning.
-  - (b) met through the pass only: task_023, a rebate-eligibility reasoning task that v1 also passed at low reasoning in H002. Reference-write progress 1/26 (0.02), not above 0.10.
+  - (a) no output-cap hits: met. 4 of 82 agent calls, in 3 of 5 conversations, generated more than 4,096 tokens (including reasoning), including the pass. This supports keeping the larger allowance; it does not prove it is necessary.
+  - (b) met through the pass only: task_023, a rebate-eligibility reasoning task that v1 also passed at low reasoning in H002. Reference-write progress: pooled 1/26 = 0.038, per-task mean 0.018; neither is above 0.10. *(An earlier version mixed the two calculations.)*
 - **Compared with H002's low baseline on the same tasks:**
   - upper-bound cost 1.13×, cache-aware cost 1.38×;
   - latency 2.0×, agent output tokens 3.0×;
-  - transfers still 4 of 5; task_069 and task_077 miss the same tools as before.
+  - 4 of 5 ended in a transfer, all at the customer's explicit request: the failure is the unfinished workflow before it, not the transfer;
+  - task_069 and task_077 miss the same tools as before.
 - **Next (not run):** recommend harness_v1 vs harness_v1 + dependency-following tool search at these settings; build and test offline first. H003's go rule names baseline vs v1, and this discrepancy is flagged for review.
 - **Records:** `experiments/H003_findings.md`, `research/h003/`.
+
+### Review of H003 (24b78d9); dependency search built; H004 frozen (2026-09-30, $0)
+- **Accepted and corrected in `experiments/H003_findings.md`:**
+  - Write progress is two calculations, now labelled separately: pooled 1/26 = 0.038 (the committed rule) and per-task mean 0.018.
+  - The larger output allowance: "supports keeping", not "necessary". Output tokens include reasoning.
+  - The transfers: all 4 H003 transfers followed an explicit customer request, so they were not premature. The failure is the workflow left unfinished before the request.
+  - v1 vs baseline is not settled at medium reasoning. H004's arms are a prioritization choice.
+- **Built:** `bench/depsearch.py`, the harness option `{"dep_search": true}`. Offline evidence:
+  - 12 tests;
+  - reference controls: 30/30 same reward, 0 hard-check firings, input tokens 1.20× v1;
+  - replay over 58 saved conversations: required tool-document recall 0.40 → 0.53;
+  - `_009` is still never reached, and is not special-cased.
+- **H004 frozen (not run):**
+  - Design: harness_v1 vs harness_v1 + dependency search, at H003's settings; H002's 10 dev tasks × 2 attempts = 40 conversations; balanced order.
+  - Screening gate: at least +4 of 20, the gains from at least 2 tasks, no more unsafe writes (blind codebook audit); cost reported per pass.
+  - Budget: cap $12.00 (hard), forecast $6–10 (not a bound), 2 workers.
+  - Plan: `experiments/H004_plan.json`.

@@ -52,7 +52,10 @@ def _harness_activity(trace: dict) -> dict | None:
             held[e["gate"]] = held.get(e["gate"], 0) + 1
     return {"held_by_gate": held, "released": sum(e.get("event") == "released" for e in events),
             "withheld": sum(e.get("event") == "withheld" for e in events), "regenerations": h.get("regenerations"),
-            "tools_offered": len(h.get("offered") or [])}
+            "tools_offered": len(h.get("offered") or []),
+            "dependency_searches": sum(e.get("event") == "dependency_search" for e in events),
+            "dependency_docs_added": sum(len(e.get("docs_added") or []) for e in events
+                                         if e.get("event") == "dependency_search")}
 
 
 def schedule(plan: dict) -> list[dict]:
