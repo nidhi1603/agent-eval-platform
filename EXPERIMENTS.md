@@ -377,5 +377,5 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Behaviour:**
   - pooled write progress 0.31 → 0.53; executed writes 33 → 73; required-document recall in view 0.47 → 0.54;
   - cost 1.25× cache-aware, latency 1.3×.
-- **Lesson:** finding a tool through a dependency, without its eligibility constraints, adds actions and violations faster than passes. Still, 30 of 34 failures lacked a required document.
+- **Lesson:** finding a tool through a dependency, without its eligibility constraints, adds actions and violations faster than passes. Still, 32 of 34 failed conversations lacked a required document (v1 18/18, dep 14/16).
 - **Records:** `experiments/H004_findings.md`, `research/h004/`, `research/h004/audit/`.
