@@ -139,12 +139,17 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
     schedule_ = schedule(plan)
     order = {_key(it): i for i, it in enumerate(schedule_)}
     done: dict[tuple, dict] = {}
+    stopped_spend: list[dict] = []
     if journal and journal.exists():
         for line in journal.read_text().splitlines():
             if line.strip():
                 row = json.loads(line)
+                if row.get("kind") == "operator_stopped":  # killed before grading: its spend counts, the run may rerun
+                    stopped_spend.append(row)
+                    continue
                 done[_key(row)] = row
-    spent_upper = sum(r.get("spend_upper_bound_usd") or 0.0 for r in done.values())
+    spent_upper = (sum(r.get("spend_upper_bound_usd") or 0.0 for r in done.values())
+                   + sum(r.get("spend_upper_bound_usd") or 0.0 for r in stopped_spend))
     todo = [it for it in schedule_ if _key(it) not in done]
 
     def settings_for(item):
@@ -224,6 +229,7 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "approved_usd": approved_usd,
         "workers": workers,
+        "operator_stopped_runs": stopped_spend,
         "spend_upper_bound_usd": round(spent_upper, 6),
         "scheduled": len(rows),
         "by_status": {st: sum(r["status"] == st for r in rows) for st in {r["status"] for r in rows}},

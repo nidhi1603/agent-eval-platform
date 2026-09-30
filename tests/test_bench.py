@@ -181,10 +181,10 @@ def test_budget_stops_the_run_and_keeps_the_partial_trace(tmp_path):
 
 
 def test_provider_errors_are_retried_reserved_and_attributed(tmp_path, monkeypatch):
-    def rate_limited(self, model, messages, **kwargs):
-        raise litellm.RateLimitError("429 from provider", llm_provider="openai", model=model)
+    def server_error(self, model, messages, **kwargs):
+        raise litellm.InternalServerError("500 from provider", llm_provider="openai", model=model)
 
-    monkeypatch.setattr(ScriptedLLM, "__call__", rate_limited)
+    monkeypatch.setattr(ScriptedLLM, "__call__", server_error)
     monkeypatch.setattr("bench.budget.time.sleep", lambda s: None)
     trace, _ = scripted_run(tmp_path)
     assert trace["attribution"]["cause"] == "provider"
@@ -192,6 +192,21 @@ def test_provider_errors_are_retried_reserved_and_attributed(tmp_path, monkeypat
     ledger = trace["spend"]["ledger"]
     assert [c["attempt"] for c in ledger] == [1, 2, 3] and all(c["status"] == "failed" for c in ledger)
     assert trace["spend"]["incurred"]["unresolved_reservations_usd"] == pytest.approx(sum(c["reserved_usd"] for c in ledger))
+
+
+def test_rate_limits_are_waited_out_and_never_counted_as_spend(tmp_path, monkeypatch):
+    from bench.budget import RATE_LIMIT_RETRIES, REJECTED
+
+    def rate_limited(self, model, messages, **kwargs):
+        raise litellm.RateLimitError("429 from provider. Please try again in 2s.", llm_provider="openai", model=model)
+
+    monkeypatch.setattr(ScriptedLLM, "__call__", rate_limited)
+    monkeypatch.setattr("bench.budget.time.sleep", lambda s: None)
+    trace, _ = scripted_run(tmp_path)
+    assert trace["attribution"]["cause"] == "provider"
+    ledger = trace["spend"]["ledger"]
+    assert len(ledger) == RATE_LIMIT_RETRIES + 1 and all(c["status"] == REJECTED for c in ledger)
+    assert trace["spend"]["incurred"]["unresolved_reservations_usd"] == 0
 
 
 def test_context_window_error_is_attributed_to_the_failing_caller(tmp_path, monkeypatch):

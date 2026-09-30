@@ -23,6 +23,7 @@ code; compare the ledger with the provider's usage dashboard.
 
 import hashlib
 import json
+import re
 import math
 import os
 import threading
@@ -39,6 +40,19 @@ PRICES_FILE = Path(__file__).resolve().parent / "prices.json"
 
 # Which participant is making the current call. Set by tagging each tau2 caller's generate().
 current_role: ContextVar[str] = ContextVar("current_role", default="unattributed")
+
+REJECTED = "rejected_rate_limited"  # HTTP 429: refused before processing, so nothing is billed
+RATE_LIMIT_RETRIES = 6              # extra waits for 429s, beyond max_attempts (they cost nothing)
+RETRY_AFTER = re.compile(r"try again in ([\d.]+)\s*(ms|s)", re.I)
+
+
+def rate_limit_wait(error: BaseException, retry: int) -> float:
+    """Seconds to wait after a 429: what the provider asks for (plus a margin), at least an exponential backoff,
+    at most 60."""
+    m = RETRY_AFTER.search(str(error))
+    asked = (float(m.group(1)) / (1000 if m.group(2).lower() == "ms" else 1)) if m else 0.0
+    return min(60.0, max(asked + 1.0, 5.0 * 2 ** retry))
+
 
 TRANSIENT_ERRORS = (
     litellm.RateLimitError,
@@ -171,7 +185,9 @@ class Budget:
 
     def _exposure(self) -> float:
         # Resolved calls count at usage cost; everything else at its reservation.
-        return sum(c.cost_usd if c.status == "ok" else c.reserved_usd for c in self.calls)
+        # A rate-limit rejection (429) was never processed: it holds nothing.
+        return sum(c.cost_usd if c.status == "ok" else 0.0 if c.status == REJECTED else c.reserved_usd
+                   for c in self.calls)
 
     def _log(self, event: str, call: Call) -> None:
         if self._journal is None:
@@ -234,12 +250,14 @@ class Budget:
     def summary(self) -> dict:
         with self._lock:
             ok = [c for c in self.calls if c.status == "ok"]
-            unresolved = [c for c in self.calls if c.status != "ok"]
+            # a request the provider rejected for rate limit (HTTP 429) was not processed and is not billed
+            unresolved = [c for c in self.calls if c.status not in ("ok", REJECTED)]
             usage_based = sum(c.cost_usd for c in ok)
             held = sum(c.reserved_usd for c in unresolved)
             by_role: dict[str, float] = {}
             for c in self.calls:
-                by_role[c.role] = round(by_role.get(c.role, 0.0) + (c.cost_usd if c.status == "ok" else c.reserved_usd), 6)
+                cost = c.cost_usd if c.status == "ok" else 0.0 if c.status == REJECTED else c.reserved_usd
+                by_role[c.role] = round(by_role.get(c.role, 0.0) + cost, 6)
             return {
                 "cap_usd": self.cap_usd,
                 "usage_based_estimate_usd": round(usage_based, 6),  # full input price: conservative
@@ -308,11 +326,22 @@ def metered_completion(budget: Budget, limits: Limits, send):
         params["tools"] = len(tools or [])
         params["tools_sha256"] = hashlib.sha256(json.dumps(tools or [], sort_keys=True).encode()).hexdigest()
         in_bound = input_token_bound(messages, tools)
-        for attempt in range(1, limits.max_attempts + 1):
+        attempt, rate_limited = 0, 0
+        while attempt < limits.max_attempts:
+            attempt += 1
             call = budget.reserve("chat", model, attempt, in_bound, limits.max_output_tokens, params)
             started = time.perf_counter()
             try:
                 response = send(model=model, messages=messages, tools=tools, tool_choice=tool_choice, **kwargs)
+            except litellm.RateLimitError as e:
+                # refused before processing: not billed, and does not use up an attempt, for up to RATE_LIMIT_RETRIES waits
+                budget.settle_unresolved(call, e, started, status=REJECTED)
+                if rate_limited >= RATE_LIMIT_RETRIES or "insufficient_quota" in str(e):  # no credit: waiting won't help
+                    raise _with_role(e)
+                time.sleep(rate_limit_wait(e, rate_limited))
+                rate_limited += 1
+                attempt -= 1
+                continue
             except TRANSIENT_ERRORS as e:
                 budget.settle_unresolved(call, e, started)
                 if attempt == limits.max_attempts:

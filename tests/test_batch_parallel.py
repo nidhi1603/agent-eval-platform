@@ -77,3 +77,57 @@ def test_no_new_run_starts_after_the_provider_reports_no_credit(monkeypatch):
     statuses = [(r["task_id"], r["status"]) for r in out["results"]]
     assert statuses[:4] == [("t0", "finished"), ("t0", "finished"), ("t1", "interrupted_or_failed"), ("t1", "not_run")]
     assert all(r["reason"].startswith("stopped") for r in out["results"] if r["status"] == "not_run")
+
+
+# ---- rate limits (bench/budget.py) -------------------------------------------------------------------------------
+
+def test_a_rate_limit_waits_as_asked_and_is_not_counted_as_spend(monkeypatch):
+    import litellm
+
+    from bench import budget as b
+
+    assert b.rate_limit_wait(Exception("Please try again in 3.152s."), 0) == pytest.approx(5.0)
+    assert b.rate_limit_wait(Exception("Please try again in 20s."), 0) == pytest.approx(21.0)
+    assert b.rate_limit_wait(Exception("no hint"), 5) == 60.0
+    waits = []
+    monkeypatch.setattr(b.time, "sleep", waits.append)
+    calls = {"n": 0}
+
+    def send(**kw):
+        calls["n"] += 1
+        if calls["n"] <= 4:  # more 429s than max_attempts: they must not use attempts up
+            raise litellm.RateLimitError("Rate limit reached. Please try again in 2s.", "openai", "gpt-5-mini")
+        return litellm.ModelResponse(model="gpt-5-mini", choices=[{"index": 0, "finish_reason": "stop",
+                                     "message": {"role": "assistant", "content": "ok"}}],
+                                     usage={"prompt_tokens": 10, "completion_tokens": 2, "total_tokens": 12})
+
+    budget = b.Budget(cap_usd=1.0, prices={"gpt-5-mini": b.Price(0.25, 2.0, "test")})
+    completion = b.metered_completion(budget, b.Limits(max_attempts=2), send)
+    completion(model="gpt-5-mini", messages=[{"role": "user", "content": "hi"}])
+    assert calls["n"] == 5 and len(waits) == 4
+    s = budget.summary()
+    assert s["unresolved_reservations_usd"] == 0 and s["upper_bound_usd"] == s["usage_based_estimate_usd"]
+
+
+def test_no_credit_is_not_waited_on(monkeypatch):
+    import litellm
+
+    from bench import budget as b
+
+    monkeypatch.setattr(b.time, "sleep", lambda s: None)
+
+    def send(**kw):
+        raise litellm.RateLimitError("You exceeded your current quota (insufficient_quota)", "openai", "gpt-5-mini")
+
+    budget = b.Budget(cap_usd=1.0, prices={"gpt-5-mini": b.Price(0.25, 2.0, "test")})
+    with pytest.raises(litellm.RateLimitError):
+        b.metered_completion(budget, b.Limits(), send)(model="gpt-5-mini", messages=[{"role": "user", "content": "x"}])
+    assert len(budget.calls) == 1
+
+
+def test_operator_stopped_runs_count_their_spend_but_may_rerun(tmp_path):
+    journal = tmp_path / "j.jsonl"
+    journal.write_text(json.dumps({"kind": "operator_stopped", "run_id": "x", "spend_upper_bound_usd": 0.4}) + "\n")
+    out = batch.run_batch(PLAN, 1.0, journal=journal)
+    assert out["spend_upper_bound_usd"] == pytest.approx(1.0) and out["by_status"]["finished"] == 3
+    assert out["operator_stopped_runs"][0]["spend_upper_bound_usd"] == 0.4
