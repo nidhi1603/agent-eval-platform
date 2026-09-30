@@ -170,6 +170,15 @@ def test_end_to_end_the_model_sees_the_added_documents_but_the_trajectory_does_n
     # tools named only in the added documents are offered too: the documents became usable, not just visible
     named_by_kb = set(adapter.WORD.findall("\n".join(m["content"] or "" for m in kb)))
     assert set(trace["harness"]["offered"]) - named_by_kb
+    # the audit record: exactly what was appended, where, and which tools it made available
+    h = trace["harness"]
+    assert set(h["offered_only_via_dep_search"]) == set(h["offered"]) - named_by_kb
+    view = json.dumps(h["model_view"])
+    for e in dep:
+        assert e["kb_call_id"] and (not e["docs_added"] or json.dumps(e["appended_text"])[1:-1] in view)
+    kb_ids = {m["tool_call_id"] for m in h["model_view"] if m["role"] == "tool" and "added by the harness" in
+              (m["content"] or "")}
+    assert kb_ids == {e["kb_call_id"] for e in dep if e["docs_added"]}
     assert trace["execution"]["finished"] and trace["evaluation"] is not None and trace["agent_inputs"]["passed"]
     assert trace["harness"]["dep_search"] is True
 
@@ -179,6 +188,7 @@ def test_end_to_end_without_the_option_nothing_is_added(tmp_path, monkeypatch):
                        {}, monkeypatch)
     assert not any(e["event"].startswith(depsearch.EVENT) for e in trace["harness"]["events"])
     assert not any("added by the harness" in s for s in seen)
+    assert trace["harness"]["model_view"] and trace["harness"]["offered_only_via_dep_search"] is None
 
 
 def test_end_to_end_verification_and_identifier_checks_still_apply(tmp_path, monkeypatch):

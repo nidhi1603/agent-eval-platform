@@ -131,3 +131,12 @@ def test_operator_stopped_runs_count_their_spend_but_may_rerun(tmp_path):
     out = batch.run_batch(PLAN, 1.0, journal=journal)
     assert out["spend_upper_bound_usd"] == pytest.approx(1.0) and out["by_status"]["finished"] == 3
     assert out["operator_stopped_runs"][0]["spend_upper_bound_usd"] == 0.4
+
+
+def test_a_partial_paired_batch_is_labelled_incomplete_and_counts_passes_over_complete_groups_only():
+    out = batch.run_batch(PLAN, 1.0)  # 5 of 8 runs fit: groups t0, t1 complete; t2 has only arm a
+    assert out["status"] == "INCOMPLETE" and out["complete_groups"] == "2/4"
+    assert out["passes_by_arm_complete_groups"] == {"a": 0, "b": 2}
+    assert out["passes_by_arm"] == {"a": 0, "b": 2}
+    assert sum(p["pair"] == "incomplete pair" for p in out["pairs"]) == 2
+    assert batch.run_batch({**PLAN, "budget_usd_total": 2.0}, 2.0)["status"] == "COMPLETE"

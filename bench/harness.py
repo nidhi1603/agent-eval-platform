@@ -483,6 +483,7 @@ def make_harness_agent_class():
             self.plan_calls = 0
             self.checklists_shown: set[str] = set()
             self._dep = None
+            self.model_state = None      # the model's own history, saved in the trace's harness audit section
 
         def _dependency_search(self, state, start: int) -> None:
             """Append dependency-search documents to the model's own copy of KB_search results that arrived at
@@ -507,7 +508,10 @@ def make_harness_agent_class():
                 earlier = [x.content or "" for x in state.messages[:i] if getattr(x, "role", None) == "tool"]
                 known = {k for text in earlier for k in depsearch.KNOWN_ID.findall(text)}
                 seen = {d for text in earlier for d in depsearch.DOC_ID.findall(text)}
+                n0 = len(self.harness_events)
                 extra = self._dep.augment(m.content or "", known, seen, self.harness_events)
+                for e in self.harness_events[n0:]:
+                    e["kb_call_id"] = m.id   # which search result the documents were appended to
                 if extra:
                     state.messages[i] = m.model_copy(update={"content": (m.content or "") + extra})
 
@@ -589,6 +593,7 @@ def make_harness_agent_class():
         def generate_next_message(self, message, state):
             if self.adapter_toolkit is None:
                 raise RuntimeError("HarnessAgent needs adapter_toolkit (the environment's toolkit)")
+            self.model_state = state
             self._absorb(message, state)
             if self.use_adapter:
                 harness = self._unlock_turn(state)

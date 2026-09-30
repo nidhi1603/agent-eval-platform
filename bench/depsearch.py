@@ -31,7 +31,14 @@ that tool (research/h002/tool_retrieval_probe.py).
 - There is no special case for any document or task. The probe found that it never reaches doc `_009`, and that
   known limit is kept, not tuned away.
 
-Every search it runs is logged in `harness_events` (event "dependency_search").
+**The record of what the model saw.** Every search is logged in `harness_events` (event "dependency_search"), with:
+- its query and ranking;
+- the documents added and the exact text appended;
+- the id of the search result it was appended to.
+
+The trace's harness section also saves the model's full own history (`model_view`), and the tools offered only
+because an added document named them (`offered_only_via_dep_search`). The benchmark trajectory alone is not a
+complete record of this arm's inputs.
 """
 
 import json
@@ -142,5 +149,5 @@ class DependencySearch:
             block = format_block(p, tools, [(d, self.docs[d]) for d in new]) if new else ""
             extra += block
             events.append({"event": EVENT, "param": p, "tools": tools, "query": q, "ranked": ranked,
-                           "docs_added": new, "added_chars": len(block)})
+                           "docs_added": new, "added_chars": len(block), "appended_text": block})
         return extra

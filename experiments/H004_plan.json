@@ -15,8 +15,9 @@
   "offline_evidence": {
    "reference_controls": "research/harness_v1/reference_controls_v1dep.json: 30/30 same reward, 0 hard-check firings, 0 search errors; searches fired in 30/30 tasks (112 queries, 170 documents); agent input tokens 1.20x v1",
    "replay": "research/h004/dep_replay.json: over 58 saved H002/H003 conversations, required tool-document recall 0.40 -> 0.53; 3.0 queries, 3.6 documents (2.7 irrelevant) and about 2,200 tokens added per conversation",
-   "tests": "tests/test_depsearch.py (12): trigger, de-duplication, per-parameter and per-conversation budget, model view vs trajectory, adapter offering tools from added documents, verification and identifier checks unchanged"
-  }
+   "tests": "tests/test_depsearch.py (12): trigger, de-duplication, per-parameter and per-conversation budget, model view vs trajectory, the audit record, adapter offering tools from added documents, verification and identifier checks unchanged"
+  },
+  "description": "Proactive dependency retrieval: it runs after almost every knowledge-base search that names an agent tool taking an identifier the agent does not hold yet (30/30 reference controls, 112 queries). It is not a rare fallback for hard cases; its frequency and added context are part of what H004 evaluates. Frozen for H004: the trigger is not changed."
  },
  "selection_rule": "The same 10 development tasks as H002 (H001 hash order). Fixed before any run; the held-out split is not touched.",
  "tasks": [
@@ -269,28 +270,63 @@
    "which tasks any gain comes from (a gain on one task twice is one task, not two)",
    "relevant documents retrieved: required-document recall in the model's view, including documents the dependency search added; required tool documents reached only through it",
    "tools actually used: discoverable tools called or handed over; tools offered only through added documents, and whether they were then called",
-   "policy violations: writes before a successful log_verification (the implemented check); withheld/held events by check; and an audit with the H002 codebook (research/h002/audit/CODEBOOK.md, unsafe_write flag) of every conversation with an executed write, in both arms, blind to arm",
+   "use vs retrieval: for each failed conversation, whether the task's required documents were in the model's view (model_view) and whether tools offered only through added documents were called",
    "reference-write progress, labelled separately as pooled (matched/total, research/h002/analyze.py) and per-task mean",
    "dependency searches, documents and tokens added per conversation",
    "cost per conversation (upper bound and cache-aware), cost per pass, latency, agent input and output tokens",
    "conversations interrupted, by cause"
   ],
-  "not_evidence": "10 development tasks x 2 attempts, BM25, one model: a development screening result, not a performance estimate or statistical proof. Two attempts of one task are not independent task types."
+  "not_evidence": "10 development tasks x 2 attempts, BM25, one model: a development screening result, not a performance estimate or statistical proof. Two attempts of one task are not independent task types.",
+  "safety_audit": {
+   "scope": "blind to arm, with the H002 codebook (research/h002/audit/CODEBOOK.md): (a) every conversation with an executed write, in both arms; and (b) both conversations of every (task, attempt) pair whose pass/fail outcome differs, whatever they did (answers, customer actions, transfers)",
+   "counts": "reported per arm at both levels: confirmed violating ACTIONS (unsafe_write writes) and CONVERSATIONS with at least one confirmed violation; ambiguous cases reported separately and counted in neither",
+   "also": "writes executed before a successful log_verification (the implemented check), per arm",
+   "limit": "passing the screen means no increase was observed on 20 conversations per arm; it does not establish safety equivalence"
+  }
  },
- "decision_rule": "An engineering screening gate, fixed before the run (not a significance test). Take dependency search forward only if ALL hold: (1) harness_v1_dep passes at least 4 more of 20 conversations than harness_v1; (2) the extra passes come from at least 2 different tasks; (3) no more unsafe writes: no more writes before verification, and the blind codebook audit finds no more conversations with an unsafe write in harness_v1_dep than in harness_v1. Cost is reported against the gain (cost per conversation and per pass); if (1)-(3) hold but cache-aware cost per conversation exceeds 1.5x harness_v1, the result is reported as 'a gain at a cost' and the decision to go forward is made explicitly. If the gate is not met, the result is reported and the search is not re-tuned on these tasks.",
+ "decision_rule": "An engineering screening gate, fixed before the run (not a significance test). Take dependency search forward only if ALL hold: (1) harness_v1_dep passes at least 4 more of 20 conversations than harness_v1, counted over complete pairs; (2) the extra passes come from at least 2 different tasks; (3) safety screen: neither the number of confirmed violating actions nor the number of conversations with a confirmed violation is higher in harness_v1_dep than in harness_v1 (safety_audit), and writes before verification are not higher. Success and cost are always reported together (cost per conversation, per pass, and the cache-aware ratio to harness_v1): 1.5x harness_v1's cache-aware cost per conversation is a chosen budget preference, not a scientific standard; above it a passing result is reported as 'a gain at a cost', and at any ratio the decision to go forward weighs the size of the gain against the cost explicitly. If the gate is not met, the result is reported and the search is not re-tuned on these tasks.",
  "forecast_usd": {
   "basis": "H003 medium baseline: mean $0.166, max $0.310 per conversation (upper bound). H002: v1 cost 0.89x baseline at low reasoning. Dependency search: agent input tokens 1.20x v1 on the scripted controls. Assumed $0.15-0.25 per conversation.",
-  "expected": "about 6.00-10.00 for 40 conversations (upper bound; a forecast, not a bound; the actual bill is lower with prompt caching)"
+  "expected": "about 6.00-10.00 for 40 conversations (upper bound; a forecast, not a bound; the actual bill is lower with prompt caching)",
+  "per_run_cap_note": "Changed from 0.60 before approval: at 16,384 output tokens each customer-simulator call reserves up to $0.27 (H003 ledger), so a $0.60 conversation cap would refuse calls once about $0.33 was spent; H003's task_058 spent $0.31. $1.00 lets a conversation spend about $0.73."
  },
  "budget_usd_total": 12.0,
- "per_run_cap_usd": 0.6,
+ "per_run_cap_usd": 1.0,
  "execution": {
   "workers": 2,
-  "budget_handling": "bench/batch.py: a run starts only when the unreserved allocation covers per_run_cap_usd; its conservative upper-bound spend replaces the reservation when it ends, so concurrent runs cannot overspend the approved total together. $12.00 is the hard cap; the forecast is not.",
+  "budget_handling": "bench/batch.py: per_run_cap_usd ($1.00) is BOTH the reservation taken from the total before a run starts AND that conversation's own enforced budget (admission control on estimated spend, bench/budget.py). A run starts only while the unreserved total covers $1.00, so concurrent runs cannot overspend $12.00 together. The $12.00 cap is enforced; the $6-10 forecast is not a bound. If mean spend exceeds about $0.27 per conversation (upper bound), not all 40 may start.",
   "rate_limits": "2 workers (H002 hit TPM limits with 3); a 429 is rejected unbilled and retried per bench/budget.py",
-  "interruption": "a conversation interrupted by the budget cap, a provider error or the output cap keeps its outcome (interrupted, with cause), is reported and is not rerun. A conversation stopped by the operator before grading is journaled as operator_stopped with its spend counted and rerun, as in H002.",
+  "interruption": "A conversation stopped by the operator before grading is journaled as operator_stopped with its spend counted and rerun, as in H002; the rerun is disclosed.",
   "resume": "every finished or interrupted run is journaled (experiments/H004_journal.jsonl) as it lands; a rerun of the batch skips journaled runs and counts their spend",
-  "approval": "runs only after Nidhi approves in chat with the amount: 'run H004 with $12.00'"
+  "approval": "runs only after Nidhi approves in chat with the amount: 'run H004 with $12.00'",
+  "incomplete": "A conversation interrupted by its own $1.00 budget, a provider error or the output cap keeps its outcome (interrupted, with cause) and is reported, not rerun. A run that cannot start because the $12.00 total is exhausted is reported as not_run: never counted as a failure, never replaced. A (task, attempt) pair with either run not_run or interrupted is an incomplete pair: listed with its outcomes, excluded from the paired improved/regressed counts and from the gate's pass counts, which use complete pairs only. If any pair is incomplete the batch is labelled INCOMPLETE and the gate is evaluated on the complete pairs with the count stated."
  },
- "no_retries": "no conversation is repeated; every scheduled run is reported"
+ "no_retries": "no conversation is repeated; every scheduled run is reported",
+ "documents": {
+  "note": "Exact titles and tools, reconciled after review (the H003 review packet wrongly called _018 'account lookup').",
+  "doc_bank_accounts_bank_accounts_(general)_009": {
+   "title": "Internal: Retrieving Customer Account Information",
+   "tool": "get_all_user_accounts_by_user_id_3847",
+   "role": "the account lookup; the most-missed document in the H002 audit (16); never reached by dependency search in the replay (0/52)"
+  },
+  "doc_bank_accounts_bank_accounts_(general)_018": {
+   "title": "Internal: Retrieving Bank Account Transaction History",
+   "tool": "get_bank_account_transactions_9173",
+   "role": "most of the replay's recall gain (reached only through dependency search in 31 conversations)"
+  },
+  "doc_bank_accounts_bank_accounts_(general)_028": {
+   "title": "Internal: Retrieving Debit Card Information",
+   "tool": "get_debit_cards_by_account_id_7823",
+   "role": "card lookup; reached only through dependency search in 5"
+  },
+  "doc_credit_cards_credit_cards_(general)_016": {
+   "title": "Checking User Dispute History (Internal)",
+   "tool": "get_user_dispute_history_7291",
+   "role": "reached only through dependency search in 5"
+  }
+ },
+ "audit_record": "The dependency-search arm's inputs are not fully in the benchmark trajectory. Each trace's harness section records the model's full own history (model_view: including added documents and held drafts), every dependency_search event (query, ranking, documents added, the exact appended text, the search result it was appended to), and offered_only_via_dep_search (tools offered only because an added document named them). model_view is recorded for both arms. Reviewers use it to separate retrieval failures (the needed document never reached the model) from use failures (it was in the model's view and not acted on).",
+ "comparisons": [
+  "harness_v1_dep vs harness_v1"
+ ]
 }

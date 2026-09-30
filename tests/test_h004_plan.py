@@ -43,7 +43,25 @@ def test_every_task_attempt_runs_both_arms_back_to_back_in_a_balanced_order():
 
 
 def test_budget_workers_and_approval():
-    assert PLAN["budget_usd_total"] == 12.0 and PLAN["per_run_cap_usd"] == 0.6 and PLAN["execution"]["workers"] == 2
+    assert PLAN["budget_usd_total"] == 12.0 and PLAN["per_run_cap_usd"] == 1.0 and PLAN["execution"]["workers"] == 2
+
+
+def test_the_per_conversation_cap_leaves_room_for_the_largest_h003_conversation_plus_one_reservation():
+    worst_spend, worst_reservation = 0.0, 0.0
+    for r in json.loads((REPO_ROOT / "experiments" / "H003_results.json").read_text())["results"]:
+        ledger = json.loads(open(r["trace"]).read())["spend"]["ledger"]
+        worst_spend = max(worst_spend, r["spend_upper_bound_usd"])
+        worst_reservation = max(worst_reservation, max(e["reserved_usd"] for e in ledger))
+    assert PLAN["per_run_cap_usd"] >= 1.5 * (worst_spend + worst_reservation)
+
+
+def test_the_documents_are_named_by_their_own_titles_and_tools():
+    import re
+
+    docdir = pins.data_dir() / "tau2" / "domains" / "banking_knowledge" / "documents"
+    for doc_id, d in ((k, v) for k, v in PLAN["documents"].items() if k.startswith("doc_")):
+        src = json.loads((docdir / f"{doc_id}.json").read_text())
+        assert src["title"] == d["title"] and d["tool"] in re.findall(r"\b[a-z][a-z0-9_]*_\d{4}\b", src["content"])
     assert batch.schedule(PLAN) == PLAN["runs"]
     with pytest.raises(SystemExit):
         batch.run_batch(PLAN, approved_usd=1.0)

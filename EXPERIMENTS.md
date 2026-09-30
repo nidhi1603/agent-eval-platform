@@ -358,3 +358,13 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - Screening gate: at least +4 of 20, the gains from at least 2 tasks, no more unsafe writes (blind codebook audit); cost reported per pass.
   - Budget: cap $12.00 (hard), forecast $6–10 (not a bound), 2 workers.
   - Plan: `experiments/H004_plan.json`.
+
+### Second review of H004's plan: details fixed before running (2026-09-30, $0)
+- **Safety audit:** it now also covers both conversations of every pair whose outcome differs. Violating actions and violating conversations are both counted, and neither may increase; ambiguous cases are reported separately. Passing is not safety equivalence.
+- **Audit record:** each trace's harness section saves the model's own history (`model_view`), the exact appended text and where it went, and the tools offered only through added documents.
+- **Budget:**
+  - `per_run_cap_usd` raised from $0.60 to $1.00 before approval. At 16,384 output tokens a single customer-simulator call reserves up to $0.27, so $0.60 would have cut conversations off at about $0.33 (H003's task_058 spent $0.31).
+  - The batch now labels itself COMPLETE or INCOMPLETE and counts passes over complete pairs only. Not-run conversations are never failures and are never replaced.
+- **Documents reconciled:** `_009` is the account lookup (`get_all_user_accounts_by_user_id_3847`, never reached). `_018` is transaction history (`get_bank_account_transactions_9173`), the main source of the recall gain. The previous packet had mislabelled `_018`.
+- **Wording:** the search is proactive dependency retrieval (it fires almost always), and it stays frozen for H004. Cost is always reported with success; 1.5× is a budget preference, not a standard.
+- **Checks:** reference controls rerun, 30/30, 0 hard firings; 266 tests pass.

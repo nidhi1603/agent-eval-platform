@@ -11,14 +11,18 @@
 |---|---|
 | **Tests** (`tests/test_depsearch.py`, 12) | A missing identifier triggers the search; held identifiers and `user_id` do not. Documents are never repeated. Each parameter is searched once per conversation, and the query budget caps a conversation. The model sees the added documents; the trajectory does not. The adapter offers tools named only in the added documents. The verification and identifier checks still hold and withhold an unverified write. |
 | **Reference controls** (`research/harness_v1/reference_controls_v1dep.json`) | 30/30 same reward; 0 hard-check firings; 0 search errors. |
-| **Replay over 58 saved conversations** (`dep_replay.py`, `dep_replay.json`) | Required tool-document recall 0.40 → 0.53 (the probe: 0.39 → 0.52). Doc `_018` is reached through the search in 31 conversations, `_028` in 5, `_016` in 5. |
+| **Replay over 58 saved conversations** (`dep_replay.py`, `dep_replay.json`) | Required tool-document recall 0.40 → 0.53 (the probe: 0.39 → 0.52). Reached only through the search: `_018` in 31 conversations (*Retrieving Bank Account Transaction History*, `get_bank_account_transactions_9173`, **not** the account lookup), `_028` in 5 (*Retrieving Debit Card Information*), `_016` in 5 (*Checking User Dispute History*). |
 
 ### Known costs and limits
 
 - **It fires almost always.** The reference controls ran 112 queries in 30/30 tasks and added 170 documents. Agent input tokens are 1.20× v1's.
 - **In the replay:** about 2,200 tokens and 2.7 irrelevant documents added per conversation, and the 4-query budget was used up in 29 of 58 conversations.
-- **Doc `_009` is never reached** (0 of 52 conversations that needed it). It is not special-cased.
+- **Doc `_009` is never reached** (0 of 52 conversations that needed it). It is the account lookup (*Retrieving Customer Account Information*, `get_all_user_accounts_by_user_id_3847`), the most-missed document in the H002 audit. It is not special-cased. *(The H003 review packet wrongly called `_018` the account lookup.)*
 - **The v1 checks now see more.** v1's `search_before_giving_up` advisory lists tools named in any search result it has seen, which now includes the added documents. v1's code is unchanged; its input is what differs.
 - **Evidence availability only.** A replay cannot show what the agent does with the extra documents. H004 measures that.
+
+**The audit record:**
+- Each trace's harness section saves the model's own history (`model_view`, for both arms), every dependency search with the exact appended text and the result it was appended to, and `offered_only_via_dep_search`.
+- The benchmark trajectory alone does not show what this arm's model saw.
 
 **The plan:** `experiments/H004_plan.json`, frozen and not run. It needs Nidhi's approval in chat: "run H004 with $12.00".

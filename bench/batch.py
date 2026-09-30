@@ -224,7 +224,14 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
         rows_not_run = [{"task_id": it["task_id"], "arm": it["arm"], "attempt": it.get("attempt", 0),
                          "status": "not_run", "reason": why} for it in queue]
     rows = sorted(list(done.values()) + rows_not_run, key=lambda r: order.get(_key(r), 10**9))
+    complete = _complete_groups(rows, list(plan.get("arms") or {})) if "runs" in plan else None
     return {
+        # a paired batch with any unfinished (task, attempt) group is INCOMPLETE; its gate uses complete groups only
+        "status": None if complete is None else ("COMPLETE" if all(complete.values()) else "INCOMPLETE"),
+        "complete_groups": None if complete is None else f"{sum(complete.values())}/{len(complete)}",
+        "passes_by_arm_complete_groups": None if complete is None else {
+            arm: sum(1 for r in rows if r.get("arm") == arm and complete.get((r["task_id"], r.get("attempt", 0)))
+                     and (r.get("official_reward") or 0) >= 1.0) for arm in (plan.get("arms") or {})},
         "pairs": _pairs(rows) if "runs" in plan and len(plan.get("arms") or {}) == 2 else None,
         "comparisons": _comparisons(rows, plan["comparisons"]) if plan.get("comparisons") else None,
         "passes_by_arm": {arm: sum(1 for r in rows if r.get("arm") == arm and r["status"] == "finished"
@@ -243,6 +250,14 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
         "note": ("Exploratory sample; first consequential errors are labelled by reading each trace, not by this script. "
                  "Every scheduled trial keeps its official outcome; exposed runs are reported, not removed."),
     }
+
+
+def _complete_groups(rows: list[dict], arms: list[str]) -> dict[tuple, bool]:
+    """(task, attempt) -> True when every arm's run finished (not interrupted, not not_run)."""
+    groups: dict[tuple, dict] = {}
+    for r in rows:
+        groups.setdefault((r["task_id"], r.get("attempt", 0)), {})[r["arm"]] = r["status"]
+    return {k: all(v.get(a) == "finished" for a in arms) for k, v in groups.items()}
 
 
 def _classify(a_row: dict | None, b_row: dict | None) -> str:

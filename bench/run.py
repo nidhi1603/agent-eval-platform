@@ -220,7 +220,19 @@ def _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0) -> Pa
         harness_spec = (trace.get("config") or {}).get("agent", {}).get("harness")
         if harness_spec:
             ag = getattr(orchestrator, "agent", None)
+            model_view, via_dep = None, None
+            if getattr(ag, "model_state", None) is not None:
+                from bench.adapter import WORD
+                from bench.guard import messages_as_dicts
+
+                model_view = messages_as_dicts(ag.model_state.messages)
+                traj_kb = "\n".join(m.content or "" for m in (simulation.messages if simulation else [])
+                                    if getattr(m, "role", None) == "tool" and "ID: doc_" in (getattr(m, "content", None) or ""))
+                via_dep = sorted(set(getattr(ag, "offered", {}) or {}) - set(WORD.findall(traj_kb))) \
+                    if harness_spec.get("dep_search") else None
             trace["harness"] = {**harness_spec, "events": getattr(ag, "harness_events", None),
+                                "model_view": model_view,  # the model's own history, incl. held drafts and added documents
+                                "offered_only_via_dep_search": via_dep,
                                 "adapter_events": getattr(ag, "adapter_events", None),
                                 "offered": sorted(getattr(ag, "offered", {}) or {}),
                                 "regenerations": getattr(ag, "regenerations", None),
