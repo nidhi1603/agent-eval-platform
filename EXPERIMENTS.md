@@ -451,3 +451,9 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Preflight:** `research/alltools/dense_check.py` is the first real-embedding check (a dense top-3 hit rate of at least 0.80 on 45 title queries, $0.30 cap). Conversations start only if it passes. Its code path is tested with fake embeddings, which score 0.02, so the check discriminates.
 - **Budget:** $15.00 cap, $1.00 per conversation, 2 workers. Forecast $8–14 (a forecast, not a bound).
 - **Approval:** "run H005 with $15.00". Plan: `experiments/H005_plan.json`.
+
+### H005 pilot: stopped early for a budget artefact (2026-09-30, $3.49 upper bound, about $1.16 cache-aware)
+- **Dense preflight passed:** top-3 hit rate 0.867, $0.022. Added text-embedding-3-large's price ($0.13/1M, from OpenAI's model page); the runner had refused to call it unpriced.
+- **The artefact:** the $1.00 per-conversation cap is enforced on the upper bound (all prompt tokens at the full rate). Long alltools conversations are about 93% cached, so it cut off 2 of 3 harness_v1 conversations whose cache-aware cost was about $0.22–0.25, and no standard-agent conversation. That is a bias against the longer arm. **Nidhi chose to stop and re-plan.**
+- **Descriptive only:** 8 conversations; 2 complete pairs (task_023: v1 pass vs standard fail; task_089: both fail); task_058: standard pass vs v1 interrupted. **Neither arm ever used KB_search_dense.** 0 shell-audit flags.
+- **Records:** `experiments/H005_findings.md`.
