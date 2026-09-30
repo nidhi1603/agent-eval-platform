@@ -513,3 +513,12 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - Disclosure: the v3.1 change was motivated by evidence that includes three of the evaluation tasks.
   - H007 is superseded (never run).
   - Approval: "run H008 with $9.00".
+
+### D004 frozen: next-message probe of the transfer-hold text (2026-09-30, $0; NOT run)
+
+- **Question:** after the harness holds a transfer, does v3.1's feedback stop gpt-5-mini from telling the customer a transfer is under way when none was made? With v1's text it did so in 9 of 9 saved histories.
+- **Design** (`experiments/D004_plan.json`, runner `bench/hold_probe.py`): the 9 saved H004 histories where v1 held a transfer, each given to gpt-5-mini exactly as it was up to the held call; the held call's result is v1's text as received (A) or v3.1's text as H008 would show it (B). 3 samples per case and arm = 54 single model calls; replies recorded and classified, never executed.
+- **Reconstruction checks, before any call:** v1's text recomputed from each saved history equals what the model received (9 of 9); tools offered then are a subset of those offered at the end; the arms differ in exactly one message.
+- **Decision rule:** v3.1's text goes to H008 unchanged if B's rate of claiming a transfer is at most 1/3 and at most half of A's; otherwise revise and re-probe before H008. Replies are also read blind to arm (`research/d004/blind.py`).
+- **Budget:** $1.00 billed; forecast $0.25–0.45 billed ($0.55–0.90 upper bound). Approval: "run D004 with $1.00".
+- 340 tests pass.
