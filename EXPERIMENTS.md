@@ -279,7 +279,7 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - the unused-tools advisory narrowed.
 - **Tests:** 214 passed, 14 xfailed. Record: `research/harness_v1/README.md`.
 
-### H001: baseline vs harness v1, dev pilot (PLAN FROZEN, not approved)
+### H001: baseline vs harness v1, dev pilot (SUPERSEDED by H002 before any run)
 - **Design:** 10 hash-selected dev tasks × 2 arms × 2 attempts = 40 full conversations; settings identical to S002/S003; balanced order.
 - **Decision rule:** the harness must pass at least 4 more of 20 and have no more unauthorized writes.
 - **Cost:** forecast about $4–5; cap $6.00. It needs a credit top-up (about $2.05 left) and Nidhi's approval in chat. Plan: `experiments/H001_plan.json`.
@@ -299,3 +299,21 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Not built yet:**
   - context compaction;
   - the `alltools` configuration, which needs Nidhi's OK to install sandbox-runtime and about $0.10 of embeddings.
+
+### Review of 5a06fa5 (harness v2) and H002 frozen (2026-09-29, $0)
+- **Accepted:**
+  - freeze v2 as it is and measure the extra checklist calls;
+  - H002 replaces H001;
+  - the rule-based extractor is enough for this pilot;
+  - stop expanding v2 until H002 returns;
+  - defer compact memory and an LLM compiler.
+- **Confirmed by test before freezing:**
+  - a real call sent together with `task_plan` still passes every check against the updated ledger (end to end: an unverified write next to a plan is held, withheld, and never executed);
+  - a plan citing a card's document changes no hard check.
+- **Wording corrected:**
+  - reach vs detection (015 does not count; 16/19 with relevant content);
+  - plan statuses are about discovery, not prerequisite states.
+- **H002 (PLAN FROZEN, not approved):** baseline / v1 / v2 on H001's 10 dev tasks × 2 attempts = 60 full conversations. BM25 pilot; balanced order (each arm 1st/2nd/3rd 6–7 times). Comparisons: v1 vs baseline, v2 vs baseline, v2 vs v1.
+  - **Decision rule:** at least +4 of 20 over the baseline with no more unauthorized writes; prefer v1 if the two harnesses are within 3.
+  - **Budget:** cap $12.00, $0.60 reserved per run, 3 workers, resume journal. Forecast about $7–9 (upper bound).
+  - Plan: `experiments/H002_plan.json`.

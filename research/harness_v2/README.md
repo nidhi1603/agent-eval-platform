@@ -13,7 +13,7 @@
 |---|---|---|
 | **Track** | **Ledger** (`bench/ledger.py`) | Task state kept by code, rebuilt from the agent's own conversation on every check, so it cannot drift from what happened: who is verified, clock readings, every search and the documents it returned, tools used or handed over, successful writes with receipts, and the agent's plan |
 | **Track** | **`task_plan`** (runs inside the harness, never sent to the benchmark) | The agent records the customer's requests and, for each, what it must find out. Each need is `open` / `found` (with the doc_id that answered it) / `not_found`. The environment never sees these calls |
-| **Compile** | **Procedure compiler** (`bench/compiler.py`) | Compiles each document the agent retrieves that names a tool into a card for that tool: its requirements section, the steps that use the tool, and the points where the customer must be asked or told something. Every item is a verbatim line of the document. **The prior work compiles offline from a policy it is handed** (PolicyGuide, STAGE); **here only documents this agent retrieved in this conversation are compiled** |
+| **Compile** | **Procedure compiler** (`bench/compiler.py`): a rule-based extractor that builds tool-specific procedure cards from documents met during retrieval | Compiles each document the agent retrieves that names a tool into a card for that tool: its requirements section, the steps that use the tool, and the points where the customer must be asked or told something. Every item is a verbatim line of the document. **The prior work compiles offline from a policy it is handed** (PolicyGuide, STAGE); **here only documents this agent retrieved in this conversation are compiled** |
 | **Recover** | `procedure_checklist` (soft) | Before the first use of a discovered tool (a write, or handing it to the customer), shows that tool's card. It is skipped if the plan already cites the card's document |
 | | `plan_before_acting` (soft, once per conversation) | Before a first write, transfer or denial with no plan: record one |
 | | `needs_covered` (soft) | Before a write, transfer or denial: lists needs still `open`, and needs marked `found` whose cited document was never retrieved (a fabricated source) |
@@ -30,7 +30,7 @@
 
 ## Positive control: the 19 saved failures (`replay_saved_v2.json`)
 
-The checks fire at a failure point in **17/19** conversations; v1 reached 13/19. The newly reached ones:
+The checks fire at a failure point in **17/19** conversations (v1: 13/19). This counts *reach*: a check fires at that moment. It is not detection. For **015 the card's content is only partly relevant**, so it does **not** count as catching the policy error; with relevant content, v2 reaches **16/19**. Verbatim copying ensures the card is faithful to the text, not that it applies or is complete: the first version wrongly mixed freeze and unfreeze requirements, which is why cards are now built per tool. The newly reached ones:
 - **019 (variant arm), the unauthorized rewards write.** The checklist for `update_transaction_rewards_3847` (doc `_004`) tells the agent to first look up the resolved disputes and independently verify rates and eligibility.
 - **015, R001's one policy failure.** The checklist fires when the referral tool is handed over. It is only partly relevant: its card covers how to use the tool, not the referral-programme requirement.
 - **047, the statement credit.** The checklist for `apply_statement_credit_8472` fires.
@@ -55,6 +55,9 @@ The scripted careful agent from v1 now also records a plan, citing the documents
 - **What this does not show:** whether a live model follows the checklists to better outcomes, or ignores them at the cost of extra calls. H002 has to measure that.
 
 ## Limits
+
+- **Plan statuses describe discovery, not prerequisites.** `open` / `found` / `not_found` say what the agent has found out. They are not action-specific prerequisite states (supported / missing / contradicted / unavailable). v2 does not yet track or resolve a card's requirements; it shows them. Tracking them comes after H002, and only if the cards turn out to help.
+- **A citation establishes nothing.** A plan that cites a card's document only suppresses the repeated reminder. It leaves every hard check unchanged (tested). Consent, ownership and eligibility are not enforced by any v2 check.
 
 - **A soft check costs one extra model call when it fires.** On correct behaviour it fires only where noted above; on a live model it will fire more often, and H002 must measure what that costs.
 - **The compiler is rule-based.** It covers requirements for *using a tool* (45 documents produce cards). Eligibility and rates spread across other documents remain the job of search and the plan. If the rule-based cards turn out too noisy, an LLM compiler is the next step.

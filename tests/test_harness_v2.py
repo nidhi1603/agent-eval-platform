@@ -198,3 +198,40 @@ def test_the_checklist_is_shown_once_before_first_use_unless_the_plan_cites_it()
     cited = _with_card(_verified(_Conv()).search("freeze card", FREEZE_DOC))
     _plan(cited, [{"need": "freeze procedure", "status": "found", "source": "doc_cards_026"}])
     assert harness.review(_draft(calls=[FREEZE]), cited.ev(), dict(ctx), V2) == []
+
+
+# ---- review of 5a06fa5: two execution details confirmed ---------------------------------------------------------
+
+FREEZE_WRAPPED = {"call": "call_discoverable_agent_tool",
+                  "args": {"agent_tool_name": "freeze_debit_card_3892", "arguments": json.dumps({"card_id": "dbc_x"})}}
+
+
+def test_a_real_call_next_to_a_plan_call_still_passes_every_check_before_it_runs(tmp_path):
+    # one message: a plan, and a write with no verification logged -> the write is held, then withheld; never executed
+    trace = _run(tmp_path, [{"calls": [PLAN, FREEZE_WRAPPED]}, FREEZE_WRAPPED, {"say": "Goodbye."}, {"say": "Goodbye."}],
+                 {"version": "v2"})
+    executed = [tc for m in trace["messages"] if m["role"] == "assistant" for tc in (m.get("tool_calls") or [])
+                if tc["name"] == "call_discoverable_agent_tool"]
+    assert executed == []
+    events = [(e["event"], e.get("gate") or e.get("gates")) for e in trace["harness"]["events"]]
+    assert ("plan_recorded", None) in events
+    assert ("held", "verification_before_write") in events and ("withheld", ["verification_before_write"]) in events
+
+
+def test_a_plan_citing_a_document_changes_no_hard_check():
+    """Citing the card's document only suppresses the repeated checklist reminder. Verification, identifiers and
+    duplicates are decided exactly as without a plan. (Consent, ownership and eligibility are not enforced by any
+    v2 check, so a citation cannot establish them either.)"""
+    ctx = {**_ctx(), "agent_tools": _ctx()["agent_tools"] | {"unfreeze_debit_card_3893"}}
+    hard = [g for g in V2 if g in harness.HARD]
+    cases = [
+        ("unverified", _Conv().search("freeze card", FREEZE_DOC), FREEZE),
+        ("invented id", _verified(_Conv()).search("freeze card", FREEZE_DOC), ("freeze_debit_card_3892", {"card_id": "dc_zz"})),
+        ("duplicate", _with_card(_verified(_Conv()).search("freeze card", FREEZE_DOC))
+         .call("freeze_debit_card_3892", {"card_id": "dc_1"}, "Card dc_1 frozen."), FREEZE),
+    ]
+    for label, conv, call in cases:
+        without = [f.gate for f in harness.review(_draft(calls=[call]), conv.ev(), dict(ctx), hard)]
+        _plan(conv, [{"need": "freeze procedure", "status": "found", "source": "doc_cards_026"}])
+        with_plan = [f.gate for f in harness.review(_draft(calls=[call]), conv.ev(), dict(ctx), hard)]
+        assert without == with_plan and without, label

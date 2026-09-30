@@ -105,6 +105,7 @@ def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dic
         "answer_dependent_outputs_seen": _exposure(trace),
         "exposure_status": _exposure_status(trace),
         "answer_independence_conclusive": (trace.get("answer_independence") or {}).get("conclusive"),
+        "duration_s": trace.get("duration_s"),
         "trace": str(path),
     }
 
@@ -189,7 +190,10 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
                          "status": "not_run", "reason": "batch allocation exhausted"} for it in queue]
     rows = sorted(list(done.values()) + rows_not_run, key=lambda r: order.get(_key(r), 10**9))
     return {
-        "pairs": _pairs(rows) if "runs" in plan else None,
+        "pairs": _pairs(rows) if "runs" in plan and len(plan.get("arms") or {}) == 2 else None,
+        "comparisons": _comparisons(rows, plan["comparisons"]) if plan.get("comparisons") else None,
+        "passes_by_arm": {arm: sum(1 for r in rows if r.get("arm") == arm and r["status"] == "finished"
+                                   and (r.get("official_reward") or 0) >= 1.0) for arm in (plan.get("arms") or {})},
         "batch_id": plan["batch_id"],
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "approved_usd": approved_usd,
@@ -203,6 +207,32 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
         "note": ("Exploratory sample; first consequential errors are labelled by reading each trace, not by this script. "
                  "Every scheduled trial keeps its official outcome; exposed runs are reported, not removed."),
     }
+
+
+def _classify(a_row: dict | None, b_row: dict | None) -> str:
+    """How arm B did against arm A on one (task, attempt)."""
+    rewards = [(r.get("official_reward") if r and r["status"] == "finished" else None) for r in (a_row, b_row)]
+    if any(v is None for v in rewards):
+        return "incomplete pair"
+    a, b = (v >= 1.0 for v in rewards)
+    return {(False, True): "improved", (True, False): "regressed", (True, True): "both pass",
+            (False, False): "both fail"}[(a, b)]
+
+
+def _comparisons(rows: list[dict], comparisons: list[str]) -> dict:
+    """For each pre-registered "B vs A": paired outcomes per (task, attempt), and their counts."""
+    groups: dict[tuple, dict] = {}
+    for r in rows:
+        groups.setdefault((r["task_id"], r.get("attempt", 0)), {})[r["arm"]] = r
+    out = {}
+    for comp in comparisons:
+        b, a = [x.strip() for x in comp.split(" vs ")]
+        per = [{"task_id": t, "attempt": att, "pair": _classify(arms.get(a), arms.get(b))}
+               for (t, att), arms in groups.items()]
+        counts = {k: sum(x["pair"] == k for x in per) for k in ("improved", "regressed", "both pass", "both fail",
+                                                                  "incomplete pair")}
+        out[comp] = {"counts": counts, "pairs": per}
+    return out
 
 
 def _pairs(rows: list[dict]) -> list[dict]:
@@ -244,6 +274,9 @@ def main(argv=None) -> int:
               (r.get("attribution") or {}).get("cause"), r.get("spend_upper_bound_usd"))
     for pr in summary.get("pairs") or []:
         print("pair", pr["task_id"], pr["pair"], pr["rewards"])
+    for comp, res in (summary.get("comparisons") or {}).items():
+        print("comparison", comp, res["counts"])
+    print("passes by arm", summary.get("passes_by_arm"))
     print("results:", out)
     return 0
 
