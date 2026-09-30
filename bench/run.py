@@ -78,6 +78,7 @@ class RunOptions:
     agent_nudges: tuple[str, ...] = ()  # proposal-time advisory checks (bench/nudge.py); each firing logged
     agent_tool_adapter: str | None = None  # "direct_tools" (bench/adapter.py); every harness action logged
     agent_harness: dict | None = None  # harness v1 spec (bench/harness.py, agent.harness_record); every check logged
+    budget_accounting: str = "upper_bound"  # "billed": settle calls at the provider-billed (cache-aware) cost
 
 
 def run(opts: RunOptions) -> tuple[dict, Path]:
@@ -119,7 +120,7 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
         check_llm_args(opts.user_llm_args, "user simulator")
 
         budget, send, embedder_cls = _prepare_spending(opts, run_dir / "ledger.jsonl")
-        trace["budget"] = {"cap_usd": budget.cap_usd, "limits": asdict(opts.limits),
+        trace["budget"] = {"cap_usd": budget.cap_usd, "limits": asdict(opts.limits), "accounting": budget.accounting,
                            "mechanism": "estimated spend admission control (bench/budget.py), not a guarantee"}
 
         from tau2.data_model.simulation import TextRunConfig
@@ -335,7 +336,8 @@ def _prepare_spending(opts: RunOptions, journal: Path):
         from bench.scripted import FAKE_PRICES, FakeEmbedder, ScriptedLLM
 
         _isolate_embedding_cache(Path(tempfile.mkdtemp(prefix="aep-mock-embeddings-")))
-        budget = Budget(opts.budget_usd if opts.budget_usd is not None else 1.0, FAKE_PRICES, journal)
+        budget = Budget(opts.budget_usd if opts.budget_usd is not None else 1.0, FAKE_PRICES, journal,
+                        accounting=opts.budget_accounting)
         return budget, ScriptedLLM.from_file(opts.scripted), FakeEmbedder
 
     if opts.budget_usd is None:
@@ -345,7 +347,7 @@ def _prepare_spending(opts: RunOptions, journal: Path):
     from tau2.knowledge.embedders.openai_embedder import OpenAIEmbedder
 
     load_dotenv(REPO_ROOT / ".env", override=False)
-    budget = Budget(opts.budget_usd, load_prices(), journal)
+    budget = Budget(opts.budget_usd, load_prices(), journal, accounting=opts.budget_accounting)
     needed = {opts.agent_model, opts.user_model}
     if opts.retrieval_config.startswith("alltools") or "openai_embeddings" in opts.retrieval_config:
         needed.add("text-embedding-3-large")

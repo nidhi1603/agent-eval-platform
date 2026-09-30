@@ -170,8 +170,24 @@ class Call:
     duration_s: float | None = None
 
 
+ACCOUNTING = ("upper_bound", "billed")
+
+
 class Budget:
-    def __init__(self, cap_usd: float, prices: dict[str, Price], journal: Path | None = None):
+    """Admission control on estimated spend.
+
+    Every call is RESERVED at a conservative bound: its input bound at the full input price, plus max output.
+    A completed call is then SETTLED:
+    - "upper_bound" (the default, used by every run before H006): at the full input price for every prompt token.
+    - "billed": at the price the provider bills for its own reported usage, with cached prompt tokens at the cached
+      rate. A call whose model has no cached rate, or with no cached-token report, settles at the full price.
+    In both modes an unresolved call holds its whole reservation. Both figures are always reported."""
+
+    def __init__(self, cap_usd: float, prices: dict[str, Price], journal: Path | None = None,
+                 accounting: str = "upper_bound"):
+        if accounting not in ACCOUNTING:
+            raise ValueError(f"accounting must be one of {ACCOUNTING}, not {accounting!r}")
+        self.accounting = accounting
         self.cap_usd = finite(cap_usd, "cap_usd", positive=True)
         self._prices = prices
         self._lock = threading.Lock()
@@ -183,10 +199,17 @@ class Budget:
             raise PriceMissing(f"no recorded price for {model!r} in bench/prices.json")
         return self._prices[model]
 
+    @staticmethod
+    def _billed(c: "Call") -> float:
+        return c.cost_with_cache_usd if c.cost_with_cache_usd is not None else c.cost_usd
+
+    def _settled(self, c: "Call") -> float:
+        return self._billed(c) if self.accounting == "billed" else c.cost_usd
+
     def _exposure(self) -> float:
-        # Resolved calls count at usage cost; everything else at its reservation.
+        # Resolved calls count at their settled cost; everything else at its reservation.
         # A rate-limit rejection (429) was never processed: it holds nothing.
-        return sum(c.cost_usd if c.status == "ok" else 0.0 if c.status == REJECTED else c.reserved_usd
+        return sum(self._settled(c) if c.status == "ok" else 0.0 if c.status == REJECTED else c.reserved_usd
                    for c in self.calls)
 
     def _log(self, event: str, call: Call) -> None:
@@ -265,6 +288,9 @@ class Budget:
                                              if ok and all(c.cost_with_cache_usd is not None for c in ok) else None),
                 "unresolved_reservations_usd": round(held, 6),
                 "upper_bound_usd": round(usage_based + held, 6),
+                "billed_estimate_usd": round(sum(self._billed(c) for c in ok), 6),  # embeddings etc. at full price
+                "accounting": self.accounting,
+                "enforced_usd": round(sum(self._settled(c) for c in ok) + held, 6),  # what admission control used
                 "provider_reconciled_usd": None,  # not available to the code; compare with the provider dashboard
                 "by_role_upper_bound_usd": by_role,
                 "calls": len(self.calls),

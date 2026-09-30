@@ -1,0 +1,142 @@
+{
+ "batch_id": "H006",
+ "kind": "small paired pilot: full conversations, two arms, one attempt (official tau2 grade); alltools retrieval",
+ "question": "Is there enough promise that harness v1 improves gpt-5-mini over the standard agent under alltools to justify a larger confirmation run?",
+ "arms_note": "'baseline' is the benchmark's standard agent: tau2's LLMAgent, unmodified (tests/test_alltools_compat.py). 'harness_v1' is bench/harness.py with spec {}. Dependency search is OFF. The arm is named 'baseline' so the batch tooling pairs it as the reference arm.",
+ "arms": {
+  "baseline": {
+   "agent_variant": "baseline"
+  },
+  "harness_v1": {
+   "agent_variant": "baseline",
+   "harness": {}
+  }
+ },
+ "comparisons": [
+  "harness_v1 vs baseline"
+ ],
+ "selection_rule": "The first 5 of H002's 10 tasks in H001 hash order (the same 5 as H003), fixed before any H005 run and not chosen by outcomes. They cover different workflows: account opening/closing (069), product recommendation with a card and savings account (058), rebate eligibility and a card application (023), declined cards at an ATM (089), and a lost/stolen card (077).",
+ "tasks": [
+  "task_069",
+  "task_058",
+  "task_023",
+  "task_089",
+  "task_077"
+ ],
+ "trials_per_arm": 1,
+ "runs": [
+  {
+   "task_id": "task_069",
+   "arm": "baseline",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_069",
+   "arm": "harness_v1",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_058",
+   "arm": "harness_v1",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_058",
+   "arm": "baseline",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_023",
+   "arm": "baseline",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_023",
+   "arm": "harness_v1",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_089",
+   "arm": "harness_v1",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_089",
+   "arm": "baseline",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_077",
+   "arm": "baseline",
+   "attempt": 0
+  },
+  {
+   "task_id": "task_077",
+   "arm": "harness_v1",
+   "attempt": 0
+  }
+ ],
+ "arm_order_rule": "one (task, arm pair) group per task, both arms back to back; the first arm alternates by task in the listed order (baseline first on tasks 1, 3, 5; harness_v1 first on tasks 2, 4). Times first: baseline 3, harness_v1 2.",
+ "settings": {
+  "agent_model": "gpt-5-mini",
+  "agent_args": {
+   "reasoning_effort": "medium"
+  },
+  "user_model": "gpt-5.2",
+  "user_args": {
+   "reasoning_effort": "low"
+  },
+  "retrieval_config": "alltools",
+  "seed": 300,
+  "max_steps": 200,
+  "max_output_tokens": 16384,
+  "budget_accounting": "billed"
+ },
+ "settings_note": "H004's settings with retrieval_config alltools: gpt-5-mini medium reasoning, 16,384 output tokens (incl. reasoning), gpt-5.2 low customer, seed 300, max_steps 200. Identical in both arms. alltools = tau2's default for banking_knowledge (KB_search_bm25, KB_search_dense with OpenAI text-embedding-3-large, shell).",
+ "infrastructure": {
+  "shared_by_both_arms": "bench/sandbox_policy.py: shell reads denied outside the knowledge base (home, /tmp, system temp, both repositories); sandboxes under /private/var/tmp/aep_kb_sandboxes; the shell's environment reduced to an allow-list (no credentials). Validated: research/alltools/containment_check.json (canaries; every probe denied, knowledge base readable). Each trace records sandbox_policy and a shell_audit.",
+  "sandbox_runtime": "@anthropic-ai/sandbox-runtime 0.0.23 (pinned per tau2), ripgrep 15.2.0",
+  "offline_validation": "tests/test_alltools_compat.py, tests/test_alltools_e2e.py (scripted, fake embeddings, conclusive answer independence in both arms); reference controls under alltools 30/30 same reward, 0 hard-check firings (research/harness_v1/reference_controls_alltools.json)"
+ },
+ "outcomes": {
+  "primary": "official tau2 reward per conversation (10), and paired outcome per task (improved / regressed / both pass / both fail / incomplete)",
+  "supporting": [
+   "which tasks any gain comes from (one task twice is one task)",
+   "retrieval, from each conversation's model view with bench/kb_evidence.py: documents observed full / partial / discovered, by tool (KB_search_bm25, KB_search_dense, shell); required-document recall at the 'full' level and at 'full or partial'",
+   "missing documents among failures (an association, not a cause)",
+   "progress with bench/metrics.py buckets: discoverable writes, discoverable reads, base writes, customer actions; and agent read calls, attempted writes, successful writes",
+   "transfers and capability denials",
+   "harness activity: held / released / withheld by check, tools offered",
+   "cost per conversation (upper bound and cache-aware), cost per pass, latency, agent input and output tokens, embedding spend",
+   "shell use and shell_audit flags per arm; any flag is inspected before results are reported",
+   "conversations interrupted, by cause"
+  ],
+  "safety_audit": {
+   "scope": "blind to arm, H002 codebook: every conversation with an executed write, both arms, plus both conversations of every task whose pass/fail differs (with 10 conversations this is expected to be most of them)",
+   "procedure": "as H004: one first review for all scoped conversations; an independent second review for every flagged conversation plus the 4 unflagged ones with the most writes; disputes adjudicated blind before unblinding; any rule-dependent count reported under both readings",
+   "counts": "confirmed violating actions and conversations with at least one, per arm; ambiguous separately",
+   "limit": "passing is not safety equivalence"
+  },
+  "not_evidence": "5 development tasks x 1 attempt, one model: descriptive screening only. Not a performance estimate, not held-out, not leaderboard-comparable."
+ },
+ "decision_rule": null,
+ "forecast_usd": {
+  "basis": "H005, cache-aware per conversation: standard $0.04-0.16 (mean $0.11), harness_v1 $0.04-0.25 (mean $0.14, including the two cut off); longer v1 conversations assumed up to $0.30 billed.",
+  "expected": "about 1.20-2.50 billed for 10 conversations (the upper bound will read roughly 3x higher)"
+ },
+ "budget_usd_total": 3.5,
+ "per_run_cap_usd": 0.75,
+ "execution": {
+  "workers": 2,
+  "budget_handling": "Enforced on the BILLED figure: per_run_cap_usd ($0.75) is both each conversation's reservation from the total and its own enforced budget; $3.50 is the enforced total. H005's longest conversation was about $0.25 billed, so $0.75 leaves room of about 3x. With 2 workers a start needs $0.75 unreserved beside one other $0.75 reservation, so if mean billed spend exceeds about $0.22, the last run may not start.",
+  "incomplete": "interrupted runs keep their outcome and are not rerun; unfunded runs are not_run, never failures, never replaced; a task with either arm unfinished is an incomplete pair, listed and excluded from the paired counts; the batch is labelled COMPLETE or INCOMPLETE.",
+  "interruption": "operator-stopped runs are journaled with their spend and rerun, disclosed",
+  "resume": "experiments/H006_journal.jsonl",
+  "approval": "runs only after Nidhi approves in chat with the amount: 'run H006 with $3.50' (billed estimate; the upper bound is reported too)"
+ },
+ "no_retries": "no conversation is repeated; every scheduled run is reported",
+ "supersedes": "H005 (stopped early, experiments/H005_findings.md): its $1.00 per-conversation cap was enforced on the upper bound (every prompt token at the full price) and cut off long, ~93%-cached harness_v1 conversations, a bias against the longer arm. H006 re-runs the SAME 10-conversation pilot (tasks, arms, settings, order) from scratch with 'billed' accounting. No H005 conversation is reused, so nothing is selected on interim outcomes; H005 stays reported on its own.",
+ "interpretation": "DESCRIPTIVE SCREENING, not a test of improvement: 5 paired conversations cannot establish a benefit, and no pass-count gate is applied. Pre-stated heuristic for the next spending decision only: plan a larger confirmation if harness_v1 is at least level with baseline on passes AND (it passes more tasks, OR its pooled discoverable-write progress from bench/metrics.py is higher by at least 0.10) AND it has no more conversations with a confirmed policy violation. Otherwise stop spending on this comparison and report. Either way the pilot is reported in full.",
+ "budget_accounting_note": "bench/budget.py 'billed': every call is still RESERVED conservatively (input bound at the full input price + max output); a completed call is SETTLED at the provider-billed cost from its own usage report, cached prompt tokens at the cached rate (full price when there is no cached rate or report, e.g. embeddings); unresolved calls hold their whole reservation. The upper bound (all prompt tokens at the full price) is still reported for every run; it may be about 3x the billed figure.",
+ "dense_retrieval": "verified by the H005 preflight (research/alltools/dense_check.json: top-3 hit rate 0.867, $0.022); the document embeddings are cached and reused. Not repeated."
+}

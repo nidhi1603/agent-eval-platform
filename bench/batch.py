@@ -69,6 +69,12 @@ def schedule(plan: dict) -> list[dict]:
     return [{"task_id": t, "arm": None} for t in plan["tasks"]]
 
 
+def _enforced(row: dict) -> float:
+    """A run's spend as its budget enforced it (rows from before "billed" accounting carry the upper bound only)."""
+    v = row.get("spend_enforced_usd")
+    return (v if v is not None else row.get("spend_upper_bound_usd")) or 0.0
+
+
 def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dict:
     """One scheduled conversation under its own spending cap. Top level, so a worker process can run it."""
     task_id, arm = item["task_id"], item["arm"]
@@ -81,6 +87,7 @@ def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dic
         agent_variant=s.get("agent_variant", "baseline"),
         agent_tool_adapter=s.get("tool_adapter"),
         agent_harness=s.get("harness"),
+        budget_accounting=s.get("budget_accounting", "upper_bound"),
         scripted=Path(s["scripted"]) if s.get("scripted") else None,  # mock smoke tests only
         **({"out_dir": Path(out_dir)} if out_dir else {}),
     )
@@ -102,6 +109,9 @@ def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dic
         "persisted": trace.get("persisted"),
         "cap_given_usd": cap,
         "spend_upper_bound_usd": spend.get("upper_bound_usd"),
+        # what admission control counted: the upper bound, or the billed estimate under "billed" accounting
+        "spend_enforced_usd": spend.get("enforced_usd", spend.get("upper_bound_usd")),
+        "spend_billed_estimate_usd": spend.get("billed_estimate_usd"),
         "spend_cache_aware_usd": spend.get("cache_aware_estimate_usd"),
         "unresolved_reservations_usd": spend.get("unresolved_reservations_usd"),
         "counts": trace.get("counts"),
@@ -152,8 +162,7 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
                     stopped_spend.append(row)
                     continue
                 done[_key(row)] = row
-    spent_upper = (sum(r.get("spend_upper_bound_usd") or 0.0 for r in done.values())
-                   + sum(r.get("spend_upper_bound_usd") or 0.0 for r in stopped_spend))
+    spent_upper = (sum(_enforced(r) for r in done.values()) + sum(_enforced(r) for r in stopped_spend))
     todo = [it for it in schedule_ if _key(it) not in done]
 
     def settings_for(item):
@@ -179,7 +188,7 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
                                      "status": "not_run", "reason": "stopped: provider reported no credit"})
                 continue
             row = _run_one(item, settings_for(item), remaining, str(out_dir) if out_dir else None)
-            spent_upper += row.get("spend_upper_bound_usd") or 0.0
+            spent_upper += _enforced(row)
             record(row)
             stopped = stopped or _out_of_credit(row)
     else:
@@ -216,7 +225,7 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
                         row = {"task_id": item["task_id"], "arm": item["arm"], "attempt": item.get("attempt", 0),
                                "status": "interrupted_or_failed", "reason": f"worker error: {type(e).__name__}: {e}"[:300],
                                "spend_upper_bound_usd": per_run}  # unknown spend counts as the full reservation
-                    spent_upper += row.get("spend_upper_bound_usd") or 0.0
+                    spent_upper += _enforced(row)
                     record(row)
                     stopped = stopped or _out_of_credit(row)
         why = ("stopped: provider reported no credit, or the worker pool broke" if stopped

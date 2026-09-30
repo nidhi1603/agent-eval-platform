@@ -457,3 +457,15 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **The artefact:** the $1.00 per-conversation cap is enforced on the upper bound (all prompt tokens at the full rate). Long alltools conversations are about 93% cached, so it cut off 2 of 3 harness_v1 conversations whose cache-aware cost was about $0.22–0.25, and no standard-agent conversation. That is a bias against the longer arm. **Nidhi chose to stop and re-plan.**
 - **Descriptive only:** 8 conversations; 2 complete pairs (task_023: v1 pass vs standard fail; task_089: both fail); task_058: standard pass vs v1 interrupted. **Neither arm ever used KB_search_dense.** 0 shell-audit flags.
 - **Records:** `experiments/H005_findings.md`.
+
+### Billed budget accounting; H006 frozen, re-running the H005 pilot (2026-09-30, $0; NOT run)
+- **`bench/budget.py` gains "billed" accounting (opt-in):**
+  - calls are still reserved conservatively (the input bound at the full input price, plus max output);
+  - a completed call settles at the provider-billed cost from its own usage report, with cached tokens at the cached rate (full price with no cached rate or report);
+  - unresolved calls hold their reservation;
+  - the upper bound is still reported for every run.
+
+  Six tests, including the H005 case: a call refused under upper-bound settlement is admitted when billed.
+- **H006 is the H005 pilot unchanged** (tasks, arms, settings, order) except `budget_accounting: "billed"`, re-run from scratch. No H005 conversation is reused; H005 stays reported on its own.
+- **Budget:** $3.50 billed total, $0.75 billed per conversation (about 3× H005's longest). Forecast $1.20–2.50 billed; the upper bound will read roughly 3× higher. The dense preflight is not repeated (it passed; embeddings are cached).
+- **Approval:** "run H006 with $3.50".
