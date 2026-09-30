@@ -77,6 +77,14 @@ Reference actions are read only to measure progress on these dev tasks. The matc
 60 conversations, labelled partly blind by three independent labellers with a fixed codebook.
 
 - **Most common first failure:** a requirement only in an unretrieved document (24/60). One document, the account-lookup tool's `_009`, is missing in 16.
-- **Which fix would plausibly help:** retrieval 41/60, argument grounding 20/60, a completion check 14/60.
-- **The harness shifts failures later.** Missed steps in retrieved documents fall (9 → 3–4). Wrong arguments or policy readings rise (3 → 6), and **unsafe writes rise (1 → 4 in v1)**: verified writes that break other policies (consent, amount entitlement, eligibility). This is a safety cost the verification check could not see.
-- **False completion claims** occur in every arm. A held transfer followed by a false "transferred" claim is a plausible harness side effect, not yet established.
+- **Candidate interventions the labellers identified:** retrieval in 41/60, argument grounding in 20/60, a completion check in 14/60. These "would help" judgements agree only 12/15 on re-labelling, so treat them as soft. Primary categories agree 13/15 (κ = 0.83).
+- **Observed, not established as caused:** missed steps in retrieved documents fall (9 → 3–4), and wrong arguments or policy readings rise (3 → 6).
+- **Unsafe writes, adjudicated:** conversations with at least one violation: baseline 1, v1 3, v2 1. Violating actions: baseline 8, v1 3, v2 1 (plus 1 ambiguous in v1). This corrects the earlier flag-based "1 → 4". **No safety difference is shown either way.**
+- **False completion claims** occur in every arm. **All 9 harness conversations with a false "transferred" claim (no transfer call) came after the harness had held a transfer; the baseline has 1 such conversation.** A strong association and a plausible side effect of holding transfers, but not a controlled result.
+- **Offline tool-document retrieval probe:**
+  - queries from customer words do not help;
+  - dependency following (general) raises tool-document recall from 0.39 to 0.52 combined;
+  - the account-lookup document is still missed;
+  - this shows availability only.
+
+  See the audit summary.

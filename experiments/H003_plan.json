@@ -1,7 +1,7 @@
 {
  "batch_id": "H003",
  "kind": "calibration: baseline only, full conversations (official tau2 grade); BM25",
- "purpose": "Before any paired comparison at a higher reasoning setting: does gpt-5-mini at reasoning_effort=medium, with an output allowance large enough for its reasoning, complete meaningful parts of these workflows, and does the output cap still truncate turns? This is a go/no-go check for a later baseline vs harness_v1 comparison (v2 dropped on overhead, a scope decision).",
+ "purpose": "Can this baseline configuration (gpt-5-mini at reasoning_effort=medium AND a 16,384-token output allowance) complete enough of these workflows to support a useful harness comparison? A calibration screen on 5 tasks: it cannot say which of the two setting changes caused any difference, and 5 tasks do not estimate general performance.",
  "not_a_comparison": "One arm, no harness. It says nothing about whether any harness helps.",
  "tasks": [
   "task_069",
@@ -79,5 +79,10 @@
   "budget_handling": "sequential: each run's cap is the unspent allocation; journal and resume as in H002",
   "approval": "runs only after Nidhi approves in chat with the amount: 'run H003 with $3.00'"
  },
- "no_retries": "no conversation is repeated; every scheduled run is reported"
+ "no_retries": "no conversation is repeated; every scheduled run is reported",
+ "question": "Can this baseline configuration (gpt-5-mini at reasoning_effort=medium AND a 16,384-token output allowance) complete enough of these workflows to support a useful harness comparison? A calibration screen on 5 tasks: it cannot say which of the two setting changes caused any difference, and 5 tasks do not estimate general performance.",
+ "success_criterion": "Per conversation: official tau2 reward 1.0 = success (the primary outcome).",
+ "interruption_treatment": "A conversation interrupted by the budget cap, a provider error or the output cap keeps its outcome (interrupted, with cause), is reported, counts toward the go rule's truncation condition when caused by the output cap, and is not rerun. A conversation stopped by the operator before grading is journaled as operator_stopped with its spend counted and rerun, as in H002.",
+ "attempts": "1 per task (5 conversations: task_069, task_058, task_023, task_089, task_077)",
+ "comparison_constraint": "Any later baseline vs harness comparison must use these same settings (medium reasoning, 16,384 output tokens) in both arms."
 }
