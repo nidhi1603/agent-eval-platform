@@ -328,3 +328,15 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **The bottleneck has moved:** 78% of reference writes are never attempted. The agents finish believing they are done, with required-document recall still at 0.35 and fewer than 3 searches.
 - **v2 vs v1:** +42% cost (upper bound), +22% (cache-aware), +29% latency, no benefit. *(Corrected from "+27%", which was vs the baseline.)*
 - **Records:** `experiments/H002_findings.md`, `H002_deviations.md`, `research/h002/`.
+
+### H003 run: medium-reasoning baseline calibration, 1/5 passes; GO on the pass condition only (2026-09-30, $0.83 upper bound)
+- **Settings:** gpt-5-mini medium reasoning, 16,384 output tokens, bm25, seed 300. 5 tasks × 1 attempt. None interrupted.
+- **Go rule:**
+  - (a) no output-cap hits: met. But 4 of 82 agent calls, in 3 of 5 conversations, exceeded H002's 4,096 cap, including the pass, so the larger allowance is required at medium reasoning.
+  - (b) met through the pass only: task_023, a rebate-eligibility reasoning task that v1 also passed at low reasoning in H002. Reference-write progress 1/26 (0.02), not above 0.10.
+- **Compared with H002's low baseline on the same tasks:**
+  - upper-bound cost 1.13×, cache-aware cost 1.38×;
+  - latency 2.0×, agent output tokens 3.0×;
+  - transfers still 4 of 5; task_069 and task_077 miss the same tools as before.
+- **Next (not run):** recommend harness_v1 vs harness_v1 + dependency-following tool search at these settings; build and test offline first. H003's go rule names baseline vs v1, and this discrepancy is flagged for review.
+- **Records:** `experiments/H003_findings.md`, `research/h003/`.
