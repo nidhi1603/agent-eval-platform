@@ -56,6 +56,24 @@ def test_search_results_are_full_observations_with_their_source(docs, tool):
     assert "[Timing" not in obs[1].text
 
 
+def test_a_truncated_search_result_is_partial_not_full(docs):
+    cut = _search_output(docs, DOC).replace(docs[DOC]["content"], docs[DOC]["content"][:300])
+    [o] = kb_evidence.observations(_conv(("KB_search_bm25", {"query": "cards"}, cut)), docs)
+    assert o.level == "partial" and o.text.startswith(docs[DOC]["content"][:100].strip()[:50])
+
+
+def test_files_printed_together_are_full_only_when_complete_and_attributable(docs):
+    whole = f"# {docs[DOC]['title']}\n\n{docs[DOC]['content']}"
+    other_cut = f"# {docs[OTHER]['title']}\n\n" + "\n".join(docs[OTHER]["content"].splitlines()[:4])
+    cmd = f"cat {_file(docs, DOC)} {_file(docs, OTHER)} | head -c 100000"
+    out = whole + "\n" + other_cut
+    got = {o.doc_id: o for o in kb_evidence.observations(_conv(("shell", {"command": cmd}, out)), docs)}
+    assert got[DOC].level == "full"
+    if kb_evidence._norm(docs[OTHER]["content"]) not in kb_evidence._norm(out):
+        assert got[OTHER].level == "partial"
+        assert docs[DOC]["content"].splitlines()[-1].strip() not in got[OTHER].text   # only its own lines
+
+
 def test_empty_or_failed_retrieval_yields_nothing(docs):
     conv = _conv(("KB_search_dense", {"query": "x"}, "No relevant documents found.\n\n[Timing: total=1ms]"),
                  ("shell", {"command": f"cat {_file(docs, DOC)}"}, "Error (exit code 2): no such file"),
@@ -68,7 +86,7 @@ def test_shell_cat_of_one_file_is_full_and_head_is_an_excerpt(docs):
     first = "\n".join(whole.splitlines()[:3])
     obs = kb_evidence.observations(_conv(("shell", {"command": f"cat {_file(docs, DOC)}"}, whole),
                                          ("shell", {"command": f"head -3 {_file(docs, OTHER)}"}, first)), docs)
-    assert [(o.doc_id, o.level) for o in obs] == [(DOC, "full"), (OTHER, "excerpt")]
+    assert [(o.doc_id, o.level) for o in obs] == [(DOC, "full"), (OTHER, "partial")]
     assert obs[1].text == first
 
 
@@ -77,8 +95,8 @@ def test_shell_grep_lines_are_excerpts_of_the_files_they_came_from(docs):
            f"{_file(docs, OTHER)}-3-Some context line\n")
     obs = kb_evidence.observations(_conv(("shell", {"command": "grep -rn -C1 account_id ."}, out)), docs)
     got = {o.doc_id: (o.level, o.text) for o in obs}
-    assert got[DOC] == ("excerpt", f"Use {TOOL} with the account_id")
-    assert got[OTHER] == ("excerpt", "Some context line")
+    assert got[DOC] == ("partial", f"Use {TOOL} with the account_id")
+    assert got[OTHER] == ("partial", "Some context line")
 
 
 def test_a_listing_only_discovers_documents(docs):
@@ -143,18 +161,39 @@ def test_the_sandbox_denies_reads_of_the_answer_key_and_this_repo(tmp_path):
     fs = json.loads(sm.settings_path.read_text())["filesystem"]
     deny = fs["denyRead"]
     assert "~/.ssh" in deny                                     # tau2's own entries are kept
-    assert str(bench.REPO_ROOT.resolve()) in deny
+    assert str(bench.REPO_ROOT.resolve()) in deny and str(Path.home()) in deny and "/tmp" in deny
     tasks = (Path(bench.os.environ["TAU2_DATA_DIR"]) / "tau2" / "domains" / "banking_knowledge" / "tasks").resolve()
     assert any(str(tasks).startswith(p) for p in deny)
     assert fs["allowWrite"] == []                               # writes untouched (alltools is read-only)
 
 
+def test_the_shell_subprocess_gets_no_credentials_from_the_environment(monkeypatch):
+    import sys
+
+    from tau2.knowledge import sandbox_manager as sm
+
+    sandbox_policy.patch()
+    monkeypatch.setenv("AEP_FAKE_API_KEY", "canary-not-a-real-key")
+    monkeypatch.setenv("OPENAI_API_KEY", "canary-openai")
+    code = "import os, json; print(json.dumps(sorted(os.environ)))"
+    seen = json.loads(sm.subprocess.run([sys.executable, "-c", code], capture_output=True, text=True).stdout)
+    assert "AEP_FAKE_API_KEY" not in seen and "OPENAI_API_KEY" not in seen
+    assert set(seen) <= set(sandbox_policy.ENV_ALLOW) | {"__CF_USER_TEXT_ENCODING", "PWD", "SHLVL", "_"}
+    assert "PATH" in seen                                       # the shell still finds its binaries
+    # an explicit env (tau2 never passes one) is left alone
+    assert "X" in sm.subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                                    env={**sandbox_policy.clean_env(), "X": "1"}).stdout
+
+
 def test_the_shell_audit_flags_escape_attempts_and_ground_truth():
     conv = _conv(("shell", {"command": "cat \"$HOME\"/Desktop/x.json"}, "{\"evaluation_criteria\": {}}"),
                  ("shell", {"command": "grep -rn fee ."}, "./a.md:1:fee"),
-                 ("shell", {"command": "cat ../x"}, "Error: Command blocked - contains '..' which could escape"))
+                 ("shell", {"command": "cat ../x"}, "Error: Command blocked - contains '..' which could escape"),
+                 ("shell", {"command": "printenv"}, "OPENAI_API_KEY=sk-abcdefghijklmnopqrstu"))
     a = sandbox_policy.audit(conv)
-    assert a["shell_calls"] == 3
+    assert a["shell_calls"] == 4
+    assert a["flagged"][-1]["reasons"] == ["escape_pattern", "credential_like_output"]
+    a["flagged"] = a["flagged"][:-1]
     assert [f["reasons"] for f in a["flagged"]] == [["escape_pattern", "ground_truth_like_output"],
                                                    ["escape_pattern", "blocked_by_tau2"]]
 

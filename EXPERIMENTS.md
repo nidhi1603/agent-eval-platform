@@ -404,10 +404,26 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - Errors and empty results record nothing.
   - Tools are discovered from retrieval **output** only, never from a shell command's text.
 - **Adapter and v1 checks** now read all retrieval tools. KB_search behaviour is unchanged (all prior tests pass). The v2 ledger and dependency search still read KB_search only; both are frozen or disabled.
-- **Containment gap found in tau2's sandbox** (its docs call it best-effort): srt reads are deny-only, and the escape filter removes quoted strings before checking. So `cat "$HOME"/...` is likely not caught, and the task files (the answer key) and this repo's `.env` were probably readable.
+- **Suspected path-filter bypass found during code review; reproduction pending** (tau2's sandbox is best-effort by its own documentation): srt reads are deny-only, and the escape filter removes quoted strings before checking. Nothing shows a credential or answer key was actually exposed.
   - `bench/sandbox_policy.py` adds them to the deny list for every arm, and records a shell audit in each trace.
   - It must be verified empirically after the install (`research/alltools/containment_check.py`, which reports READABLE or DENIED only and never prints contents).
 - **Metrics** (`bench/metrics.py`): reference actions are bucketed by channel and underlying type: discoverable writes, discoverable reads, base writes, base reads, customer, other. Agent calls are counted as read calls, attempted writes and successful writes. A regression test reproduces H004's corrected 17/90 and 43/90.
 - **Standard arm:** a test asserts the standard agent is tau2's `LLMAgent`, unmodified.
 - **Tests:** 282 pass.
 - **Waiting on Nidhi's permission:** `npm install -g @anthropic-ai/sandbox-runtime@0.0.23` and `brew install ripgrep`. After that, at $0: the containment check, scripted alltools runs (fake embeddings), and the 30 reference controls under alltools. Real embeddings (about $0.10) are needed only for live runs.
+
+### Review of the alltools compatibility packet: containment tightened (2026-09-30, $0)
+- **Evidence levels:** decided by what reached the model, never by the command. Search results and `cat` count as **full** only when the complete document text is present and attributable. Truncated output is **partial** ("excerpt" renamed). For files printed together, each document gets only its own lines. Tests enforce all of this.
+- **A second suspected gap, the environment: reproduction pending.** tau2 starts the shell with no `env=`, so it inherits the runner's environment, which includes the API key loaded from `.env`. A plain `printenv` passes tau2's filter.
+  - Fix: the shell subprocess now gets only an allow-list (PATH, HOME, locale, TMPDIR, TERM, USER, SHELL), for every arm. The model-calling process keeps its credentials. Tested with fake variables.
+- **Boundary:** the deny-list is widened to the whole home directory, /tmp and both repositories. The intended boundary: knowledge base and runtime files readable; credentials, answer keys and private files not. The audit also flags environment probing and credential-like output.
+- **Containment check rewritten:**
+  - harmless canary files (home, /tmp, repo), created and deleted by the script;
+  - tried by quoted `$HOME`, absolute path, `cd` via an environment variable, and a symlink inside the knowledge base;
+  - a fake environment canary;
+  - knowledge-base access must still work;
+  - outcomes: READABLE / PERMISSION_DENIED / NOT_FOUND / BLOCKED_BY_FILTER / ERROR.
+
+  Fallback if srt can't enforce the boundary: a container exposing only the knowledge base and scratch space.
+- **Fake embeddings** validate integration only. The first approved real-embedding check will verify dense search on its own.
+- **Tests:** 285 pass.

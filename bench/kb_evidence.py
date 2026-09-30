@@ -7,10 +7,15 @@ agent with text it never received. So every successful retrieval result becomes 
 
     Observation(doc_id, level, text, call_id, step, tool)
 
-    level "full"        the document's whole content was shown (a search result, or `cat` of its file)
-          "excerpt"     part of it was shown: grep lines attributed to its file, or head/sed/tail of that one file
-          "discovered"  only its name was shown: ls, find, INDEX listings, grep -l
+    level "full"        the document's complete content reached the model, identifiably: every word of it is in
+                        the text attributed to that document (a whole search result, or `cat` of its file)
+          "partial"     some of it reached the model: a truncated search result, grep lines attributed to its file,
+                        head/sed/tail of that one file, or a `cat` whose output does not contain all of it
+          "discovered"  only its name reached the model: ls, find, INDEX listings, grep -l
     text  the text that was shown for that document (empty for "discovered")
+
+The level is decided by what reached the model, never by which command produced it. Several files printed together
+count as "full" each only when each one's complete content is present and attributable.
 
 Tool discovery uses the *output* text of successful retrieval calls only, never a shell command's own text: a tool
 name the agent typed is not evidence that it read the tool's documentation.
@@ -37,7 +42,7 @@ WS = re.compile(r"\s+")
 @dataclass(frozen=True)
 class Observation:
     doc_id: str
-    level: str      # "full" | "excerpt" | "discovered"
+    level: str      # "full" | "partial" | "discovered"
     text: str
     call_id: str
     step: int       # index of the tool result message in the conversation
@@ -70,14 +75,26 @@ def succeeded(result: dict) -> bool:
     return not result.get("error") and not FAILED.match(text)
 
 
-def _search_obs(text, call_id, step, tool):
+def _complete(doc_id: str, shown: str, docs: dict) -> bool:
+    body = _norm((docs.get(doc_id) or {}).get("content", ""))
+    return bool(body) and body in _norm(shown)
+
+
+def _search_obs(text, call_id, step, tool, docs):
     ms = list(RESULT.finditer(text))
     out = []
     for i, m in enumerate(ms):
         end = ms[i + 1].start() if i + 1 < len(ms) else len(text)
         body = re.sub(r"\n\n\[Timing:.*\]\s*$", "", text[m.end():end]).strip()
-        out.append(Observation(m.group("id"), "full", body, call_id, step, tool))
+        level = "full" if _complete(m.group("id"), body, docs) else ("partial" if body else "discovered")
+        out.append(Observation(m.group("id"), level, body if level != "discovered" else "", call_id, step, tool))
     return out
+
+
+def _own_lines(output: str, body: str, min_len: int = 20) -> list[str]:
+    """Substantive output lines that occur in this document's text (so they are attributable to it)."""
+    nb = _norm(body)
+    return [ln for ln in output.splitlines() if len(ln.strip()) >= min_len and _norm(ln) in nb]
 
 
 def _shell_obs(command: str, output: str, call_id: str, step: int, docs: dict) -> list[Observation]:
@@ -104,14 +121,15 @@ def _shell_obs(command: str, output: str, call_id: str, step: int, docs: dict) -
             shown = "\n".join(attributed[f])
         elif len(named_in_command) == 1 and f == named_in_command[0] and not attributed:
             shown = output            # cat/head/sed/tail of that one file: the output is its text
-        elif f in named_in_command and _norm(body)[:200] and _norm(body)[:200] in norm_out:
-            shown = output            # several files printed together: this one's text is in the output
+        elif f in named_in_command and (_norm(body) in norm_out or _own_lines(output, body)):
+            # several files printed together: attribute to this document only the output lines that belong to it
+            shown = body if _norm(body) in norm_out else "\n".join(_own_lines(output, body))
         else:
             shown = ""
         if shown and _norm(body) and _norm(body) in _norm(shown):
             level = "full"
         elif shown and len(_norm(shown)) > 0 and _norm(shown) != _norm(f):
-            level = "excerpt"
+            level = "partial"
         else:
             level, shown = "discovered", ""
         out.append(Observation(doc, level, shown, call_id, step, SHELL))
@@ -133,7 +151,7 @@ def observations(messages: list[dict], docs: dict | None = None) -> list[Observa
         if c["name"] == SHELL:
             out += _shell_obs(str((c.get("arguments") or {}).get("command", "")), text, c["id"], step, docs)
         else:
-            out += _search_obs(text, c["id"], step, c["name"])
+            out += _search_obs(text, c["id"], step, c["name"], docs)
     return out
 
 
