@@ -469,3 +469,14 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **H006 is the H005 pilot unchanged** (tasks, arms, settings, order) except `budget_accounting: "billed"`, re-run from scratch. No H005 conversation is reused; H005 stays reported on its own.
 - **Budget:** $3.50 billed total, $0.75 billed per conversation (about 3× H005's longest). Forecast $1.20–2.50 billed; the upper bound will read roughly 3× higher. The dense preflight is not repeated (it passed; embeddings are cached).
 - **Approval:** "run H006 with $3.50".
+
+### Study of public leaderboard trajectories, dev tasks only (2026-09-30, $0)
+- **Downloaded with Nidhi's permission,** outside the repo (`~/Desktop/tau2-public-trajectories`):
+  - GPT-5.5: sha256 ed46e521…07f9da1, 150 MB;
+  - Qwen 3.8 Max: sha256 8c8191c4…feb626e, 247 MB.
+
+  Only the 30 dev tasks are read; held-out conversations are dropped at load.
+- **Our pilot tasks were mostly unsolvable ones:** only 3 of our 10 (089, 058, 023) are solved by both top models. The other 7 were passed in 3 of 56 top-model attempts.
+- **The gap is reaching the right documents:** required-document recall 0.84 (top models, pass or fail) vs 0.38–0.44 (gpt-5-mini). `_009` is reached in 52/60 and 51/60 vs 0/3, mostly by plain BM25.
+- **They search for the capability:** 35% of their queries use internal / tool / lookup wording (ours 3%). "retrieve customer account information tool user_id" finds `_009` at rank 1; a situation-style query doesn't find it. A wording prefix on our own queries barely helps (0.39 → 0.43).
+- **Records:** `research/public_trajectories/FINDINGS.md`, `analyze.py`, `how_found.py`, `query_wording_probe.py`.
