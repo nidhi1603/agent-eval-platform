@@ -427,3 +427,20 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   Fallback if srt can't enforce the boundary: a container exposing only the knowledge base and scratch space.
 - **Fake embeddings** validate integration only. The first approved real-embedding check will verify dense search on its own.
 - **Tests:** 285 pass.
+
+### alltools installed and validated offline (2026-09-30, $0; Nidhi: "install alltools")
+- **Installed:** `@anthropic-ai/sandbox-runtime@0.0.23` (confirmed with `npm ls`; the CLI itself prints "1.0.0") and ripgrep 15.2.0.
+- **Containment check** (`research/alltools/containment_check.json`; harmless canaries, READABLE/DENIED only):
+  - **tau2's settings unchanged, both suspected gaps reproduced on canaries:**
+    - canary files in home, /tmp and this repo were READABLE through a quoted path, `cd "$HOME"`, and a symlink inside the knowledge base;
+    - a fake secret variable was VISIBLE;
+    - the shell's environment contained a variable **named `OPENAI_API_KEY`** (names only were recorded, never values).
+  - **A third gap, found by the new temp-sibling canary:** files beside the knowledge base in the system temp directory were readable even with the first patch.
+  - **Fix, with every probe re-run:**
+    - sandboxes now live under `/private/var/tmp/aep_kb_sandboxes`, and the system temp root is denied;
+    - the patched run shows every canary PERMISSION_DENIED or BLOCKED_BY_FILTER, the fake secret NOT VISIBLE, 12 harmless variables, and the knowledge base READABLE;
+    - the sandbox cannot write anywhere, including srt's temp directory, so conversations cannot leave notes for each other.
+- **Independence check:** it normalizes the shell's own temp paths and `ls` times, which vary per run. The alltools smoke run is conclusive in both arms.
+- **Scripted alltools end to end** (`tests/test_alltools_e2e.py`, fake embeddings): standard agent and v1. All three retrieval tools work; v1 is offered a tool discovered from grep output; the shell environment is scrubbed; answer independence is conclusive.
+- **Reference controls under alltools** (`research/harness_v1/reference_controls_alltools.json`): **30/30 same reward, 0 hard-check firings**, soft advisories in 2 tasks, agent input tokens 1.08× the standard agent.
+- **Tests:** 288 pass.

@@ -15,8 +15,10 @@ actually exposed.**
 
 **What `patch()` does.** It covers every arm and is idempotent.
 - **Filesystem:** extends srt's denyRead with the user's home directory (credentials, repositories, task files,
-  private files), /tmp and /private/tmp, and both repositories explicitly. The knowledge base is exported to the
-  system temp directory (/var/folders/... on macOS), which stays readable. Writes stay allow-only, as tau2 sets them.
+  private files), /tmp and /private/tmp, the system temp directory (/var/folders/.../T on macOS), and both
+  repositories explicitly. Every sandbox is created under SANDBOX_ROOT instead of the system temp directory. Its only
+  neighbours are other copies of the same public knowledge base; the containment check found that files beside the
+  KB in the system temp directory were readable. Writes stay allow-only, as tau2 sets them.
 - **Environment:** the srt subprocess gets only ENV_ALLOW (PATH, HOME, LANG, locale, TMPDIR, TERM, USER, SHELL).
   Nothing else passes, so no API key, token or cloud credential reaches the shell. The model-calling process keeps
   its credentials.
@@ -47,10 +49,19 @@ GROUND_TRUTH = re.compile(r"evaluation_criteria|required_documents|\"action_id\"
 CREDENTIAL = re.compile(r"\bsk-[A-Za-z0-9_-]{16,}|[A-Z_]*(API_KEY|TOKEN|SECRET)[A-Z_]*=")
 
 
+# Every sandbox lives here, not in the system temp directory: srt reads are deny-only, so the knowledge base's
+# neighbours must be harmless. The only neighbours here are other sandboxes, i.e. copies of the same public KB.
+SANDBOX_ROOT = Path("/private/var/tmp/aep_kb_sandboxes") if Path("/private/var/tmp").is_dir() else \
+    Path("/var/tmp/aep_kb_sandboxes")
+
+
 def extra_deny_read() -> list[str]:
+    import tempfile
+
     data = Path(os.environ.get("TAU2_DATA_DIR", REPO_ROOT.parent / "tau2-bench" / "data")).resolve()
     tau2_root = data.parent if data.name == "data" else data
-    paths = [Path.home(), Path("/tmp"), Path("/private/tmp"), REPO_ROOT.resolve(), tau2_root, data]
+    system_tmp = Path(tempfile.gettempdir()).resolve()
+    paths = [Path.home(), Path("/tmp"), Path("/private/tmp"), system_tmp, REPO_ROOT.resolve(), tau2_root, data]
     return list(dict.fromkeys(str(p) for p in paths))
 
 
@@ -67,7 +78,13 @@ class _ScrubbedSubprocess:
         self._real = real
 
     def run(self, *args, **kwargs):
-        kwargs.setdefault("env", clean_env())
+        if "env" not in kwargs:
+            env = clean_env()
+            if kwargs.get("cwd"):
+                # srt grants the sandboxed command its TMPDIR. Point it at this sandbox's own directory (the parent
+                # of the exported knowledge base) so other files in the system temp directory are not readable.
+                env["TMPDIR"] = str(Path(kwargs["cwd"]).parent)
+            kwargs["env"] = env
         return self._real.run(*args, **kwargs)
 
     def __getattr__(self, name):
@@ -91,6 +108,15 @@ def patch() -> bool:
         Path(self.settings_path).write_text(json.dumps(settings, indent=2))
 
     cls._create_srt_settings = _create_srt_settings
+    original_init = cls.__init__
+
+    def __init__(self, *args, **kwargs):
+        if not kwargs.get("base_temp_dir") and len(args) < 3:
+            SANDBOX_ROOT.mkdir(parents=True, exist_ok=True)
+            kwargs["base_temp_dir"] = str(SANDBOX_ROOT)
+        original_init(self, *args, **kwargs)
+
+    cls.__init__ = __init__
     if not isinstance(sm.subprocess, _ScrubbedSubprocess):
         sm.subprocess = _ScrubbedSubprocess(sm.subprocess)
     setattr(cls, PATCHED, True)

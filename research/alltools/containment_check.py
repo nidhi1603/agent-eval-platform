@@ -32,6 +32,8 @@ CANARIES = {
     "home": Path.home() / f".aep_canary_{TOKEN}.txt",
     "tmp": Path("/tmp") / f"aep_canary_{TOKEN}.txt",
     "repo": ROOT / "research" / "alltools" / f"canary_{TOKEN}.txt",
+    # beside the exported knowledge base: the same temp root, so readable temp files next to the KB would show here
+    "temp_sibling": Path(__import__("tempfile").gettempdir()) / f"aep_canary_{TOKEN}.txt",
 }
 ENV_CANARY = ("AEP_CANARY_SECRET", f"canary-{TOKEN}")
 
@@ -86,7 +88,10 @@ def run(patched: bool) -> dict:
     code, stdout, stderr = box.run_command(f"printenv {ENV_CANARY[0]}")
     out["env: fake canary variable"] = "VISIBLE" if ENV_CANARY[1] in stdout else "NOT VISIBLE"
     code, stdout, stderr = box.run_command("printenv | cut -d= -f1")
-    out["env: variable names visible"] = sorted(x for x in stdout.split() if x)[:40]
+    names = sorted(x for x in stdout.split() if x)
+    # names only, never values; the full list of this machine's variable names is not published
+    out["env: variable names visible"] = {"count": len(names), "secret_like_names": [
+        n for n in names if any(w in n for w in ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL"))]}
     return out
 
 

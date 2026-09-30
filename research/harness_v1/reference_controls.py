@@ -109,10 +109,19 @@ def _agent_tokens(trace) -> int:
                if e.get("role") == "agent" and e.get("kind") == "chat")
 
 
+RETRIEVAL = "bm25"  # --retrieval=alltools: the same scripts with KB_search -> KB_search_bm25, under alltools
+
+
+def _for_retrieval(script):
+    if RETRIEVAL == "bm25":
+        return script
+    return json.loads(json.dumps(script).replace('"call": "KB_search"', '"call": "KB_search_bm25"'))
+
+
 def run_one(task_id, script, harness, tmp):
     path = tmp / f"{task_id}_{'h' if harness is not None else 'b'}.json"
-    path.write_text(json.dumps(script))
-    opts = RunOptions(task_id=task_id, agent_model=AGENT_MODEL, user_model=USER_MODEL, retrieval_config="bm25",
+    path.write_text(json.dumps(_for_retrieval(script)))
+    opts = RunOptions(task_id=task_id, agent_model=AGENT_MODEL, user_model=USER_MODEL, retrieval_config=RETRIEVAL,
                       scripted=path, out_dir=tmp / "runs", agent_harness=harness,
                       budget_usd=20.0)  # scripted runs use FAKE prices; the cap only bounds the mock ledger
     trace, _ = run(opts)
@@ -128,9 +137,12 @@ SPECS = {"v1": ({}, {"gates": ["clock_before_verification", "verification_before
 
 
 def main(argv):
+    global RETRIEVAL
     version = "v1"
     if argv and argv[0].startswith("--version="):
         version, argv = argv[0].split("=", 1)[1], argv[1:]
+    if argv and argv[0].startswith("--retrieval="):
+        RETRIEVAL, argv = argv[0].split("=", 1)[1], argv[1:]
     full, hard_only = SPECS[version]
     from loguru import logger
     from tau2.runner.helpers import get_tasks
@@ -175,8 +187,8 @@ def main(argv):
             print(tid, row["baseline_reward"], row["harness_reward"], row["tools_offered"],
                   round(row["agent_input_tokens"]["harness"] / max(row["agent_input_tokens"]["baseline"], 1), 2),
                   [f.get("gate") or f.get("gates") for f in row["fired"]], (row["harness_error"] or "")[:120], flush=True)
-    out = ROOT / "research" / "harness_v1" / ("reference_controls.json" if version == "v1" else
-                                              f"reference_controls_{version}.json")
+    out = ROOT / "research" / "harness_v1" / (("reference_controls" if version == "v1" else f"reference_controls_{version}")
+                                              + ("" if RETRIEVAL == "bm25" else f"_{RETRIEVAL}") + ".json")
     if not argv:
         out.write_text(json.dumps(rows, indent=1, default=str))
     from bench.harness import SOFT

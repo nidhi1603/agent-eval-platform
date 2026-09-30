@@ -13,7 +13,9 @@ variation could hide answer dependence.
 
 Known volatile content is normalized before comparing, and the list is recorded in the result: the
 KB search tools end their output with a wall-clock "[Timing: ...]" footer. Only that trailing footer,
-and only for those tools, is normalized.
+and only for those tools, is normalized. Under alltools, shell output can contain the sandbox's own temporary
+directory (unique per environment, e.g. in `pwd` or `printenv`) and `ls -l` modification times (the export time).
+For the shell only, those two are normalized.
 
 Scope: only the calls this trajectory made. It cannot show that other calls are answer-independent.
 """
@@ -25,12 +27,18 @@ from bench import pins
 SEARCH_TOOLS = {"KB_search", "KB_search_bm25", "KB_search_dense"}
 # Exact footer format from tau2 domains/banking_knowledge/retrieval_mixins.py:_format_kb_search_result
 TIMING_FOOTER = re.compile(r"\[Timing: retrieval=\d+ms(?:, reranking=\d+ms)?, total=\d+ms\]\s*\Z")
-NORMALIZERS = ["kb_search_timing_footer"]
+NORMALIZERS = ["kb_search_timing_footer", "shell_sandbox_temp_paths", "shell_ls_modification_times"]
+SANDBOX_PATH = re.compile(r"(?:/private)?/(?:var/folders|tmp)/[^\s:'\"]*")
+LS_TIME = re.compile(r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?:\d{1,2}:\d{2}|\d{4})\b")
 
 
 def normalize(tool: str, text: str | None) -> str:
     text = text or ""
-    return TIMING_FOOTER.sub("[Timing: <normalized>]", text) if tool in SEARCH_TOOLS else text
+    if tool in SEARCH_TOOLS:
+        return TIMING_FOOTER.sub("[Timing: <normalized>]", text)
+    if tool == "shell":
+        return LS_TIME.sub("<mtime>", SANDBOX_PATH.sub("<sandbox_path>", text))
+    return text
 
 
 def blind_copy(task):

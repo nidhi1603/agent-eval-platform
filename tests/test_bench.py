@@ -16,7 +16,7 @@ pytest.importorskip("tau2", reason="install the bench extra: uv sync --extra ben
 
 import litellm  # noqa: E402
 
-from bench import agent  # noqa: E402
+from bench import agent, independence  # noqa: E402
 from bench import budget as B  # noqa: E402
 from bench.run import RunOptions, run  # noqa: E402
 from bench.scripted import AGENT_MODEL, USER_MODEL, ScriptedLLM  # noqa: E402
@@ -106,7 +106,7 @@ def test_reference_run_has_no_answer_dependent_outputs(tmp_path):
     trace, _ = scripted_run(tmp_path)
     ind = trace["answer_independence"]
     assert ind["agent_visible_outputs_depending_on_hidden_reference"] == []
-    assert ind["replay_matches_recorded"] and ind["conclusive"] and ind["normalized"] == ["kb_search_timing_footer"]
+    assert ind["replay_matches_recorded"] and ind["conclusive"] and ind["normalized"] == independence.NORMALIZERS
 
 
 # --- the real integration path, scripted ------------------------------------------------------

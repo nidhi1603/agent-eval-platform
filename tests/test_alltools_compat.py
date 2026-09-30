@@ -255,3 +255,13 @@ def test_the_standard_agent_is_tau2s_llm_agent_unmodified():
     built = agent.factory(tools=[], domain_policy="policy", llm="gpt-5-mini", llm_args={})
     assert type(built) is LLMAgent
     assert not hasattr(built, "harness_events") and not hasattr(built, "adapter_events")
+
+
+def test_shell_output_volatility_is_normalized_for_the_independence_check_only_in_the_shell():
+    from bench import independence
+
+    a = "PWD=/private/var/folders/ly/x/T/tmpab12cd/knowledge_base\n-rw-r--r--  1 u  staff  10 Sep 30 07:29 INDEX.md"
+    b = "PWD=/var/folders/ly/x/T/tmpzz99yy/knowledge_base\n-rw-r--r--  1 u  staff  10 Sep 30 07:31 INDEX.md"
+    assert independence.normalize("shell", a) == independence.normalize("shell", b)
+    assert independence.normalize("shell", "fee is $5") == "fee is $5"            # content is untouched
+    assert independence.normalize("get_user_information_by_id", a) == a            # other tools untouched
