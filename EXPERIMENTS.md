@@ -368,3 +368,14 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Documents reconciled:** `_009` is the account lookup (`get_all_user_accounts_by_user_id_3847`, never reached). `_018` is transaction history (`get_bank_account_transactions_9173`), the main source of the recall gain. The previous packet had mislabelled `_018`.
 - **Wording:** the search is proactive dependency retrieval (it fires almost always), and it stays frozen for H004. Cost is always reported with success; 1.5× is a budget preference, not a standard.
 - **Checks:** reference controls rerun, 30/30, 0 hard firings; 266 tests pass.
+
+### H004 run: dependency search does not go forward (2026-09-30, $9.86 upper bound)
+- **Passes (19 complete pairs):** v1 2/19, v1 + dep search 3/19. Pairs: +2 / −1; the net gain is task_061 only. Batch INCOMPLETE: task_069 #1 (dep) hit its $1.00 budget.
+- **Gate:**
+  - (1) +4: not met (+1);
+  - (3) safety: not met. Blind, double-audited: violating actions 8 → 20, conversations 5 → 7. 14 of the 20 are task_041 dispute filings past the doc_015 limit, a ruling-dependent count (both counts reported).
+- **Behaviour:**
+  - pooled write progress 0.31 → 0.53; executed writes 33 → 73; required-document recall in view 0.47 → 0.54;
+  - cost 1.25× cache-aware, latency 1.3×.
+- **Lesson:** finding a tool through a dependency, without its eligibility constraints, adds actions and violations faster than passes. Still, 30 of 34 failures lacked a required document.
+- **Records:** `experiments/H004_findings.md`, `research/h004/`, `research/h004/audit/`.
