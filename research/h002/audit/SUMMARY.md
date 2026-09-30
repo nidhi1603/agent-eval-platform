@@ -91,7 +91,6 @@ A second, independent labeller relabelled a stratified sample of 15: 5 per arm, 
 | Measure | Agreement |
 |---|---|
 | Primary category | **13/15 (Cohen's κ = 0.83)** |
-| Primary category, with C2 and C3 merged | 15/15 |
 | `retrieval_would_help` | 12/15 (first labeller said yes 9 times, second 6) |
 | `completion_check_would_help` | 12/15 |
 | `argument_grounding_would_help` | 12/15 |
@@ -99,7 +98,7 @@ A second, independent labeller relabelled a stratified sample of 15: 5 per arm, 
 | `claimed_done_without_receipt` flag | 13/15 |
 | `transfer_inappropriate` flag | 12/15 |
 
-Both primary-category disagreements are C2 vs C3, the tie-break between a missed retrieved document and an unretrieved one. **The primary categories are reliable to that level. The "would help" counts are soft** and should be read as rough.
+Both primary-category disagreements are C2 vs C3. That is the distinction between failing to use available evidence and missing the evidence, which is the one guiding the next intervention, so **the disagreements are kept, not merged away.** The "would help" counts are soft and should be read as rough.
 
 ### Unsafe writes, adjudicated (`unsafe_adjudication.json`)
 
@@ -124,7 +123,7 @@ The $100-vs-$98 credit is **ambiguous**: docs `gold_013` and `_045` conflict.
 
 **Consent:** only account opening has an explicit confirmation rule in the documents. No blanket consent requirement is implied.
 
-**Correction:** the earlier "unsafe writes 1 → 4 (v1)" was a flag count. After adjudication, **v1 has violations in more conversations (3 vs 1), but the baseline has more violating actions (8 vs 3).** At n = 20 per arm, neither shows a safety difference. Only flagged conversations were adjudicated, so violations elsewhere are not ruled out.
+**Correction:** the earlier "unsafe writes 1 → 4 (v1)" was a flag count. After adjudication, v1 has violations in more conversations (3 vs 1), and the baseline has more violating actions (8 vs 3). **The baseline's 8 are one conversation:** a serious failure example, not eight independent observations. **No reliable safety comparison is established.** Only flagged conversations were adjudicated, and absence of evidence is not equivalence.
 
 ### Transfers, reconciled (`transfer_reconciliation.json`)
 

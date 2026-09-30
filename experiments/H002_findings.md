@@ -77,14 +77,27 @@ Reference actions are read only to measure progress on these dev tasks. The matc
 60 conversations, labelled partly blind by three independent labellers with a fixed codebook.
 
 - **Most common first failure:** a requirement only in an unretrieved document (24/60). One document, the account-lookup tool's `_009`, is missing in 16.
-- **Candidate interventions the labellers identified:** retrieval in 41/60, argument grounding in 20/60, a completion check in 14/60. These "would help" judgements agree only 12/15 on re-labelling, so treat them as soft. Primary categories agree 13/15 (κ = 0.83).
+- **Candidate interventions the labellers identified:** retrieval in 41/60, argument grounding in 20/60, a completion check in 14/60. These "would help" judgements agree only 12/15 on re-labelling, so treat them as soft. Primary categories agree 13/15 (κ = 0.83). Both disagreements are C2 vs C3, missing evidence vs failure to use available evidence: exactly the distinction that guides the next intervention, so they are kept, not merged away.
 - **Observed, not established as caused:** missed steps in retrieved documents fall (9 → 3–4), and wrong arguments or policy readings rise (3 → 6).
-- **Unsafe writes, adjudicated:** conversations with at least one violation: baseline 1, v1 3, v2 1. Violating actions: baseline 8, v1 3, v2 1 (plus 1 ambiguous in v1). This corrects the earlier flag-based "1 → 4". **No safety difference is shown either way.**
+- **Unsafe writes, adjudicated:** conversations with at least one violation: baseline 1, v1 3, v2 1. Violating actions: baseline 8, v1 3, v2 1 (plus 1 ambiguous in v1). This corrects the earlier flag-based "1 → 4". **No reliable safety comparison is established:** only flagged conversations were adjudicated, and absence of evidence is not equivalence. The baseline's 8 violating actions are one conversation: a serious failure example, not eight independent observations that eligibility is the dominant problem.
 - **False completion claims** occur in every arm. **All 9 harness conversations with a false "transferred" claim (no transfer call) came after the harness had held a transfer; the baseline has 1 such conversation.** A strong association and a plausible side effect of holding transfers, but not a controlled result.
 - **Offline tool-document retrieval probe:**
   - queries from customer words do not help;
-  - dependency following (general) raises tool-document recall from 0.39 to 0.52 combined;
+  - dependency search alone reached 19% recall of needed tool documents; added to the agent's own searches, combined recall went from 39% to 52%. It supplements existing retrieval, and does not show the agent would use the extra evidence correctly;
   - the account-lookup document is still missed;
   - this shows availability only.
 
   See the audit summary.
+
+## Decision after review (2026-09-30)
+H002 review closed. Next steps, in order:
+1. **H003 calibration**, once Nidhi authorizes its $3.00 cap.
+2. **If calibration warrants a comparison: dependency-following tool search as the first isolated intervention.**
+   - Arms: the selected configuration, with vs without dependency search. Model, simulator, limits and the rest of the harness identical.
+   - Inputs: only tool schemas and documents legitimately available at the intervention point.
+   - Outcomes: complete-task success, relevant-document retrieval, incorrect actions, added tokens, latency.
+   - The account-lookup miss is kept as a known limitation, with no document-specific exception.
+   - Not bundled with a completion checker or an eligibility guard.
+3. **Transfer-claim check (later, separately):** it must require evidence of a *successful* transfer, not merely a transfer call. A rejected, blocked or failed call cannot support "I transferred you". The correction should help the agent state the actual status and the permitted next step.
+
+v1 stays as a comparator; v2 stays frozen.
