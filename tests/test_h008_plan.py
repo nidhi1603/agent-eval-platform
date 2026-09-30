@@ -54,3 +54,30 @@ def test_balanced_pairs_and_approval():
     assert "run H008 with $9.00" in PLAN["execution"]["approval"] and PLAN["execution"]["resume"].endswith("H008_journal.jsonl")
     with pytest.raises(SystemExit):
         batch.run_batch(PLAN, approved_usd=1.0)
+
+
+def test_condition_6_counts_transfer_statements_in_every_conversation():
+    rule = PLAN["decision_rule"]
+    assert "(6) transfer statements" in rule and "interrupted ones included" in rule and "never combined" in rule
+    ts = PLAN["transfer_statements"]
+    assert "EARLIER in the trajectory" in ts["unsupported"] and "announce-then-act" in ts["unsupported"]
+    assert "I'll try transferring you again" in ts["definition"] and len(ts["measures"]) == 4
+    [amend] = PLAN["amendments"]
+    assert amend["before_any_run"] is True and "(1)-(5)" in amend["unchanged"]
+
+
+def test_the_transfer_statement_labeller():
+    from bench import claims
+
+    msgs = [{"role": "assistant", "content": "I'm transferring you now."},                    # unsupported: nothing before
+            {"role": "user", "content": "ok"},
+            {"role": "assistant", "content": None, "tool_calls": [{"id": "t1", "name": "transfer_to_human_agents", "arguments": {}}]},
+            {"role": "tool", "tool_call_id": "t1", "content": "Transfer successful (reason: other). A human agent will assist you shortly."},
+            {"role": "assistant", "content": "You've been transferred."},                     # supported: a transfer succeeded before
+            {"role": "assistant", "content": "I'll try transferring you again."}]             # an intention
+    st = claims.statements(msgs)
+    assert [(s["claim_auto"], claims.unsupported(s)) for s in st] == [
+        ("done_or_underway", True), ("done_or_underway", False), ("intention_or_offer", False)]
+    assert all(s["flagged"] for s in st) and claims.transfer_succeeded(msgs)
+    failed = msgs[:3] + [{"role": "tool", "tool_call_id": "t1", "content": "Error: Invalid transfer reason 'x'."}]
+    assert not claims.transfer_succeeded(failed)

@@ -69,7 +69,7 @@ Reference actions are read only to measure progress on these dev tasks. The matc
 - **Worker count:** 3, then 2 after the rate-limit interruptions (see the deviations file).
 
 ## What this does and does not show
-- **Shows:** on these 10 dev tasks, at this model setting, neither harness raised the official pass rate. Both changed behaviour in the targeted direction without unsafe writes.
+- **Shows:** on these 10 dev tasks, at this model setting, neither harness raised the official pass rate. Both changed behaviour in the targeted direction without unsafe writes (write-policy violations only; unsupported statements to the customer were not audited, see the D004 note in H004_findings.md).
 - **Does not show:** that the harness cannot help. The floor effect and the retrieval bottleneck leave open whether it helps a stronger reasoning setting, or together with better retrieval.
 
 ## Failure audit (added 2026-09-30; `research/h002/audit/SUMMARY.md`)
@@ -79,7 +79,7 @@ Reference actions are read only to measure progress on these dev tasks. The matc
 - **Most common first failure:** a requirement only in an unretrieved document (24/60). One document, the account-lookup tool's `_009`, is missing in 16.
 - **Candidate interventions the labellers identified:** retrieval in 41/60, argument grounding in 20/60, a completion check in 14/60. These "would help" judgements agree only 12/15 on re-labelling, so treat them as soft. Primary categories agree 13/15 (κ = 0.83). Both disagreements are C2 vs C3, missing evidence vs failure to use available evidence: exactly the distinction that guides the next intervention, so they are kept, not merged away.
 - **Observed, not established as caused:** missed steps in retrieved documents fall (9 → 3–4), and wrong arguments or policy readings rise (3 → 6).
-- **Unsafe writes, adjudicated:** conversations with at least one violation: baseline 1, v1 3, v2 1. Violating actions: baseline 8, v1 3, v2 1 (plus 1 ambiguous in v1). This corrects the earlier flag-based "1 → 4". **No reliable safety comparison is established:** only flagged conversations were adjudicated, and absence of evidence is not equivalence. The baseline's 8 violating actions are one conversation: a serious failure example, not eight independent observations that eligibility is the dominant problem.
+- **Unsafe writes, adjudicated (write-policy violations only; unsupported statements to the customer were not audited, see the D004 note in H004_findings.md):** conversations with at least one violation: baseline 1, v1 3, v2 1. Violating actions: baseline 8, v1 3, v2 1 (plus 1 ambiguous in v1). This corrects the earlier flag-based "1 → 4". **No reliable safety comparison is established:** only flagged conversations were adjudicated, and absence of evidence is not equivalence. The baseline's 8 violating actions are one conversation: a serious failure example, not eight independent observations that eligibility is the dominant problem.
 - **False completion claims** occur in every arm. **All 9 harness conversations with a false "transferred" claim (no transfer call) came after the harness had held a transfer; the baseline has 1 such conversation.** A strong association and a plausible side effect of holding transfers, but not a controlled result.
 - **Offline tool-document retrieval probe:**
   - queries from customer words do not help;

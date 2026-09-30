@@ -96,7 +96,7 @@ A continuation's "0 completed" means **no target state change before the first t
 - **No consistent directional pattern:** each arm made useful progress at one of the three discovery contexts.
 - **Run-to-run variation:** outcomes differed across runs with the same instruction text, so these few observations cannot separate instruction effects from run-to-run variation.
 - **No target state change before the first text reply** at those three contexts. One agent was asking for consent; another was offering the correct increase pending confirmation.
-- **Narrow safety claim:** no unsupported write was observed; the only executed writes were already-authorized $50 credits.
+- **Narrow safety claim (write-policy only; statements to the customer were not audited):** no unsupported write was observed; the only executed writes were already-authorized $50 credits.
 - **Other failures observed:** false capability denials, and a handover summary claiming a clearing attempt that never happened.
 
 ## What each check can and cannot tell you
