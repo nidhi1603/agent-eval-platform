@@ -712,6 +712,25 @@ def make_harness_agent_class():
             if not proposal.tool_calls:
                 state.messages.append(SystemMessage(role="system", content=whole_text))
 
+        def get_init_state(self, message_history=None):
+            """Normal start, or (bench/resume.py) the model's own saved history up to a known disclosure, with the
+            replacement the customer received, the undelivered drafts marked, and the tools unlocked by then."""
+            resume = getattr(self, "resume", None)
+            if resume is None:
+                return super().get_init_state(message_history=message_history)
+            from tau2.environment.tool import as_tool
+
+            state = super().get_init_state(message_history=[])
+            state.messages = list(resume.model_history)
+            self._undelivered |= {id(state.messages[i]) for i in resume.undelivered}
+            for n in resume.offered:
+                if n in self.adapter_toolkit.tools:
+                    self.offered[n] = as_tool(self.adapter_toolkit.tools[n])
+            self.harness_events.append({"event": "disclosure_replaced", "resumed": True, "fields": resume.finding["fields"],
+                                        "origins": resume.finding["origins"], "draft_text": resume.draft_text,
+                                        "replacement": resume.replacement})
+            return state
+
         def _mark_undelivered(self, proposal, in_history):
             """The held/replaced/withheld draft stays in the model's history but never reaches the customer."""
             self._undelivered.add(id(self._plan_source if in_history and self._plan_source is not None else proposal))

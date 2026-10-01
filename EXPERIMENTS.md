@@ -787,3 +787,24 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - "Nothing went wrong" is replaced by: no filter-induced holds, apologies or verification loops were observed, and there were zero false interventions in 6 treatment conversations. That means compatibility in these runs, not general "no interference".
 - **Next (needs a decision):** stop, OR run a separately planned targeted recovery test in situations where verification is held.
 - Findings: `experiments/P001_findings.md`.
+
+### P002 frozen: bounded targeted recovery test (2026-10-01, $0; NOT run)
+
+- **Why.** P001 could not test recovery, because the check never fired. The review recommended ONE bounded, targeted test, after which this component's loop closes and work returns to post-verification decision quality.
+- **Mechanism (`bench/resume.py`).** A saved conversation is resumed just before a known disclosure:
+  - tau2's own initial-state path restores the database by strict replay, plus the customer history;
+  - the harness agent gets its own saved model history (undelivered drafts marked) and the tools it had unlocked;
+  - the saved leaking draft goes through the CURRENT check, and the customer receives the replacement;
+  - then the agent and the user simulator continue live, for at most 60 steps.
+  - Wired through `RunOptions.resume` and batch runs. Tests: `tests/test_resume.py`.
+- **Preflight ($0, scripted models; `research/p002/preflight.py`).**
+  - 8 of the 13 known disclosure points resume faithfully: strict replay passes, the replacement is delivered, the draft is never delivered, and the configuration matches.
+  - The other 5 come from runs that saved no model view.
+  - All 8 have 4 usable fields. There is no safe-stop case among them, and none is constructed.
+- **Plan (`experiments/P002_plan.json`).**
+  - Single arm (v3.2 + disclosure_check); 8 cases; 5 of them overlap the D005 development histories. Labelled SELECTED DEVELOPMENT TESTING.
+  - Two independent reviewers label all 8, with blind adjudication.
+  - Exhaustive summary rule (`research/p002/verdict.py`): INCOMPLETE / RECOVERY_PROBLEM / RECOVERY_DEMONSTRATED / NO_SUCCESS_EXPLAINED.
+  - Budget $1.50 billed, $0.30 per conversation (forecast about $0.40-0.90). Needs review and "run P002 with $1.50".
+- **No match-confirmation guard** (per review). Those disclosures stay in the audit. Before designing such a rule, the policy must be read to separate confirming before sufficient evidence from confirming after it but before the receipt.
+- **Tests:** 464 passed, 14 expected failures.

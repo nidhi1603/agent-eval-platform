@@ -89,6 +89,7 @@ def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dic
         agent_harness=s.get("harness"),
         budget_accounting=s.get("budget_accounting", "upper_bound"),
         scripted=Path(s["scripted"]) if s.get("scripted") else None,  # mock smoke tests only
+        resume=item.get("resume"),  # bench/resume.py: targeted recovery tests start from a saved conversation
         **({"out_dir": Path(out_dir)} if out_dir else {}),
     )
     trace, path = run(opts)
@@ -97,6 +98,7 @@ def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dic
         "task_id": task_id,
         "arm": arm,
         "attempt": item.get("attempt", 0),
+        "resume": item.get("resume"),
         "tool_adapter": (((trace.get("config") or {}).get("agent") or {}).get("tool_adapter")),
         "harness": (((trace.get("config") or {}).get("agent") or {}).get("harness")),
         "harness_activity": _harness_activity(trace),

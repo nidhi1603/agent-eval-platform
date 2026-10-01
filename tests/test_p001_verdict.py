@@ -1,9 +1,11 @@
 """P001's decision rule is exhaustive and ordered (research/p001/verdict.py). $0."""
-import sys
+import importlib.util
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "research" / "p001"))
-from verdict import verdict  # noqa: E402
+_spec = importlib.util.spec_from_file_location("p001_verdict", Path(__file__).resolve().parents[1] / "research" / "p001" / "verdict.py")
+_mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+verdict = _mod.verdict
 
 TASKS = ("task_019", "task_023", "task_077", "task_087", "task_095", "task_012")
 

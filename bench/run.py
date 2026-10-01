@@ -77,6 +77,7 @@ class RunOptions:
     agent_guard: tuple[str, ...] = ()  # proposal-time permission rules (bench/guard.py); blocked calls logged
     agent_nudges: tuple[str, ...] = ()  # proposal-time advisory checks (bench/nudge.py); each firing logged
     agent_tool_adapter: str | None = None  # "direct_tools" (bench/adapter.py); every harness action logged
+    resume: dict | None = None  # bench/resume.py: {"source_trace", "end"}; targeted recovery test only
     agent_harness: dict | None = None  # harness v1 spec (bench/harness.py, agent.harness_record); every check logged
     budget_accounting: str = "upper_bound"  # "billed": settle calls at the provider-billed (cache-aware) cost
 
@@ -169,6 +170,26 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
         agent_name = agent.register(opts.agent_variant, opts.agent_guard, opts.agent_nudges, opts.agent_tool_adapter,
                                     opts.agent_harness)
         task = get_tasks(pins.DOMAIN, task_ids=[opts.task_id])[0]
+        resumed = None
+        if opts.resume:  # start from a saved conversation just before a known disclosure (bench/resume.py)
+            from tau2.data_model.tasks import InitialState
+
+            from bench import resume as resume_mod
+
+            if not (opts.agent_harness and agent.harness_record(opts.agent_harness).get("disclosure_check")):
+                raise ConfigError("resume needs a harness with disclosure_check")
+            resumed = resume_mod.prepare(opts.resume["source_trace"], opts.resume["end"])
+            if resumed.task_id != task.id:
+                raise ConfigError(f"resume source is {resumed.task_id}, not {task.id}")
+            init = task.initial_state
+            task = task.model_copy(update={"initial_state": InitialState(
+                initialization_data=init.initialization_data if init else None,
+                initialization_actions=init.initialization_actions if init else None,
+                message_history=resumed.trajectory_history)})
+            trace["resume"] = {**opts.resume, "replacement": resumed.replacement, "finding": resumed.finding,
+                               "offered": resumed.offered, "checks": resumed.checks,
+                               "history_messages": len(resumed.trajectory_history),
+                               "note": "selected development testing at a known disclosure point; not a benchmark score"}
         trace["task"] = {"id": task.id, "split": "dev",
                          "reward_basis": [str(b.value) for b in task.evaluation_criteria.reward_basis],
                          "sha256": _sha256(pins.tasks_dir() / f"{task.id}.json")}
@@ -209,6 +230,8 @@ def run(opts: RunOptions) -> tuple[dict, Path]:
                 orchestrator.agent.adapter_toolkit = orchestrator.environment.tools
                 orchestrator.agent.agent_tool_names = frozenset(orchestrator.environment.tools.get_discoverable_tools())
                 orchestrator.agent.user_tool_names = frozenset(orchestrator.environment.user_tools.get_discoverable_tools())
+                if resumed is not None:
+                    orchestrator.agent.resume = resumed   # read by HarnessAgent.get_init_state
             if opts.agent_tool_adapter:
                 # static tool definitions: a tool is offered only after its unlock succeeds (bench/adapter.py)
                 orchestrator.agent.adapter_toolkit = orchestrator.environment.tools
