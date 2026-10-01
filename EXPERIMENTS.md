@@ -563,8 +563,22 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Database regressions:** all four were C2, an action against a rule in a document the agent had retrieved, with the records available. Each was an extra or ineligible write or handover; v3.1 has 11 tools within reach on average, the standard agent 0.6. That is a candidate explanation, not isolated.
 - **Transfer wins (hypotheses from traces):**
   - task_035: the adapter unlocked and offered the emergency tool;
-  - task_004: chance in reason-code choice;
+  - task_004: no harness component identified;
   - task_012: not the harness.
   - The transfer hold changed no decisive action for the better and caused one loss, by interacting with capability search.
 - **Correction:** my "the transfer-hold fix works" was not supported.
 - Findings: experiments/H008_findings.md.
+
+### H008 follow-up after review: tool exposure, audit clarifications (2026-10-01, $0)
+
+- **Tool exposure (research/h008/exposure.py).** In H008, discoverable writes were unsafe at similar per-action rates: 7 of 22 for v3.1 (adapter-offered), 3 of 12 for the standard agent (self-unlocked). v3.1 made more of them on the same tasks.
+  - The same hazardous tool, the direct rewards update, was unsafe every time in both arms.
+  - 3 of v3.1's violations were base-tool actions (one-field verification, referral handovers).
+  - The restriction was visible before 12 of 13 violations.
+  - H004 shows the same pattern: similar per-action rates, more actions in the arm with more tools.
+  - Consistent with "easier write access increases action volume, not compliance". Not isolated.
+- **Clarifications.**
+  - The task_035 escalation claim (standard arm) concerns the emergency tool, not a transfer to a human, so it is reported as a non-write harm, not under condition (6).
+  - The date-of-birth disclosure (v3.1, task_004 #0) is reported as a separate harm.
+  - 41 of 41 agreement is stated as agreement on the double-reviewed subset.
+  - Wording fixes: task_004 now reads "no harness component identified"; task_035 is a scaffold contribution; D004 reduced false claims (26 of 27 → 2 of 27) and did not eliminate them.
