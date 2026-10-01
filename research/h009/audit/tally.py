@@ -83,9 +83,10 @@ def main(unblind: bool):
                                  "first": a, "second": b, "first_reason": (v1.get(i) or {}).get("reason"),
                                  "second_reason": (v2.get(i) or {}).get("reason"),
                                  "second_rule": (v2.get(i) or {}).get("rule")})
-            rows.append({"i": i, "verdict": v, "first": a, "second": b,
-                         "reading_dependent": bool((v1.get(i) or {}).get("reading_dependent")
-                                                   or ((v2 or {}).get(i) or {}).get("reading_dependent"))})
+            dep = (adj[key]["reading_dependent"] if key in adj and "reading_dependent" in adj[key]
+                   else bool((v1.get(i) or {}).get("reading_dependent") or ((v2 or {}).get(i) or {}).get("reading_dependent")))
+            rows.append({"i": i, "verdict": v, "first": a, "second": b, "adjudicated": key in adj,
+                         "reading_dependent": bool(dep)})
         final[cid] = rows
     unsafe_keys = lambda s: {(c, r["i"]) for c, rs in final.items() for r in rs if r["verdict"] == s}  # noqa: E731
     both = [c for c in second if c in first]
