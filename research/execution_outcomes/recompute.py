@@ -65,9 +65,10 @@ def main():
     logger.remove()
     tool_type = registry()[1]
     report = {"rule_old": "executed = not an error and the result does not begin with 'Error'",
-              "rule_new": "bench.metrics.outcome(): success needs a receipt ('successful(ly)' or 'Tool given to user:'); "
-                          "'Error'/'Failed' is failure; anything else is unknown (never a success). Reads keep the "
-                          "old rule, extended to 'Failed' texts.",
+              "rule_new": "bench.metrics.outcome(): failure first ('Error'/'Failed' or the error flag); success needs the "
+                          "tool's own receipt (metrics.RECEIPTS), or for a tool not listed a non-negated 'successful(ly)'/"
+                          "'confirmed'; anything else is unknown (never a success). Reads keep the old rule, extended "
+                          "to 'Failed' texts.",
               "experiments": {}}
     for exp in ("H008", "H009"):
         journal = [json.loads(x) for x in (ROOT / "experiments" / f"{exp}_journal.jsonl").read_text().splitlines() if x.strip()]
@@ -91,7 +92,7 @@ def main():
                     if not metrics.is_action(c["name"], c["arguments"], tool_type):
                         continue
                     res = results.get(c["id"])
-                    o = metrics.outcome(res)
+                    o = metrics.outcome(res, metrics.action_tool(c["name"], c["arguments"]))
                     kind = "handover" if c["name"] == metrics.GIVE else "transfer" if c["name"] == metrics.TRANSFER else "write"
                     outcomes[r["arm"]][f"{kind}:{o}"] += 1
                     if legacy_ok(res) != (o == "success"):
@@ -133,7 +134,7 @@ def main():
             for c in (m.get("tool_calls") or []) if m["role"] == "assistant" else []:
                 if metrics.is_action(c["name"], c["arguments"], tool_type):
                     res = results.get(c["id"])
-                    o = metrics.outcome(res)
+                    o = metrics.outcome(res, metrics.action_tool(c["name"], c["arguments"]))
                     survey[o] += 1
                     old_ok = legacy_ok(res)
                     survey[f"old_rule_{'executed' if old_ok else 'not_executed'}_new_{o}"] += 1

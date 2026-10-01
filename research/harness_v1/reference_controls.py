@@ -58,7 +58,7 @@ def plan_step(task, queries) -> dict:
     return {"call": "task_plan", "args": {"requests": [{"request": "the customer's request", "needs": needs}]}}
 
 
-def script_for(task, plan: bool = False) -> dict:
+def script_for(task, plan: bool = False, states_identity: bool = False) -> dict:
     acts = task.evaluation_criteria.actions or []
     names = [a.arguments.get("agent_tool_name") or a.arguments.get("discoverable_tool_name") for a in acts]
     first_tool = next((n for n in names if n), None)
@@ -68,8 +68,13 @@ def script_for(task, plan: bool = False) -> dict:
         agent.append(plan_step(task, queries))
     digits = sorted({str(v) for x in acts if x.requestor == "assistant" for k, v in _inner(x).items()
                      if "last_4" in k or "last_four" in k})
+    # v3.2 (bench/verify_evidence.py): a cooperative customer states two identity fields; taken from the reference
+    # log_verification's own arguments. Older versions keep the original script (their recorded controls stand).
+    ref_log = next((dict(a.arguments) for a in acts if a.requestor == "assistant" and a.name == "log_verification"), None)
+    identity = (f" For verification: my date of birth is {ref_log['date_of_birth']} and my phone number is "
+                f"{ref_log['phone_number']}." if states_identity and ref_log else "")
     user = [{"say": "Hi, I need help with my account." + (f" My card's last 4 digits are {', '.join(digits)}."
-                                                          if digits else "")}]
+                                                          if digits else "") + identity}]
     segments, cur = [], None
     for a in acts:
         side = "agent" if a.requestor == "assistant" else "user"
@@ -143,6 +148,10 @@ SPECS = {"v1": ({}, {"gates": ["clock_before_verification", "verification_before
          "h009read": ({"version": "v3.1", "expose_model_unlocks": True, "auto_offer": "non_mutating"},
                       {"version": "v3.1", "expose_model_unlocks": True, "auto_offer": "non_mutating",
                        "gates": ["clock_before_verification", "verification_before_write", "ids_observed"]}),
+         # v3.2: v3.1 plus the identity-verification evidence check (bench/verify_evidence.py)
+         "v3.2": ({"version": "v3.2"}, {"version": "v3.2", "gates": ["clock_before_verification",
+                                                                       "verification_before_write", "ids_observed",
+                                                                       "verification_evidence"]}),
          # v1 plus dependency-following tool search (bench/depsearch.py): the H004 treatment arm
          "v1dep": ({"dep_search": True}, {"dep_search": True, "gates": ["clock_before_verification",
                                                                          "verification_before_write", "ids_observed"]})}
@@ -166,7 +175,7 @@ def main(argv):
         tmp = Path(d)
         for tid in ids:
             task = get_tasks(pins.DOMAIN, task_ids=[tid])[0]
-            s = script_for(task, plan=version == "v2")
+            s = script_for(task, plan=version == "v2", states_identity=version == "v3.2")
             b = run_one(tid, s, None, tmp)
             h = run_one(tid, s, full, tmp)
             ev = (h.get("harness") or {}).get("events") or []

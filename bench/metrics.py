@@ -74,23 +74,61 @@ def kind(name: str, args: dict | None, tool_type) -> str:
 
 # Execution outcome of an ACTION (a write, a customer-tool handover, a transfer). tau2 reports most failures as text,
 # not as errors, and its failure texts do not all begin with "Error" ("Failed to log verification: Record may already
-# exist."). Formats come from tau2's banking tool source and a survey of every action result in all 240 local traces
-# (research/execution_outcomes/README.md). Failure: the error flag, or text beginning "Error" or "Failed". Success: a
-# receipt containing "successful(ly)" or "confirmed", or beginning "Tool given to user:", "Order ID:" or "Dispute ID:".
+# exist."). Failure is checked first: the error flag, or text beginning "Error"/"Failed". Success then needs the tool's
+# OWN receipt (RECEIPTS: the opening of each action tool's success text, from tau2's banking tool source and every
+# action result in all 240 local traces, research/execution_outcomes/README.md). A tool not in RECEIPTS falls back to
+# a generic receipt word ("successful(ly)", "confirmed") unless negated ("not successful", "unsuccessful").
 # Anything else is "unknown" and is never counted as a success.
 FAILURE = re.compile(r"^(error|failed|failure)\b", re.I)
-SUCCESS = re.compile(r"\bsuccessful(?:ly)?\b|\bconfirmed\b|^Tool given to user:|^(?:Order|Dispute) ID:", re.I)
+RECEIPTS = {name: re.compile(p) for name, p in {
+    "activate_debit_card_8291": r"^New Debit Card Activation Successful",
+    "activate_debit_card_8292": r"^Replacement Debit Card Activation Successful",
+    "apply_credit_card_account_flag_6147": r"^Account flag applied successfully",
+    "apply_savings_account_credit_6831": r"^Credit applied successfully",
+    "apply_statement_credit_8472": r"^Statement credit applied successfully",
+    "change_user_email": r"^Email updated successfully",
+    "clear_debit_card_fraud_alert_4892": r"^(?:Fraud Alert|Velocity Block) Cleared Successfully",
+    "close_bank_account_7392": r"^Bank account closed successfully",
+    "close_credit_card_account_7834": r"^Credit card account closed successfully",
+    "close_debit_card_4721": r"^Debit Card Closed Successfully",
+    "file_credit_card_transaction_dispute_4829": r"^Credit card transaction dispute filed successfully",
+    "file_debit_card_transaction_dispute_6281": r"^Dispute ID: \S+",
+    "freeze_debit_card_3892": r"^Debit Card Frozen Successfully",
+    "give_discoverable_user_tool": r"^Tool given to user: \S+",
+    "log_credit_card_closure_reason_4521": r"^Closure reason logged successfully",
+    "log_verification": r"^Verification logged successfully",
+    "open_bank_account_4821": r"^Bank account opened successfully",
+    "order_debit_card_5739": r"^Debit Card Order Confirmed",
+    "order_replacement_credit_card_7291": r"^Order ID: \S+",
+    "request_temporary_debit_card_limit_increase_8374": r"^Temporary Daily ATM Withdrawal Limit Increase Granted Successfully",
+    "submit_credit_limit_increase_request_7392": r"^Credit limit increase request submitted successfully",
+    "submit_interest_discrepancy_report_7294": r"^Interest Discrepancy Report Submitted Successfully",
+    "transfer_to_human_agents": r"^Transfer successful \(reason: ",
+    "unfreeze_debit_card_3893": r"^Debit Card Unfrozen Successfully",
+    "update_transaction_rewards_3847": r"^Transaction rewards updated successfully",
+}.items()}
+GENERIC_RECEIPT = re.compile(r"\bsuccessful(?:ly)?\b|\bconfirmed\b", re.I)
+NEGATED = re.compile(r"\b(?:not|never|no longer|un)[\s-]*(?:been\s+)?(?:successful(?:ly)?|confirmed)\b|\bunsuccessful", re.I)
 TRANSFER = "transfer_to_human_agents"
 
 
-def outcome(result: dict | None) -> str:
-    """'success' | 'failure' | 'unknown' for an action's tool result (see above)."""
+def outcome(result: dict | None, tool: str | None = None) -> str:
+    """'success' | 'failure' | 'unknown' for an action's tool result. `tool` is the underlying tool name (or
+    give_discoverable_user_tool / transfer_to_human_agents); without it, or for a tool not in RECEIPTS, the generic
+    receipt rule applies."""
     if not result:
         return "unknown"
     text = (result.get("content") or "").lstrip()
     if result.get("error") or FAILURE.match(text):
         return "failure"
-    return "success" if SUCCESS.search(text) else "unknown"
+    if tool in RECEIPTS:
+        return "success" if RECEIPTS[tool].match(text) else "unknown"
+    return "success" if GENERIC_RECEIPT.search(text) and not NEGATED.search(text) else "unknown"
+
+
+def action_tool(name: str, args: dict | None) -> str | None:
+    """The name RECEIPTS is keyed by: the underlying tool, or the handover / transfer tool itself."""
+    return name if name in (GIVE, TRANSFER) else underlying(name, args)
 
 
 def is_action(name: str, args: dict | None, tool_type) -> bool:
@@ -102,7 +140,7 @@ def call_ok(name: str, args: dict | None, result: dict | None, tool_type) -> boo
     """Whether a call executed. Actions need a success receipt (outcome() == 'success'); reads and other calls have no
     receipt format, so for them any result that is not an error or an "Error"/"Failed" text counts."""
     if is_action(name, args, tool_type):
-        return outcome(result) == "success"
+        return outcome(result, action_tool(name, args)) == "success"
     r = result or {}
     return bool(result) and not r.get("error") and not FAILURE.match((r.get("content") or "").lstrip())
 
@@ -124,7 +162,7 @@ def progress(messages: list[dict], refs: list, tool_type) -> dict:
                 if k == "read":
                     agent["read_calls"] += 1
                 elif k == "write":
-                    o = outcome(res)
+                    o = outcome(res, action_tool(c["name"], c["arguments"]))
                     agent["attempted_writes"] += 1
                     agent["successful_writes"] += o == "success"
                     agent["failed_writes"] += o == "failure"

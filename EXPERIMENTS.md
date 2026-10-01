@@ -645,3 +645,23 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - recurrence, not replication;
   - the simulation's assumptions stated;
   - 46/47 agreement qualified as same-family agreement on the selected subset.
+
+### Harness v3.2 built (verification evidence check); D005 recovery probe frozen (2026-10-01, $0; NOT run)
+
+- **Why** (H009 review): test ONE explicit prerequisite. The rule is in `log_verification`'s own description: 2 of 4 identity fields confirmed. The audits found 3 one-field verifications, none reading-dependent. The rule applies whenever the agent verifies identity; it does not force any conversation to verify.
+- **v3.2 = v3.1 + `verification_evidence`** (`bench/verify_evidence.py`), a hard check on `log_verification` only, using only the conversation before the call.
+  - It needs two distinct fields stated by the customer and matching the record retrieved for that user_id.
+  - Not counted: agent-written values, echoes of values the agent wrote first, name/id, repeats, and corrected fields.
+  - The feedback never gives a stored value. Older versions are unchanged.
+- **Offline replay** (184 verification calls; `research/v3_2/README.md`, with the full development history; the check was revised 4 times on audit-labelled data and blind review 1):
+  - audit-labelled: 3 of 3 violations blocked; 57 of 60 ok allowed. The 3 others are echoes of values the agent disclosed "for example".
+  - **Blind review 2 on 20 unseen calls: 20 of 20 agree.**
+  - 14 of 184 calls blocked.
+  - Reference controls 30/30 under bm25 and alltools.
+  - Side finding: agents write stored identity values before the customer does (6 of 20 in blind review 2; at most 40 of 184 overall).
+- **Parser:** tool-specific success receipts (`metrics.RECEIPTS`); failure is checked first; a negation-guarded generic fallback covers tools not listed. Reprocessing is unchanged: 1 of 565 actions changes, 0 unknown.
+- **D005** (`experiments/D005_plan.json`, `bench/verify_probe.py`): 10 reconstructable blocked histories × 3 next-message samples, never executed. Outcomes: asks for a field, unsupported "verified" claim, new disclosure.
+  - Fixed rule: proceed if it asks for a field in at least 20 of 30 samples (and at least 1 of 3 in at least 8 cases), with new disclosures at most 1 of 30 and verified claims at most 1 of 30; else revise the text.
+  - $0.50 cap. Approval: "run D005 with $0.50".
+- **Tests:** 414 passed, 14 expected failures. The expected failures are all `tests/test_known_defects.py`, the documented dispatch-platform defects DEFECT-1 to DEFECT-9, unrelated to the harness.
+- **Wording (second H009 review):** referral expiry now reads "the agent could have checked the date but did not".

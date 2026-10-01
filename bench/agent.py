@@ -112,11 +112,11 @@ def harness_record(harness: dict | None) -> dict | None:
            "feedback": feedback, "adapter": bool(harness.get("adapter", True))}
     if version != "v1":  # v1 records keep their original shape
         out["version"] = version
-    if version in ("v3", "v3.1"):  # v1's checks plus capability search (bench/capability.py)
+    if version in ("v3", "v3.1", "v3.2"):  # v1's checks plus capability search (bench/capability.py)
         if not out["adapter"]:
             raise ValueError(f"{version} needs the adapter: the tools its searches find are offered through it")
         out["capability_search"] = True
-    if version == "v3.1":  # and a transfer is held at most once, with explicit feedback (research/v3_1/README.md)
+    if version in ("v3.1", "v3.2"):  # a transfer is held at most once, with explicit feedback (research/v3_1/README.md)
         out["transfer_hold_once"] = True
     if harness.get("auto_offer", "all") != "all":  # H009: the adapter offers only non-mutating tools
         if harness["auto_offer"] != "non_mutating":

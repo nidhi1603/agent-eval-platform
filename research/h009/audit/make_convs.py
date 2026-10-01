@@ -48,7 +48,7 @@ def audited_actions(messages, tool_type):
         for c in m.get("tool_calls") or []:
             if c["name"] != GIVE and metrics.kind(c["name"], c["arguments"], tool_type) != "write":
                 continue
-            o = metrics.outcome(results.get(c["id"]))  # three-way since the H009 review; was "not Error-prefixed"
+            o = metrics.outcome(results.get(c["id"]), metrics.action_tool(c["name"], c["arguments"]))  # three-way since the H009 review; was "not Error-prefixed"
             ok = o == "success"
             tool = (f"{GIVE}:{(c['arguments'] or {}).get('discoverable_tool_name') or (c['arguments'] or {}).get('tool_name')}"
                     if c["name"] == GIVE else metrics.underlying(c["name"], c["arguments"]))

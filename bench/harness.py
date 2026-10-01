@@ -18,6 +18,8 @@ The four checks (gates):
                              the feedback says the call was not executed and that calling it again will execute it.
   clock_before_verification  hard. log_verification's time_verified must be a get_current_time reading.
   verification_before_write  hard. A write needs a successful log_verification earlier in the conversation.
+  verification_evidence      v3.2 only, hard. log_verification needs two identity fields stated by the customer and
+                             matching the record retrieved for that user_id, before the call (bench/verify_evidence.py).
   ids_observed               hard. Every identifier and card-digit argument of a write (and log_verification's
                              user_id) must have appeared in a successful tool result or in the customer's words in
                              this conversation: it catches invented identifiers (Verifier Tax's commonest violation).
@@ -56,10 +58,13 @@ HARNESS_NAME = "harness_v1"
 GATES = ("search_before_giving_up", "clock_before_verification", "verification_before_write", "ids_observed")
 V2_GATES = GATES + ("duplicate_write", "plan_before_acting", "procedure_checklist", "needs_covered",
                     "transfer_after_asking", "claims_need_receipts")
-# v3 = v1's checks + capability search (bench/capability.py); v3.1 = v3 + the explicit, once-only transfer hold
-VERSIONS = {"v1": GATES, "v2": V2_GATES, "v3": GATES, "v3.1": GATES}
-ALL_GATES = V2_GATES
-HARD = {"clock_before_verification", "verification_before_write", "ids_observed", "duplicate_write"}
+# v3 = v1's checks + capability search (bench/capability.py); v3.1 = v3 + the explicit, once-only transfer hold;
+# v3.2 = v3.1 + the identity-verification evidence check (bench/verify_evidence.py)
+V3_2_GATES = GATES + ("verification_evidence",)
+VERSIONS = {"v1": GATES, "v2": V2_GATES, "v3": GATES, "v3.1": GATES, "v3.2": V3_2_GATES}
+ALL_GATES = V2_GATES + ("verification_evidence",)
+HARD = {"clock_before_verification", "verification_before_write", "ids_observed", "duplicate_write",
+        "verification_evidence"}
 SOFT = tuple(g for g in V2_GATES if g not in HARD)
 PLAN_GATES = {"plan_before_acting", "needs_covered"}  # either one turns on the task_plan tool
 ONCE_PER_CONVERSATION = {"plan_before_acting"}
@@ -96,6 +101,9 @@ WITHHELD = {
     "ids_observed": ("I haven't made that change yet: I still need to confirm the exact account details it applies "
                          "to. Could you tell me which account or card you mean?"),
     "duplicate_write": "That change has already been made; I haven't repeated it.",
+    "verification_evidence": ("Before I can go further, I need to verify your identity. Could you tell me two of these "
+                              "as they appear on your account: your date of birth, email address, phone number or "
+                              "home address?"),
 }
 COMPLETION_CLAIM = re.compile(
     r"\b(?:has|have) been (?:frozen|unfrozen|closed|opened|submitted|applied|credited|filed|updated|processed|activated|"
@@ -249,6 +257,25 @@ def gate_verification_before_write(proposal: dict, ev: Evidence, ctx: dict) -> l
                            f"record ({', '.join(LOOKUPS)}), check that the details they gave match it, call "
                            "get_current_time, then call log_verification. Then retry this action if it is still "
                            "appropriate.", [c["id"]], {"tool": name}))
+    return out
+
+
+def gate_verification_evidence(proposal: dict, ev: Evidence, ctx: dict) -> list[Finding]:
+    """v3.2: a log_verification call needs two identity fields stated by the customer and matching the record
+    retrieved for that user_id, all before the call (bench/verify_evidence.py). Only log_verification is checked."""
+    from bench import verify_evidence
+
+    out = []
+    for c in proposal.get("tool_calls") or []:
+        name, args = target(c)
+        if name != "log_verification":
+            continue
+        a = verify_evidence.assess(args.get("user_id"), ev.messages)
+        if a.allowed:
+            continue
+        out.append(Finding("verification_evidence", verify_evidence.feedback(a), [c["id"]],
+                           {"user_id": a.user_id, "record_found": a.record_found, "supported": a.supported,
+                            "contradicted": a.contradicted}))
     return out
 
 
@@ -449,6 +476,7 @@ GATE_FUNCS = {
     "search_before_giving_up": gate_search_before_giving_up,
     "clock_before_verification": gate_clock_before_verification,
     "verification_before_write": gate_verification_before_write,
+    "verification_evidence": gate_verification_evidence,
     "ids_observed": gate_ids_observed,
 }
 
@@ -460,7 +488,8 @@ def review(proposal: dict, ev: Evidence, ctx: dict, gates=GATES) -> list[Finding
         raise GuardConfigError("harness checks need tool-type metadata (the toolkit was not attached)")
     found: list[Finding] = []
     flagged: set[str] = set()
-    for g in ("verification_before_write", "clock_before_verification", "ids_observed", "duplicate_write"):
+    for g in ("verification_before_write", "verification_evidence", "clock_before_verification", "ids_observed",
+              "duplicate_write"):
         if g in gates:
             for f in GATE_FUNCS[g](proposal, ev, ctx):
                 if not set(f.call_ids) & flagged:

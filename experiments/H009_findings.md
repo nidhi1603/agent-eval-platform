@@ -119,8 +119,8 @@ The same counts recurred. This is recurrence, not an exact replication: the conf
     - Effect: full_exposure successful writes 35 → 34. No reference match, pass, V, C or verdict changes.
     - The original files are kept as produced.
   - Two auditors judged referral-program expiry against the environment date 2025-11-14, which is not shown in those two conversations (task_015).
-    - The agent had an authorized clock: the base tool `get_current_time`. It did not call it before the handover.
-    - These violations are against the environment's actual policy. They are not cases of an agent ignoring a date it was shown.
+    - The program was expired in the environment, and the agent could have checked the date (the base tool `get_current_time`) but did not.
+    - That establishes a policy violation. It does not claim the agent ignored a date already in its context.
 
 ## What this means for the harness
 
@@ -160,3 +160,4 @@ The same counts recurred. This is recurrence, not an exact replication: the conf
    - the H008 match is "recurrence", not replication;
    - the simulation's assumptions are stated;
    - the 46/47 agreement is qualified as same-family agreement on the selected subset.
+4. **Second review** (also 2026-10-01): the referral-date wording now says the agent "could have checked the date but did not". It no longer suggests the agent ignored a date already in context.
