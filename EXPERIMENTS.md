@@ -769,3 +769,18 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Reporting.** Results are given per conversation, task and stratum. Pairing means the same task and settings, not identical trajectories.
 - **Unchanged:** the task draw (019, 023, 077 / 087, 095 / 012), the arms and the budget ($3.00).
 - **Tests:** 459 passed, 14 expected failures.
+
+### P001 results: disclosure check live pilot → INCONCLUSIVE_ON_RECOVERY (2026-10-01; $1.26 billed)
+
+- **Run.** Approved with "run P001 with $3.00". 12 of 12 finished; the runtime configuration matches the record in all 12.
+- **The check never intervened** in the 6 treatment conversations, so recovery cannot be assessed and no recovery claim is made.
+- **Rows that held:**
+  - 0 covered disclosures delivered, in both arms;
+  - valid verification 5 vs 5;
+  - no loops, apologies or extra holds.
+- **Why nothing fired.** In all 10 verified conversations the customer supplied two or more matching fields up front, and every verification passed the evidence check first time. So the D005 leak situation (a held verification, then a request for missing fields) did not arise.
+- **One OTHER disclosure (treatment, task_095):** "found a matching record" before the receipt. Out of coverage, as stated.
+- **Review.** Two independent blind reviewers labelled all 12 conversations and agreed on every verdict-determining field; no adjudication was needed. The code labels agree.
+- **Rewards:** 0 of 12, descriptive; earlier runs on these tasks were also low. Policy errors seen in both arms are listed in the findings.
+- **Next (needs a decision):** stop, OR run a separately planned targeted recovery test in situations where verification is held.
+- Findings: `experiments/P001_findings.md`.
