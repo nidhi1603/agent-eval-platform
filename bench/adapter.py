@@ -73,6 +73,13 @@ def make_direct_tools_agent_class():
 
         adapter_toolkit = None
         agent_tool_names: frozenset = frozenset()
+        # H009 options (both off by default, so earlier versions are unchanged):
+        # auto_offer "non_mutating": the adapter unlocks and offers only tools that do not change the database
+        #   (tau2's MUTATES_STATE_ATTR; validated against replays in research/h009/tool_effects.json).
+        # expose_model_unlocks: a tool the MODEL unlocks itself is then offered for direct calling too, so both
+        #   H009 arms call every tool through the same interface.
+        auto_offer: str = "all"
+        expose_model_unlocks: bool = False
 
         def __init__(self, *a, **kw):
             super().__init__(*a, **kw)
@@ -80,6 +87,7 @@ def make_direct_tools_agent_class():
             self.offered: dict = {}          # name -> tau2 Tool, offered after a successful unlock receipt
             self._pending: dict = {}         # harness unlock call id -> tool name
             self._failed: set[str] = set()   # names whose unlock failed; never retried
+            self._withheld_seen: set[str] = set()  # mutating tools the adapter did not offer (auto_offer non_mutating)
             self._n = 0
 
         # ---- incoming messages ----------------------------------------------------------------------
@@ -90,6 +98,8 @@ def make_direct_tools_agent_class():
                 name = self._pending.pop(getattr(m, "id", None), None) if getattr(m, "role", None) == "tool" else None
                 if name is None:
                     state.messages.append(m)
+                    if self.expose_model_unlocks:
+                        self._expose_model_unlock(m, state)
                     continue
                 ok = not m.error and (m.content or "").startswith("Tool unlocked:")
                 if ok:
@@ -99,12 +109,38 @@ def make_direct_tools_agent_class():
                 self.adapter_events.append({"event": "unlocked" if ok else "unlock_failed", "tool": name,
                                             "receipt": (m.content or "")[:200]})
 
+        def _mutates(self, name: str) -> bool:
+            from tau2.environment.toolkit import MUTATES_STATE_ATTR
+
+            method = self.adapter_toolkit.get_discoverable_tools().get(name)
+            return True if method is None else bool(getattr(method, MUTATES_STATE_ATTR, True))
+
+        def _expose_model_unlock(self, m, state) -> None:
+            """A successful unlock the model made itself: offer that tool for direct calling as well."""
+            if getattr(m, "role", None) != "tool" or m.error or not (m.content or "").startswith("Tool unlocked:"):
+                return
+            call = next((tc for x in state.messages if getattr(x, "role", None) == "assistant"
+                         for tc in (getattr(x, "tool_calls", None) or []) if tc.id == m.id), None)
+            if call is None or call.name != UNLOCK:
+                return
+            name = (call.arguments or {}).get("agent_tool_name")
+            if name in self.agent_tool_names and name not in self.offered:
+                self.offered[name] = as_tool(self.adapter_toolkit.tools[name])
+                self.adapter_events.append({"event": "model_unlock_exposed", "tool": name})
+
         def _unlock_turn(self, state):
             """A harness turn that unlocks newly seen names; no model call. None if there is nothing new."""
             if self.adapter_toolkit is None:
                 raise RuntimeError("DirectToolsAgent needs adapter_toolkit (the environment's toolkit)")
             seen = names_in_kb_results(state.messages, self.agent_tool_names)
             new = sorted(seen - set(self.offered) - set(self._pending.values()) - self._failed)
+            if self.auto_offer == "non_mutating":
+                withheld = [n for n in new if self._mutates(n)]
+                new = [n for n in new if n not in withheld]
+                fresh = [n for n in withheld if n not in self._withheld_seen]
+                if fresh:
+                    self._withheld_seen.update(fresh)
+                    self.adapter_events.append({"event": "auto_offer_withheld", "tools": fresh})
             if not new:
                 return None
             calls = []

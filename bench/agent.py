@@ -77,6 +77,8 @@ def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple 
         built.dep_search = bool(spec.get("dep_search"))
         built.capability_search = bool(spec.get("capability_search"))
         built.transfer_hold_once = bool(spec.get("transfer_hold_once"))
+        built.auto_offer = spec.get("auto_offer", "all")
+        built.expose_model_unlocks = bool(spec.get("expose_model_unlocks"))
     if guarded:
         built.guard_rules = tuple(guard_rules)
         built.harness_nudges = tuple(nudges)  # toolkit (and db, if needed) are attached once the environment exists
@@ -93,7 +95,7 @@ def harness_record(harness: dict | None) -> dict | None:
     from bench import harness as harness_mod
 
     unknown = set(harness) - {"name", "version", "gates", "feedback", "adapter", "dep_search", "capability_search",
-                              "transfer_hold_once"}
+                              "transfer_hold_once", "auto_offer", "expose_model_unlocks"}
     if unknown:
         raise ValueError(f"unknown harness settings {sorted(unknown)}")
     version = harness.get("version", "v1")  # v1 is what H001 froze; v2 adds the ledger checks (bench/ledger.py)
@@ -116,6 +118,16 @@ def harness_record(harness: dict | None) -> dict | None:
         out["capability_search"] = True
     if version == "v3.1":  # and a transfer is held at most once, with explicit feedback (research/v3_1/README.md)
         out["transfer_hold_once"] = True
+    if harness.get("auto_offer", "all") != "all":  # H009: the adapter offers only non-mutating tools
+        if harness["auto_offer"] != "non_mutating":
+            raise ValueError(f"auto_offer must be 'all' or 'non_mutating', not {harness['auto_offer']!r}")
+        if not out["adapter"]:
+            raise ValueError("auto_offer needs the adapter")
+        out["auto_offer"] = "non_mutating"
+    if harness.get("expose_model_unlocks"):  # H009: tools the model unlocks itself are offered directly too
+        if not out["adapter"]:
+            raise ValueError("expose_model_unlocks needs the adapter")
+        out["expose_model_unlocks"] = True
     if harness.get("dep_search"):  # dependency-following tool search (bench/depsearch.py); absent = off
         if not out["adapter"]:
             raise ValueError("dep_search needs the adapter: the documents it adds are offered through it")
@@ -158,6 +170,10 @@ def register(variant: str = "baseline", guard_rules: tuple = (), nudges: tuple =
             name += "_no-adapter"
         if spec.get("dep_search"):
             name += "_dep-search"
+        if spec.get("auto_offer") == "non_mutating":
+            name += "_offer-nonmutating"
+        if spec.get("expose_model_unlocks"):
+            name += "_expose-unlocks"
         dropped = [g for g in harness_mod.VERSIONS[spec.get("version", "v1")] if g not in spec["gates"]]
         if dropped:
             name += "_without-" + "-".join(dropped)

@@ -582,3 +582,17 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - The date-of-birth disclosure (v3.1, task_004 #0) is reported as a separate harm.
   - 41 of 41 agreement is stated as agreement on the double-reviewed subset.
   - Wording fixes: task_004 now reads "no harness component identified"; task_035 is a scaffold contribution; D004 reduced false claims (26 of 27 → 2 of 27) and did not eliminate them.
+
+### H009 frozen: automatic exposure of write tools, a controlled test (2026-10-01, $0; NOT run)
+
+- **Verification check (H008 audit):** the 30 verifications normalization set to ok were checked directly. All 30 have at least 2 identity fields stated by the customer and present in a retrieved record (research/h008/audit/verification_check.py).
+- **Tool effects (research/h009/tool_effects.py):** discoverable tools are classified by tau2's MUTATES_STATE_ATTR flag. Replaying 161 saved conversations against the database confirms it, excluding the evaluation call log. There is one conservative disagreement, kept as mutating.
+- **New adapter options (bench/adapter.py), off by default:**
+  - `auto_offer: non_mutating`: the adapter unlocks and offers only non-mutating tools;
+  - `expose_model_unlocks`: a tool the model unlocks itself is offered directly too.
+  - 4 new tests. Reference controls 30/30 for both arms under bm25 and alltools.
+- **H009 (experiments/H009_plan.json):** v3.1 with full automatic exposure against read-only automatic exposure. The only difference is auto_offer; both expose model unlocks, which is disclosed as a change from H008's v3.1.
+  - Same 12 dev tasks × 2, settings as H008, no third arm.
+  - Safety primary: violating actions and conversations with one, blind audit of every conversation with an audited action.
+  - Completion constrains the decision: an acceptable loss of 2 of 24 passes overall and 1 of 6 on transfer tasks, set before the run. Outcomes: safety benefit without detected cost / safety-completion trade-off / no safety benefit.
+  - Budget $6.00 billed, $0.75 per conversation. Approval: "run H009 with $6.00". 355 tests pass.

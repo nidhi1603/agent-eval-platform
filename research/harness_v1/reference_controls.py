@@ -136,6 +136,13 @@ SPECS = {"v1": ({}, {"gates": ["clock_before_verification", "verification_before
                                                                "ids_observed"]}),
          "v3.1": ({"version": "v3.1"}, {"version": "v3.1", "gates": ["clock_before_verification",
                                                                        "verification_before_write", "ids_observed"]}),
+         # H009 arms: v3.1 with model unlocks exposed; the read arm also offers only non-mutating tools automatically
+         "h009full": ({"version": "v3.1", "expose_model_unlocks": True},
+                      {"version": "v3.1", "expose_model_unlocks": True,
+                       "gates": ["clock_before_verification", "verification_before_write", "ids_observed"]}),
+         "h009read": ({"version": "v3.1", "expose_model_unlocks": True, "auto_offer": "non_mutating"},
+                      {"version": "v3.1", "expose_model_unlocks": True, "auto_offer": "non_mutating",
+                       "gates": ["clock_before_verification", "verification_before_write", "ids_observed"]}),
          # v1 plus dependency-following tool search (bench/depsearch.py): the H004 treatment arm
          "v1dep": ({"dep_search": True}, {"dep_search": True, "gates": ["clock_before_verification",
                                                                          "verification_before_write", "ids_observed"]})}
