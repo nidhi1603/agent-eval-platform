@@ -250,7 +250,7 @@ def main():
     holds = [dict(h, task=x["task"], attempt=x["attempt"], arm=x["arm"], reward=x["reward"]) for x in v for h in x["after_holds"]]
     transfer_tasks = [{k: x[k] for k in ("task", "attempt", "arm", "reward", "transfers", "transfer_succeeded",
                                          "reason_doc_before_first_transfer", "capability_searches")}
-                      | {"held_transfers": x["held"].get("search_before_giving_up", 0)}
+                      | {"give_up_holds_incl_denials": x["held"].get("search_before_giving_up", 0)}
                       for x in rows if x["stratum"] == "transfer" and x.get("traced")]
     differing = {(p["task"], p["attempt"]) for p in done if p["pair"] in ("improved", "regressed")}
     queue = sorted((x["task"], x["attempt"], x["arm"]) for x in rows if x.get("traced"))  # all traced; make_convs keeps those with audited actions

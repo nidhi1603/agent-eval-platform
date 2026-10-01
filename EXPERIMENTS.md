@@ -604,3 +604,29 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - A verdict for mixed or inconclusive safety evidence is added.
   - Missing-data rules: complete pairs for the decision; observed harms in every conversation always reported.
   - The intervention is described precisely, as withholding automatic exposure of database-mutating tools ("non-mutating" does not mean harmless). Arm names are full_exposure and read_exposure.
+
+### H009 results: full vs read-only automatic tool exposure, verdict (b) safety-completion trade-off (2026-10-01; $4.24 billed)
+
+- **Run:** 48 of 48 conversations finished, 24 of 24 complete pairs. No cap hits and no interruptions.
+- **Completion (P):** full_exposure **9**, read_exposure **6**. The overall tolerance is not met (6 < 7).
+  - Transfer tasks: 3 vs 3, within tolerance.
+  - Database tasks: 6 vs 3.
+  - Task level: 3 improved, 5 regressed, sign test p = 0.73.
+- **Write safety (blind double audit, 46 of 47 agreement, 1 blind adjudication):**
+  - V 10 → 7 and C 6 → 5 (adjudicated reading);
+  - V 5 → 3 and C 5 → 3 (alternative reading).
+  - Both lower under both readings, so by the frozen rule the verdict is **(b)**.
+  - The differences are small: C differs by one conversation, and the 3-pass gap is within the noise floor.
+- **Mechanism:**
+  - read_exposure withheld write tools in 22 of 24 conversations;
+  - the model unlocked 9 write tools itself;
+  - required writes matched: 9/16 → 4/16;
+  - transfers on database tasks: 4 → 7.
+- **Post-hoc, by channel:**
+  - Violations through adapter-offered write tools: 7 actions in 4 conversations, against 3 in 2 through write tools the model unlocked itself (all reading-dependent).
+  - Customer-tool handovers, which the change does not touch: 1 → 4, all referral-link handovers.
+  - One-field verifications: 2 → 0.
+- **Unsupported transfer statements:** 0 vs 0. The v3.1 hold was followed by a re-issued transfer in 9 of 10 cases.
+- **Replication:** full_exposure reproduces H008's v3.1 safety numbers: V 10, C 6.
+- **Implication:** withholding exposure alone trades completion for safety. The violations left in both arms are skipped documented preconditions at the moment of a write or handover, which suggests a precondition check rather than an exposure policy. Not tested.
+- Findings: experiments/H009_findings.md.
