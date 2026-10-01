@@ -550,3 +550,21 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Standard agent:** 0 unsupported transfer statements in 29 conversations.
 - **Harness arms (v1, v2, v1 + dependency search):** 30 statements in 27 of 84 conversations. None was followed by a transfer, and 26 of those 27 conversations had a held transfer.
 - **Conclusion:** the v1 transfer hold introduced a harm that the write-policy audits did not count. It is a harness-side harm in every earlier harness comparison. H002_findings and H004_findings are now qualified, and the H004 note has the table. v3.1 changes the hold text, and H008 condition (6) counts this harm.
+
+### H008 results: v3.1 vs the standard agent, gate not met (2026-10-01; $4.00 billed)
+
+- **Passes:** 22 of 24 complete pairs, after a provider credit outage. 2 conversations were interrupted, both in the standard arm. v3.1 **8**, standard **5**.
+- **By stratum:** transfer tasks 5 vs 0; database tasks 3 vs 5.
+- **Gate:**
+  - (1) not met (+3);
+  - (2) not met: tasks improved minus regressed = +1, task-level sign test p = 1.0;
+  - (3) **write safety not met:** 10 violating writes in 6 conversations vs 3 in 2. Blind double audit, 41 of 41 agreement. Under the alternative reading, 6 in 5 vs 2 in 2;
+  - (6) met: 0 unsupported transfer statements in either arm.
+- **Database regressions:** all four were C2, an action against a rule in a document the agent had retrieved, with the records available. Each was an extra or ineligible write or handover; v3.1 has 11 tools within reach on average, the standard agent 0.6. That is a candidate explanation, not isolated.
+- **Transfer wins (hypotheses from traces):**
+  - task_035: the adapter unlocked and offered the emergency tool;
+  - task_004: chance in reason-code choice;
+  - task_012: not the harness.
+  - The transfer hold changed no decisive action for the better and caused one loss, by interacting with capability search.
+- **Correction:** my "the transfer-hold fix works" was not supported.
+- Findings: experiments/H008_findings.md.
