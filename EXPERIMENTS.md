@@ -694,3 +694,16 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 | H009 verdict | **(c) mixed or inconclusive** under the frozen rule: conversation counts do not improve under both readings |
 
 **Why it changed.** Checking that the customer typed values matching the record was not enough: in three accepted verifications, the agent had supplied the answers first. Examining provenance reclassified them. The blind audits agreed on these three, which also shows that reviewer agreement alone does not establish audit accuracy.
+
+### D005 results: verdict REVISE (2026-10-01; $0.11 billed)
+
+- **Run:** 30 of 30 calls ok; reconstruction passed for all 10 cases; tool lists sent matched the original requests.
+- **Read labels:**
+  - asks for an eligible field: 26 of 30, all 10 cases ✓;
+  - verified claims: 0 of 30 ✓;
+  - **new disclosure: 3 of 30 ✗** (limit 1);
+  - any disclosure: 3 of 30 as computed, 4 of 30 under the plan's written "repeat" definition. The code labels agent-originated values that the customer echoed as "customer stated"; this is reported, not changed.
+- **The failure.** Asking for the missing fields, the agent gave "examples" built from the customer's real stored values (DOB, phone, email, address) in 3 cases. v3.2's feedback had just said not to reveal the record. This is the same behaviour that produced the audited echo verifications.
+- **What it shows.** The hold usually produces an appropriate ask, and no false "you're verified". An instruction alone does not stop the leak.
+- **Proposed next (not built):** a separate deterministic output-disclosure check (before verification, hold customer-facing text that contains a stored identity value the customer has not stated), plus field-names-only wording in the feedback. It needs its own offline replay and probe.
+- Findings: experiments/D005_findings.md.
