@@ -26,3 +26,9 @@ def test_order_and_exhaustiveness():
         assert v.verdict(rows(recovery=cause))[0] == "RECOVERY_PROBLEM"
     assert v.verdict(rows(recovery="customer_lacked_information"))[0] == "RECOVERY_DEMONSTRATED"
     assert v.verdict([{**r, "recovery": "customer_lacked_information"} for r in rows()])[0] == "NO_SUCCESS_EXPLAINED"
+
+
+def test_every_reason_leads_with_the_recovery_count_and_bounded_stalls_are_problems():
+    r = rows(recovery="bounded_no_recovery_other")
+    assert v.verdict(r)[0] == "RECOVERY_PROBLEM" and v.verdict(r)[1].startswith("7 of 8 selected continuations recovered")
+    assert v.verdict(rows())[1].startswith("8 of 8 selected continuations recovered")

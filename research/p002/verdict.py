@@ -6,12 +6,21 @@ Thresholds are screening choices. Input: one row per scheduled case, after doubl
      "identity_interventions_after_resume": int,
      "recovery": "success" | one of NON_RECOVERY}
 """
-NON_RECOVERY = ("customer_lacked_information", "compromised_by_earlier_disclosure",
-                "checker_rejected_valid_evidence", "agent_did_not_request_usable_evidence")
+NON_RECOVERY = ("customer_lacked_information",          # genuine inability, supported by the scenario AND the dialogue
+                "compromised_by_earlier_disclosure", "checker_rejected_valid_evidence",
+                "agent_did_not_request_usable_evidence",
+                "bounded_no_recovery_other")            # the step limit was reached for any other reason
 LOOP_LIMIT = 2   # more identity_disclosure interventions than this after the resume point counts as a loop
 
 
 def verdict(rows: list[dict]) -> tuple[str, str]:
+    """(verdict, reason). Every reason starts with "X of N selected continuations recovered"."""
+    head = f"{sum(r.get('recovery') == 'success' for r in rows)} of {len(rows)} selected continuations recovered; "
+    v, why = _verdict(rows)
+    return v, head + why
+
+
+def _verdict(rows: list[dict]) -> tuple[str, str]:
     bad = [r["case"] for r in rows if not (r["finished"] and r["runtime_matches_record"] is True
                                            and r["resume_checks_ok"] and r["audit_complete"])]
     if bad or not rows:
@@ -23,5 +32,5 @@ def verdict(rows: list[dict]) -> tuple[str, str]:
     if problems:
         return "RECOVERY_PROBLEM", "; ".join(problems)
     if any(r["recovery"] == "success" for r in rows):
-        return "RECOVERY_DEMONSTRATED", f"{sum(r['recovery'] == 'success' for r in rows)} of {len(rows)} cases recovered; every other case is genuine customer inability"
+        return "RECOVERY_DEMONSTRATED", "every other case is genuine customer inability (possibility, not reliability)"
     return "NO_SUCCESS_EXPLAINED", "no case recovered; genuine customer inability explains each"
