@@ -125,9 +125,9 @@ Flags from both passes, per audited conversation:
 ## Audit normalization (kept for the record)
 
 The first-pass auditors scoped "write" differently. `canonicalize.py` put their verdicts on the fixed action list the second pass used:
-- 33 matched verifications that the first pass did not list were set to ok, as its instructions implied.
-- 2 handover verdicts were moved from the customer's resulting action to the agent's handover: task_015 #0 and task_015 #1. Both auditors judged that handover's policy requirements (referral program dates and eligibility).
-- 4 unlisted handovers were judged in a blind completion pass: all ok.
+- 30 matched verifications that the first pass did not list were set to ok, as its instructions implied.
+- 2 handover verdicts were moved from the customer's resulting action to the agent's handover: task_015 #1 in each arm. Both auditors judged that handover's policy requirements (referral program dates and eligibility).
+- 4 unlisted handovers were judged in a blind completion pass, all ok. 3 of those verdicts were used; the fourth handover already had a moved first-pass verdict, also ok.
 - 6 first-pass "ok" verdicts on actions that are not writes were left out of the write count: customer-run applications and disputes, and the emergency escalation tool.
 
 The raw labels (`labels_*.json`), the mapping (`canonicalize.py`) and its output (`first_canonical.json`) are all kept. Harms recorded on non-write actions stay in the table above.
