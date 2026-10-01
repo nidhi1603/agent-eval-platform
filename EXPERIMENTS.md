@@ -781,6 +781,9 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Why nothing fired.** In all 10 verified conversations the customer supplied two or more matching fields up front, and every verification passed the evidence check first time. So the D005 leak situation (a held verification, then a request for missing fields) did not arise.
 - **One OTHER disclosure (treatment, task_095):** "found a matching record" before the receipt. Out of coverage, as stated.
 - **Review.** Two independent blind reviewers labelled all 12 conversations and agreed on every verdict-determining field; no adjudication was needed. The code labels agree.
-- **Rewards:** 0 of 12, descriptive; earlier runs on these tasks were also low. Policy errors seen in both arms are listed in the findings.
+- **Rewards:** 0 of 12, reported as is; earlier scores are context only. Policy errors seen in both arms are listed in the findings.
+- **Corrected after review.**
+  - The historical firing frequency is 13 distinct conversations out of the 239 replayed (about 1 in 18), not "13 of about 116".
+  - "Nothing went wrong" is replaced by: no filter-induced holds, apologies or verification loops were observed, and there were zero false interventions in 6 treatment conversations. That means compatibility in these runs, not general "no interference".
 - **Next (needs a decision):** stop, OR run a separately planned targeted recovery test in situations where verification is held.
 - Findings: `experiments/P001_findings.md`.
