@@ -111,7 +111,14 @@ WITHHELD_VERIFY_PREFIX = "Before I can go further, I need to verify your identit
 
 def withheld_reply(f: "Finding") -> str:
     """The fixed reply sent when a hard finding stays after the correction budget. For verification_evidence it asks
-    only for what is still missing (never a stored value); the other gates keep their fixed text."""
+    for identity fields by NAME only (never a stored value); the other gates keep their fixed text.
+
+    Neutral since P002 (2026-10-01, a post-P002 change; P002 tested the earlier version): the request never depends on
+    which fields already matched. The earlier "Thanks for what you've given so far ... one more of these" variant
+    listed only the not-yet-matched fields, which told an unverified customer which of their values matched (P002, 5
+    of 8 cases). Now the options are every field still USABLE (all four, minus fields the agent itself revealed, which
+    could only come back as echoes), whatever has matched. The evidence already supplied is still counted by the check
+    (verify_evidence.assess reads the whole conversation), so nothing is reset; the customer may give one or two."""
     if f.gate == "identity_disclosure":   # a verification-related draft gets the missing-fields request; others an apology
         if not (f.detail or {}).get("verification_related"):
             return WITHHELD["identity_disclosure"]
@@ -121,21 +128,18 @@ def withheld_reply(f: "Finding") -> str:
     from bench.verify_evidence import FIELDS, LABEL
 
     d = f.detail or {}
-    supported, unusable = d.get("supported") or [], d.get("unusable") or []
-    missing = [LABEL[x] for x in FIELDS if x not in supported and x not in unusable]
-    if d.get("record_found") and len(supported) + len(missing) < 2:  # too few usable fields left: no identity request
-        return ("I'm sorry, I'm not able to complete identity verification in this conversation, so I can't access or "
-                "change your account details here.")
+    unusable = d.get("unusable") or []
+    usable = [LABEL[x] for x in FIELDS if x not in unusable]   # independent of what has matched
     if not d.get("record_found"):
         return (f"{WITHHELD_VERIFY_PREFIX} Could you tell me your full name or the email address on your account, and two "
                 "of these as they appear on your account: your date of birth, email address, phone number or home address?")
-    if len(supported) == 1:
-        return (f"{WITHHELD_VERIFY_PREFIX} Thanks for what you've given so far. Could you tell me one more of these as it "
-                f"appears on your account: your {', '.join(missing[:-1])} or {missing[-1]}?")
-    if len(missing) < 4:
-        return (f"{WITHHELD_VERIFY_PREFIX} Could you tell me two of these as they appear on your account: your "
-                f"{', '.join(missing[:-1])} or {missing[-1]}?")
-    return WITHHELD["verification_evidence"]
+    if len(usable) < 2:   # too few usable fields left: no identity request
+        return ("I'm sorry, I'm not able to complete identity verification in this conversation, so I can't access or "
+                "change your account details here.")
+    if len(usable) == 4:
+        return WITHHELD["verification_evidence"]
+    return (f"{WITHHELD_VERIFY_PREFIX} Could you tell me two of these as they appear on your account: your "
+            f"{', '.join(usable[:-1])} or {usable[-1]}?")
 
 
 def gate_identity_disclosure(proposal: dict, ev: Evidence, ctx: dict) -> list[Finding]:

@@ -73,7 +73,7 @@ def test_verification_related_text_only_is_replaced_and_other_text_is_held():
     [f] = gate("To verify you, please confirm your DOB, e.g. 07/22/1985.", msgs)
     assert f.detail["verification_related"] and f.detail["replace"]
     reply = harness.withheld_reply(f)
-    assert reply.startswith(harness.WITHHELD_VERIFY_PREFIX) and "one more" in reply and "07/22/1985" not in reply
+    assert reply.startswith(harness.WITHHELD_VERIFY_PREFIX) and "two of these" in reply and "07/22/1985" not in reply
     [g] = gate("Your card ending in your birthday 07/22/1985 was declined.", msgs)
     assert not g.detail["verification_related"] and not g.detail["replace"]
     assert harness.withheld_reply(g) == harness.WITHHELD["identity_disclosure"]

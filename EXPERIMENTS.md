@@ -854,7 +854,7 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **What ran.** The restart ran under the amended plan: all 8 cases finished, the configuration matches, and every resume check passed. Selected development testing; the harness controller was fresh, with counters reset.
 - **Recovery.**
   - 6 recoveries: valid verification, then resumed work.
-  - 2 safe non-completions: task_004 ×2, where the scenario and the dialogue show the customer lacked usable fields. Both ended in a transfer.
+  - 2 cases safely stopped at verification: task_004 ×2, where the scenario and the dialogue show the customer lacked usable fields. Both transfers then used the wrong reason code, so they were not safe completions.
   - 0 covered disclosures after the resume point, 0 false blocks, no apologies, loops or abandonment.
   - Reward 3 of 8, descriptive.
 - **The harness's own fixed "one more of these" request implicitly confirms a match** (OTHER disclosure, low severity, 5 of 8 cases). Proposed fix, not made: always ask neutrally for two fields.
@@ -862,3 +862,17 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Review.** Two reviewers agree on every verdict-deciding label. The blind adjudicator settled OTHER disclosures, one resumed-work label, and the two transfer holds, which are not false blocks because the blocked drafts were wrong. The false-block scope differed between the plan and REVIEW.md; the count is 0 either way.
 - **This closes the disclosure-check investigation.** Next: post-verification decision quality (fraud alert, waiting periods, unsupported claims, rebate math, transfer reason codes).
 - Findings: `experiments/P002_findings.md`.
+
+### Post-P002 change: neutral fixed verification request (2026-10-01, $0)
+
+- **The defect.** P002 found that the fixed "Thanks for what you've given so far ... one more of these" request listed only the not-yet-matched fields. That confirmed a match to an unverified customer in 5 of 8 cases.
+- **The change.** `harness.withheld_reply` now asks for "two of these" from every field still usable, leaving out only fields the agent revealed, whatever has matched.
+  - A test asserts the text is identical across every matched subset, for every set of unusable fields.
+  - Evidence already given still counts, so nothing is reset.
+  - The cost is friction: a customer may repeat a field.
+- **Scope of the change.** It is recorded as a post-P002 change. P002's tested version (commit 48bf813) and its results are unchanged. It has not been tested live, and no paid disclosure experiment is planned.
+- **Wording tightened (review).**
+  - P002 leads with "six of eight selected continuations reached valid verification and resumed task work", one of them partially.
+  - The task_004 cases were safely stopped at verification, but their transfers used the wrong reason code.
+  - P001 stays "compatible in six treatment conversations; recovery untested".
+- **Tests:** 468 passed, 14 expected failures.

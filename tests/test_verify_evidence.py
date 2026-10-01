@@ -226,12 +226,13 @@ def test_end_to_end_v3_1_does_not_run_the_check(tmp_path):
 
 # ---- retries, the fallback reply, failure handling (second review) ---------------------------------------------------
 
-def test_withheld_reply_asks_only_for_what_is_missing_and_reveals_nothing():
+def test_withheld_reply_is_neutral_and_reveals_nothing():
+    """Post-P002: the request no longer depends on which fields matched (the "one more of these" variant, which left
+    out the matched field, confirmed a match to an unverified customer in 5 of P002's 8 cases)."""
     F = harness.Finding
     one = harness.withheld_reply(F("verification_evidence", "m", ["v"], {"record_found": True, "supported": ["phone_number"]}))
-    assert "one more" in one and "phone number" not in one and all(x in one for x in ("date of birth", "email", "address"))
     none = harness.withheld_reply(F("verification_evidence", "m", ["v"], {"record_found": True, "supported": []}))
-    assert "two of these" in none
+    assert one == none and "two of these" in none and "one more" not in none and "so far" not in none
     nobody = harness.withheld_reply(F("verification_evidence", "m", ["v"], {"record_found": False, "supported": []}))
     assert "full name or the email" in nobody
     for text in (one, none, nobody):
@@ -275,7 +276,7 @@ def test_end_to_end_retries_never_execute_an_unsupported_verification(tmp_path):
     said_before = [m["content"] for m in t["messages"][:executed[0]] if m["role"] == "user"]
     assert any("06/18/1983" in s for s in said_before)                    # the second field came first
     fixed = [m["content"] for m in t["messages"] if m["role"] == "assistant" and harness.is_withheld_reply(m.get("content"))]
-    assert len(fixed) == 2 and all("one more" in x and "phone number" not in x for x in fixed)
+    assert len(fixed) == 2 and all(x == harness.WITHHELD["verification_evidence"] for x in fixed)   # neutral (post-P002)
 
 
 def _db_users():
@@ -319,3 +320,26 @@ def test_unambiguous_day_first_dates_are_read_and_ambiguous_ones_stay_month_firs
     assert ve.stated("date_of_birth", "DOB 22/07/1985") == ["1985-07-22"]
     assert ve.stated("date_of_birth", "DOB 08/07/1985") == ["1985-08-07"]
     assert ve.stated("date_of_birth", "DOB 31/13/1985") == []
+
+
+def test_withheld_reply_does_not_depend_on_which_fields_matched():
+    """Post-P002 (2026-10-01): for every set of unusable (agent-revealed) fields, the reply is the SAME text whatever
+    subset of the usable fields has already matched: its wording, the number asked for and the options never signal a
+    match. Unusable fields are left out because the customer could only echo them; that depends on what the agent
+    showed, not on what matched."""
+    import itertools
+
+    F = harness.Finding
+    for nu in range(5):
+        for unusable in itertools.combinations(verify_evidence.FIELDS, nu):
+            usable = [x for x in verify_evidence.FIELDS if x not in unusable]
+            replies = {harness.withheld_reply(F("verification_evidence", "m", ["v"],
+                                                {"record_found": True, "supported": list(sup), "unusable": list(unusable)}))
+                       for n in range(len(usable) + 1) for sup in itertools.combinations(usable, n)}
+            assert len(replies) == 1, (unusable, replies)
+            [r] = replies
+            if 2 <= len(usable) < 4:
+                options = r.split("on your account: your ", 1)[1]
+                assert all(verify_evidence.LABEL[x] not in options for x in unusable)
+                assert all(verify_evidence.LABEL[x] in options for x in usable)
+            assert ("not able to complete" in r) == (len(usable) < 2)
