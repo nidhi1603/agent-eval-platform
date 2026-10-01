@@ -753,3 +753,19 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - Decision: PROCEED to a larger paired test, REVISE, or INCONCLUSIVE_ON_RECOVERY if the check never fires.
   - Budget $3.00 billed, $0.75 per conversation (forecast about $1.10-1.50). Needs review and "run P001 with $3.00".
 - **Tests:** 453 passed, 14 expected failures.
+
+### P001 decision rule revised after the second review; plan frozen, not run (2026-10-01, $0)
+
+- **Exhaustive, ordered verdict.** One function, `research/p001/verdict.py`, tested in `tests/test_p001_verdict.py`. The first match wins:
+  1. INCOMPLETE: configuration mismatch, interruption, or missing audit evidence.
+  2. REVISE: a covered disclosure was delivered in the treatment, OR the loop limit was exceeded (more than 2 interventions), OR an apology dead-end on a task where the control verified, OR treatment valid verifications fell below control minus 1.
+  3. INCONCLUSIVE_ON_RECOVERY: the check never intervened.
+  4. REVISE: an intervention was followed by an unexplained failure (an earlier disclosure, the checker rejecting valid evidence, or the agent not asking).
+  5. INCONCLUSIVE_ON_RECOVERY: there was no successful recovery, and genuine customer inability explains each case.
+  6. PROCEED: everything above holds, and at least one SUCCESSFUL recovery was observed.
+
+  A successful recovery means that after an intervention the customer independently supplied matching fields, verification succeeded, and the agent resumed the work. The thresholds are pilot screening choices.
+- **Double review.** A second reviewer independently labels every verdict-determining judgment: interventions, suspected disclosures, invalid verifications, and "customer lacked information". Differences are adjudicated blind before the verdict runs.
+- **Reporting.** Results are given per conversation, task and stratum. Pairing means the same task and settings, not identical trajectories.
+- **Unchanged:** the task draw (019, 023, 077 / 087, 095 / 012), the arms and the budget ($3.00).
+- **Tests:** 459 passed, 14 expected failures.
