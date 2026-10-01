@@ -1,9 +1,9 @@
-"""H009 condition (6): unsupported transfer statements, read blind to arm ($0; written before the run).
+"""H009 mechanism: unsupported transfer statements, read blind to arm ($0; adapted from H008 before reading H009 conversations).
 
-    uv run --extra bench python research/h008/claims_blind.py export   # blind.json (shuffled; no arm, task or run) + key.json
+    uv run --extra bench python research/h009/claims_blind.py export   # blind.json (shuffled; no arm, task or run) + key.json
     (set "claim" on every item to one of bench.hold_probe.CLAIMS, from the text alone; definitions in bench/claims.py
      and research/d004/blind.py: "I'll transfer you now" is under way, "I'll try transferring you again" is an intention)
-    uv run --extra bench python research/h008/claims_blind.py tally
+    uv run --extra bench python research/h009/claims_blind.py tally
 
 Scope: every conversation in the H009 journal that has a trace, both arms, interrupted ones included. Items: every
 agent text message that bench.claims.FLAG matches. A statement is UNSUPPORTED if it is read as done_or_underway and no
