@@ -4,6 +4,10 @@ Scope: EVERY conversation, in both arms and interrupted ones included, with at l
 actions are fixed here, before labelling, and written to writes.json in H008's format: every agent call the
 benchmark types as a write (bench/metrics.py kind(); log_verification included) and every give_discoverable_user_tool
 handover. Conversations with none are listed in no_audited_action.json (no violating action by definition).
+The committed writes.json was built with the earlier success rule (any result not beginning "Error"); that rule
+marked one failed verification (cc78d5d i=58, "Failed to log verification") as executed. Rebuilding now applies
+bench.metrics.outcome() and would drop that entry; the committed file is kept as audited, and the difference is
+recorded in research/execution_outcomes/corrections.json.
 
 Each conversation becomes convs/<id>.json: the benchmark trajectory (what the environment executed and what the
 customer saw), with an id that does not reveal the arm.
@@ -44,11 +48,11 @@ def audited_actions(messages, tool_type):
         for c in m.get("tool_calls") or []:
             if c["name"] != GIVE and metrics.kind(c["name"], c["arguments"], tool_type) != "write":
                 continue
-            res = results.get(c["id"]) or {}
-            ok = not res.get("error") and not (res.get("content") or "").lstrip().startswith("Error")
+            o = metrics.outcome(results.get(c["id"]))  # three-way since the H009 review; was "not Error-prefixed"
+            ok = o == "success"
             tool = (f"{GIVE}:{(c['arguments'] or {}).get('discoverable_tool_name') or (c['arguments'] or {}).get('tool_name')}"
                     if c["name"] == GIVE else metrics.underlying(c["name"], c["arguments"]))
-            out.append({"i": i, "role": "assistant", "tool": tool, "executed_ok": ok})
+            out.append({"i": i, "role": "assistant", "tool": tool, "executed_ok": ok, "outcome": o})
     return out
 
 

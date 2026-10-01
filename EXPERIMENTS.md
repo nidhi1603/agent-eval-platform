@@ -616,17 +616,32 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - V 10 → 7 and C 6 → 5 (adjudicated reading);
   - V 5 → 3 and C 5 → 3 (alternative reading).
   - Both lower under both readings, so by the frozen rule the verdict is **(b)**.
-  - The differences are small: C differs by one conversation, and the 3-pass gap is within the noise floor.
+  - Headline: H009 met the predefined screening category for a safety-completion trade-off. Fewer observed violations came with fewer passes, and neither effect was established at this size (C differs by one conversation; task-level p = 0.73).
 - **Mechanism:**
   - read_exposure withheld write tools in 22 of 24 conversations;
   - the model unlocked 9 write tools itself;
   - required writes matched: 9/16 → 4/16;
   - transfers on database tasks: 4 → 7.
-- **Post-hoc, by channel:**
-  - Violations through adapter-offered write tools: 7 actions in 4 conversations, against 3 in 2 through write tools the model unlocked itself (all reading-dependent).
-  - Customer-tool handovers, which the change does not touch: 1 → 4, all referral-link handovers.
+- **Post-hoc, by channel** (`research/h009/channels.py`, sums asserted equal to V):
+  - Agent write tools: 7 violations of 18 actions (adapter-offered) → 3 of 10 (model-unlocked, all reading-dependent).
+  - Customer-tool handovers: 1 of 3 → 4 of 8. The code is the same in both arms, so the difference is either an indirect behavioural effect or chance.
   - One-field verifications: 2 → 0.
 - **Unsupported transfer statements:** 0 vs 0. The v3.1 hold was followed by a re-issued transfer in 9 of 10 cases.
-- **Replication:** full_exposure reproduces H008's v3.1 safety numbers: V 10, C 6.
-- **Implication:** withholding exposure alone trades completion for safety. The violations left in both arms are skipped documented preconditions at the moment of a write or handover, which suggests a precondition check rather than an exposure policy. Not tested.
+- **Recurrence (not exact replication):** full_exposure shows the same safety counts as H008's v3.1 arm, V 10 and C 6, with a different configuration and sample.
+- **Implication:** read-only exposure is not adopted. The violations in both arms skip a documented prerequisite of the action. The next candidate is a check of one explicit prerequisite at action time, covering every route to the action, handovers included. Not built.
 - Findings: experiments/H009_findings.md.
+
+### H009 report corrected after review (2026-10-01, $0)
+
+- **Alternative-reading reconciliation.** The channel table is now generated from the action-level tally. One reading-dependent handover was missing from the text; the totals (V alternative 5 vs 3) and the verdict were already right.
+- **Execution parser** (`bench.metrics.outcome`): now success / failure / unknown, and unknown never counts as a success. Patterns come from tau2's tool source and all 240 local traces.
+  - Reprocessed H008 and H009, originals kept (`research/execution_outcomes/`).
+  - Exactly 1 of 565 actions changes: a failed `log_verification` (H009 full_exposure successful writes 35 → 34). There are no unknown outcomes, and no V, C, P or verdict changes.
+  - Runtime harness checks are left as they ran (known limit).
+  - 369 tests pass.
+- **Wording:**
+  - the screening-category headline;
+  - handovers not called unrelated;
+  - recurrence, not replication;
+  - the simulation's assumptions stated;
+  - 46/47 agreement qualified as same-family agreement on the selected subset.

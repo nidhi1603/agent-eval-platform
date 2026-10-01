@@ -14,6 +14,7 @@ or policy compliance.
 """
 
 import json
+import re
 
 WRAPPER_KEYS = {"agent_tool_name", "arguments", "discoverable_tool_name"}
 CALL_AGENT, CALL_USER = "call_discoverable_agent_tool", "call_discoverable_user_tool"
@@ -71,15 +72,51 @@ def kind(name: str, args: dict | None, tool_type) -> str:
     return t if t in ("read", "write") else "other"
 
 
+# Execution outcome of an ACTION (a write, a customer-tool handover, a transfer). tau2 reports most failures as text,
+# not as errors, and its failure texts do not all begin with "Error" ("Failed to log verification: Record may already
+# exist."). Formats come from tau2's banking tool source and a survey of every action result in all 240 local traces
+# (research/execution_outcomes/README.md). Failure: the error flag, or text beginning "Error" or "Failed". Success: a
+# receipt containing "successful(ly)" or "confirmed", or beginning "Tool given to user:", "Order ID:" or "Dispute ID:".
+# Anything else is "unknown" and is never counted as a success.
+FAILURE = re.compile(r"^(error|failed|failure)\b", re.I)
+SUCCESS = re.compile(r"\bsuccessful(?:ly)?\b|\bconfirmed\b|^Tool given to user:|^(?:Order|Dispute) ID:", re.I)
+TRANSFER = "transfer_to_human_agents"
+
+
+def outcome(result: dict | None) -> str:
+    """'success' | 'failure' | 'unknown' for an action's tool result (see above)."""
+    if not result:
+        return "unknown"
+    text = (result.get("content") or "").lstrip()
+    if result.get("error") or FAILURE.match(text):
+        return "failure"
+    return "success" if SUCCESS.search(text) else "unknown"
+
+
+def is_action(name: str, args: dict | None, tool_type) -> bool:
+    """Writes (by the underlying tool's type), customer-tool handovers and transfers."""
+    return name in (GIVE, TRANSFER) or kind(name, args, tool_type) == "write"
+
+
+def call_ok(name: str, args: dict | None, result: dict | None, tool_type) -> bool:
+    """Whether a call executed. Actions need a success receipt (outcome() == 'success'); reads and other calls have no
+    receipt format, so for them any result that is not an error or an "Error"/"Failed" text counts."""
+    if is_action(name, args, tool_type):
+        return outcome(result) == "success"
+    r = result or {}
+    return bool(result) and not r.get("error") and not FAILURE.match((r.get("content") or "").lstrip())
+
+
 def progress(messages: list[dict], refs: list, tool_type) -> dict:
     """Per conversation (trajectory dicts: role, tool_calls [{id, name, arguments}], tool results with
     tool_call_id / content / error). `tool_type` maps an underlying tool name to 'read' | 'write' | other."""
     results = {m.get("tool_call_id"): m for m in messages if m.get("role") == "tool"}
-    ok_calls, agent = [], {"read_calls": 0, "attempted_writes": 0, "successful_writes": 0}
+    ok_calls, agent = [], {"read_calls": 0, "attempted_writes": 0, "successful_writes": 0, "failed_writes": 0,
+                           "unknown_outcome_writes": 0}
     for m in messages:
         for c in m.get("tool_calls") or []:
-            res = results.get(c["id"]) or {}
-            ok = not res.get("error") and not (res.get("content") or "").lstrip().startswith("Error")
+            res = results.get(c["id"])
+            ok = call_ok(c["name"], c["arguments"], res, tool_type)
             if ok:
                 ok_calls.append(key(m["role"] if m["role"] == "user" else "assistant", c["name"], c["arguments"]))
             if m["role"] == "assistant":
@@ -87,8 +124,11 @@ def progress(messages: list[dict], refs: list, tool_type) -> dict:
                 if k == "read":
                     agent["read_calls"] += 1
                 elif k == "write":
+                    o = outcome(res)
                     agent["attempted_writes"] += 1
-                    agent["successful_writes"] += ok
+                    agent["successful_writes"] += o == "success"
+                    agent["failed_writes"] += o == "failure"
+                    agent["unknown_outcome_writes"] += o == "unknown"
     out = dict(agent)
     for bucket in BUCKETS:
         out[f"ref_{bucket}"], out[f"ref_{bucket}_matched"] = 0, 0
