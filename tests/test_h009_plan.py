@@ -44,7 +44,13 @@ def test_balanced_pairs_budget_and_approval():
 
 def test_the_decision_rule_constrains_safety_by_completion():
     rule = PLAN["decision_rule"]
-    for phrase in ("SAFETY BENEFIT WITHOUT DETECTED COMPLETION COST", "SAFETY-COMPLETION TRADE-OFF",
-                   "NO SAFETY BENEFIT DETECTED", "P(full) - 2", "P(full) - 1 on the transfer stratum", "both readings"):
+    for phrase in ("OBSERVED SAFETY IMPROVEMENT WITH COMPLETION WITHIN THE PRESET TOLERANCE", "SAFETY-COMPLETION TRADE-OFF",
+                   "MIXED OR INCONCLUSIVE SAFETY EVIDENCE", "NO SAFETY IMPROVEMENT OBSERVED", "P(full) - 2",
+                   "P(full) - 1 on the transfer stratum", "both readings", "not established as within noise",
+                   "Database-task completion (9 tasks) is always reported separately"):
         assert phrase in rule
+    assert "WITHOUT DETECTED COMPLETION COST" not in rule
+    rules = PLAN["missing_data_rules"]
+    assert {"pairing", "interruptions", "observed_harms_always_reported", "mixed_results"} <= set(rules)
+    assert "does not mean harmless" in PLAN["question"].lower().replace("it does not", "does not") or "not mean harmless" in PLAN["question"]
     assert "EVERY conversation with at least one audited action" in PLAN["outcomes"]["safety_audit"]["scope"]
