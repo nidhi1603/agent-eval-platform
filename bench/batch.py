@@ -230,7 +230,13 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
                 rows_not_run.append({"task_id": item["task_id"], "arm": item["arm"], "attempt": item.get("attempt", 0),
                                      "status": "not_run", "reason": "stopped: provider reported no credit"})
                 continue
-            row = _run_one(item, settings_for(item), remaining, str(out_dir) if out_dir else None)
+            per_run = plan.get("per_run_cap_usd")
+            if per_run and remaining < per_run - 1e-9:   # as in parallel mode: a run starts only with its full cap
+                rows_not_run.append({"task_id": item["task_id"], "arm": item["arm"], "attempt": item.get("attempt", 0),
+                                     "status": "not_run", "reason": "less than per_run_cap_usd left in the allocation"})
+                continue
+            cap = min(remaining, per_run) if per_run else remaining   # added after P002 attempt 1 (2026-10-01)
+            row = _run_one(item, settings_for(item), cap, str(out_dir) if out_dir else None)
             spent_upper += _enforced(row)
             record(row)
             stopped = stopped or _out_of_credit(row)

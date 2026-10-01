@@ -23,8 +23,16 @@ def fake(monkeypatch):
 
 
 def test_sequential_runs_stop_when_the_allocation_is_spent():
-    out = batch.run_batch(PLAN, 1.0)
+    out = batch.run_batch({**PLAN, "per_run_cap_usd": None}, 1.0)
     assert out["by_status"] == {"finished": 5, "not_run": 3} and out["spend_upper_bound_usd"] == pytest.approx(1.0)
+
+
+def test_sequential_runs_respect_the_per_run_cap():
+    """After P002 attempt 1 (2026-10-01): a sequential run gets min(left, per_run_cap_usd), and starts only when its
+    full cap is left, as in parallel mode (before, it got everything left and per_run_cap_usd was ignored)."""
+    out = batch.run_batch(PLAN, 1.0)
+    assert out["by_status"] == {"finished": 4, "not_run": 4}
+    assert all(r["cap_given_usd"] <= 0.3 for r in out["results"] if r["status"] == "finished")
 
 
 def test_parallel_needs_a_per_run_reservation():
@@ -58,7 +66,7 @@ def test_a_journal_resumes_without_repeating_or_forgetting_spend(tmp_path):
         return orig(item, *a)
 
     batch._run_one = counting
-    out = batch.run_batch(PLAN, 1.0, journal=journal)
+    out = batch.run_batch({**PLAN, "per_run_cap_usd": None}, 1.0, journal=journal)
     assert "t0a" not in calls  # the journaled run is not repeated
     assert out["spend_upper_bound_usd"] == pytest.approx(1.0)  # its spend still counts
     assert len(journal.read_text().splitlines()) == 1 + len(calls)
@@ -128,7 +136,7 @@ def test_no_credit_is_not_waited_on(monkeypatch):
 def test_operator_stopped_runs_count_their_spend_but_may_rerun(tmp_path):
     journal = tmp_path / "j.jsonl"
     journal.write_text(json.dumps({"kind": "operator_stopped", "run_id": "x", "spend_upper_bound_usd": 0.4}) + "\n")
-    out = batch.run_batch(PLAN, 1.0, journal=journal)
+    out = batch.run_batch({**PLAN, "per_run_cap_usd": None}, 1.0, journal=journal)
     assert out["spend_upper_bound_usd"] == pytest.approx(1.0) and out["by_status"]["finished"] == 3
     assert out["operator_stopped_runs"][0]["spend_upper_bound_usd"] == 0.4
 

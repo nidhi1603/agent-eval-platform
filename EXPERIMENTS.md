@@ -830,9 +830,21 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - This was my configuration error; the cap had been sized from average cost.
 - **Stopped** after 3 interrupted rows. 2 in-flight runs were killed.
 - **Spend:** $0.079 billed journaled, plus about $0.03 in the killed runs: about $0.11 billed, at most $0.19 upper bound.
-- **No outcome was observed:** no continuation got past the first user-simulator reservation, so no case was selected or dropped on its outcome. Journal kept as `experiments/P002_attempt1_journal.jsonl`.
+- **No completed recovery outcomes:** no continuation got past the first user-simulator reservation, so no case was selected or dropped on its outcome. The partial traces stay available as diagnostics; they cannot answer the question. Journal kept as `experiments/P002_attempt1_journal.jsonl`.
 - **Fixes:**
   - **Guard:** `bench.batch.cap_headroom` refuses, before any spend, a plan whose cap is below two single-call reservations of any scheduled conversation. It estimates the agent from the full history and the user simulator from the conversation text only; the estimates match the observed reservations. Test in `tests/test_resume.py`; P001 and H009 pass the check.
   - **Plan:** $0.80 per conversation, $2.00 total, 1 worker. Nothing else changed.
 - **Needs** "run P002 with $2.00".
 - **Tests:** 466 passed, 14 expected failures.
+
+### P002 restart terms clarified; not rerun (2026-10-01, $0)
+
+- **Attempt 1** is recorded as INFRASTRUCTURE-ABORTED: preserved, not counted.
+- **Restart:** all 8 cases, in the original order, under the amended plan. The amendment changes only the cap and the total, and is committed before any completed recovery outcome is observed.
+- **Accounting:**
+  - The $2.00 approval INCLUDES attempt 1, charged at its upper bound of $0.19 (about $0.11 billed).
+  - So the restart may spend at most $1.81 (`--approved-usd 1.81`), and total P002 spend stays at or below $2.00.
+- **The $0.80 cap is a feasibility check, not a guarantee.** It means a run starts with room for two single-call reservations, not that it can finish. A budget or API interruption is INCOMPLETE, never a recovery failure.
+- **The forecast is an estimate awaiting evidence.** Reservations are temporary allowances for the maximum charge of one call, not spending.
+- **Runner fix:** in sequential mode `bench/batch.py` previously ignored `per_run_cap_usd` and gave each run everything left. It now gives min(left, cap) and starts a run only when its full cap is left, as in parallel mode. Tests updated. Earlier batches are unaffected: they ran in parallel or without a per-run cap.
+- **Tests:** 467 passed, 14 expected failures.
