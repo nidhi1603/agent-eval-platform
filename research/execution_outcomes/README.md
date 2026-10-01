@@ -6,9 +6,11 @@
 
 | Outcome | When |
 |---|---|
-| failure | the error flag, or the text begins "Error" or "Failed" |
-| success | a receipt: contains "successful(ly)" or "confirmed", or begins "Tool given to user:", "Order ID:" or "Dispute ID:" |
-| unknown | anything else. **Never counted as a success** |
+| failure | checked FIRST: the error flag, or the text begins "Error" or "Failed" |
+| success | the tool's OWN receipt (`metrics.RECEIPTS`: the opening of each of the 25 action tools' success text, e.g. `^Verification logged successfully`, `^Order ID: \S+`, `^Tool given to user: \S+`). A tool not in RECEIPTS falls back to "successful(ly)" or "confirmed", unless negated ("not successful", "unsuccessful", "not confirmed") |
+| unknown | anything else, including another tool's receipt. **Never counted as a success** |
+
+(Revised after the second H009 review: the first version matched "successful"/"confirmed" anywhere, which could misread negative wording. The reprocessing results below are identical under both versions.)
 
 **Where the formats come from:**
 - tau2's banking tool source (`tau2/domains/banking_knowledge/tools.py`): every literal failure return begins "Error" or "Failed". The PIN helper messages are returned through "Error:" callers.
