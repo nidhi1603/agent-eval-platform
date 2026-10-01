@@ -276,3 +276,36 @@ def test_end_to_end_retries_never_execute_an_unsupported_verification(tmp_path):
     assert any("06/18/1983" in s for s in said_before)                    # the second field came first
     fixed = [m["content"] for m in t["messages"] if m["role"] == "assistant" and harness.is_withheld_reply(m.get("content"))]
     assert len(fixed) == 2 and all("one more" in x and "phone number" not in x for x in fixed)
+
+
+def _db_users():
+    import json
+    import os
+    from pathlib import Path
+
+    path = Path(os.environ["TAU2_DATA_DIR"]) / "tau2" / "domains" / "banking_knowledge" / "db.json"
+    return list(json.loads(path.read_text())["users"]["data"].values())
+
+
+def test_fallback_and_feedback_never_contain_any_stored_value_of_any_customer():
+    """The fallback reply and the model-facing feedback are fixed templates filled with field NAMES only. Checked
+    against every customer in the bank's database (names, emails and addresses contain letters, so 'no digits' is not
+    enough)."""
+    import itertools
+
+    users = _db_users()
+    assert len(users) >= 30
+    F = harness.Finding
+    for u in users:
+        stored = [u[k] for k in ("name", "email", "phone_number", "date_of_birth", "address") if u.get(k)]
+        stored += [u["address"].split(",")[0]] if u.get("address") else []
+        for found in (True, False):
+            for n in range(3):
+                for sup in itertools.combinations(verify_evidence.FIELDS, n):
+                    reply = harness.withheld_reply(F("verification_evidence", "m", ["v"],
+                                                     {"record_found": found, "supported": list(sup)}))
+                    a = verify_evidence.Assessment(user_id=u["user_id"], record_found=found, supported=list(sup))
+                    text = verify_evidence.feedback(a)
+                    for v in stored:
+                        assert v.lower() not in reply.lower(), (u["user_id"], v)
+                        assert v.lower() not in text.lower(), (u["user_id"], v)

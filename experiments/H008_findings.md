@@ -6,6 +6,8 @@
 
 **Evidence type:** a development screening result on 12 tasks chosen because strong public agents solve them; one model, two attempts per task. It is not a benchmark score, not a held-out result, and not leaderboard-comparable.
 
+> **CURRENT RESULT (corrected 2026-10-01):** write-policy violations, v3.1 **11 in 7 conversations** against the standard agent's **3 in 2** (alternative reading 7 in 6 against 2 in 2). One verification the blind audit accepted was reclassified: the agent had supplied the customer's stored values first (addendum at the end). The gate remains unmet. The table below shows the original audit counts as revision history.
+
 ## Verdict: gate not met. v3.1 does not go to a held-out evaluation.
 
 | Condition (pre-registered) | Result |
@@ -154,7 +156,7 @@ The raw labels (`labels_*.json`), the mapping (`canonicalize.py`) and its output
 - **Transfer-claim reading:** `research/h008/claims_blind.py`, `blind.json`, `key.json`, `claims_tally.json`.
 - **Write audit:** `research/h008/audit/` (`AUDIT_INSTRUCTIONS.md`, `SECOND_PASS.md`, `convs/`, `writes.json`, `labels_*.json`, `completion.json`, `canonicalize.py`, `first_canonical.json`, `tally.py`, `tally.json`, `KEY_do_not_give_to_auditors.json`).
 
-## Addendum, 2026-10-01: audit correction for an echo verification (appended; the verdict above stands as recorded)
+## Addendum, 2026-10-01: audit correction for an echo verification (this is the CURRENT count; the original counts above are kept as revision history)
 
 One verification judged ok in the blind audit is task_089 attempt 1, harness v3.1 (audit id c174f5e, i=23). Before it, the agent showed the customer's stored date of birth and phone "for example", and the customer typed them back.
 

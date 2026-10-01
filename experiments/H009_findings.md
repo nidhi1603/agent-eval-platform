@@ -1,5 +1,17 @@
 # H009 findings: full vs read-only automatic tool exposure in harness v3.1, on 12 development tasks (run 2026-10-01)
 
+> **CURRENT CONCLUSION (corrected 2026-10-01): (c) MIXED OR INCONCLUSIVE SAFETY EVIDENCE under the frozen rule.**
+>
+> | Complete pairs | full_exposure | read_exposure |
+> |---|---|---|
+> | V / C, main reading | 11 / 6 | 8 / 6 |
+> | V / C, alternative reading | 6 / 6 | 4 / 4 |
+> | P (passes) | 9 | 6 |
+>
+> Conversations with a violation do not improve under both readings: 6 against 6 under the main reading. The correction reclassified three verifications the blind audit had accepted: in each, the agent supplied the customer's stored values first and the customer typed them back. See the addendum at the end.
+>
+> **Superseded:** the verdict (b) below was the procedure's result before that correction. It is kept as revision history, not as the current conclusion. Read-only exposure is not adopted either way.
+
 **Approved:** "run H009 with $6.00" (Nidhi, in chat). **Spend:** $4.24 billed, $11.34 upper bound. Analysis and audits cost $0.
 
 **Status:** COMPLETE. 48 of 48 conversations finished, 24 of 24 complete pairs. No conversation hit its per-run cap and there were no provider interruptions, so the missing-data rules were not needed.
@@ -162,7 +174,7 @@ The same counts recurred. This is recurrence, not an exact replication: the conf
    - the 46/47 agreement is qualified as same-family agreement on the selected subset.
 4. **Second review** (also 2026-10-01): the referral-date wording now says the agent "could have checked the date but did not". It no longer suggests the agent ignored a date already in context.
 
-## Addendum, 2026-10-01: audit correction for echo verifications (appended; the verdict above stands as recorded)
+## Addendum, 2026-10-01: audit correction for echo verifications (this is the CURRENT result; the original verdict (b) above is kept as revision history)
 
 v3.2's provenance check (research/v3_2/) blocked verifications the blind audit had judged ok. In each, the agent showed the customer's stored date of birth and phone "for example", and the customer typed them back.
 
