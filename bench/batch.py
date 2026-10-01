@@ -100,6 +100,8 @@ def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dic
         "tool_adapter": (((trace.get("config") or {}).get("agent") or {}).get("tool_adapter")),
         "harness": (((trace.get("config") or {}).get("agent") or {}).get("harness")),
         "harness_activity": _harness_activity(trace),
+        "harness_runtime_config": (trace.get("harness") or {}).get("runtime_config"),
+        "harness_runtime_matches_record": (trace.get("harness") or {}).get("runtime_matches_record"),
         "agent_variant": (((trace.get("config") or {}).get("agent") or {}).get("variant") or {}),
         "status": "finished" if trace.get("execution", {}).get("finished") else "interrupted_or_failed",
         "run_id": trace.get("run_id"),

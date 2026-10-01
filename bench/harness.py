@@ -614,6 +614,8 @@ def make_harness_agent_class():
             super().__init__(*a, **kw)
             self.harness_events: list[dict] = []
             self.regenerations = 0
+            self._undelivered: set[int] = set()  # ids of drafts in the model's history the customer never received
+            self._plan_source = None
             self.soft_fired: dict[str, int] = {}
             self.transfer_holds = 0
             self.plan_calls = 0
@@ -694,6 +696,7 @@ def make_harness_agent_class():
             is the remainder of a proposal whose task_plan call already ran, the proposal is already there."""
             if not in_history:
                 state.messages.append(proposal)
+            self._mark_undelivered(proposal, in_history)
             by_call: dict[str, list] = {}
             for f in findings:
                 for cid in f.call_ids:
@@ -709,12 +712,27 @@ def make_harness_agent_class():
             if not proposal.tool_calls:
                 state.messages.append(SystemMessage(role="system", content=whole_text))
 
+        def _mark_undelivered(self, proposal, in_history):
+            """The held/replaced/withheld draft stays in the model's history but never reaches the customer."""
+            self._undelivered.add(id(self._plan_source if in_history and self._plan_source is not None else proposal))
+
+        def seen_messages(self, state) -> list[dict]:
+            """The model's history as dicts, with drafts the customer never received marked UNDELIVERED."""
+            from bench.verify_evidence import UNDELIVERED
+
+            out = messages_as_dicts(state.messages)
+            for d, m in zip(out, state.messages):
+                if id(m) in self._undelivered:
+                    d[UNDELIVERED] = True
+            return out
+
         def _run_plan_calls(self, proposal, state):
             """Execute task_plan calls locally. The full proposal and the plan results go into the model's history, in
             that order. Returns the proposal's other calls as a new draft, or None if there are none."""
             from bench import ledger
 
             state.messages.append(proposal)
+            self._plan_source = proposal
             for tc in (x for x in proposal.tool_calls if x.name == ledger.PLAN_TOOL):
                 self.plan_calls += 1
                 plan, err = ledger.parse_plan(tc.arguments)
@@ -803,7 +821,7 @@ def make_harness_agent_class():
                             continue
                     else:
                         proposal, in_history = rest, True
-                ev = Evidence(messages=messages_as_dicts(state.messages),
+                ev = Evidence(messages=self.seen_messages(state),
                               tool_type=toolkit_type_lookup(self.adapter_toolkit))
                 draft = messages_as_dicts([proposal])[0]
                 ctx = self._ctx(ev)
@@ -819,6 +837,7 @@ def make_harness_agent_class():
                                                 "origins": swap.detail["origins"], "draft_text": proposal.content,
                                                 "replacement": reply.content})
                     if in_history:
+                        self._mark_undelivered(proposal, in_history)
                         for tc in proposal.tool_calls or []:
                             state.messages.append(ToolMessage(id=tc.id, role="tool", requestor="assistant",
                                                               content="Not executed.", error=True))
@@ -832,6 +851,7 @@ def make_harness_agent_class():
                                                     "draft_text": proposal.content,
                                                     "tool_calls": draft.get("tool_calls")})
                         if in_history:  # every call in the history needs a result before the next message
+                            self._mark_undelivered(proposal, in_history)
                             for tc in proposal.tool_calls or []:
                                 state.messages.append(ToolMessage(id=tc.id, role="tool", requestor="assistant",
                                                                   content="Not executed.", error=True))

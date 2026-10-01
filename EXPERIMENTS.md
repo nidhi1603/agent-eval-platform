@@ -730,3 +730,26 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Fixed in passing:** a registered agent name did not record ADDED gates, so two specs could share a name and the second run reuse the first's settings. Names now record added gates and the new flags; no earlier run was affected.
 - **Tests:** 445 passed, 14 expected failures (platform DEFECT-1 to DEFECT-9).
 - **Next paid test (proposed, not frozen):** a small LIVE recovery test. With the combined checks, does the customer get to provide valid evidence, and does the agent verify and resume the task?
+
+### Two offline checks on the disclosure check; P001 pilot frozen, not run (2026-10-01, $0; nothing paid)
+
+- **Provenance now follows delivery** (the review asked for this; it found a real defect).
+  - A HELD draft stays in the model's own history, and the checks read that history. So a stored value in a draft the customer never saw counted as agent-shown, and the customer's own later statement of it was refused as evidence.
+  - Fix: one shared rule, `verify_evidence.shown_by_agent`. Held, replaced and withheld drafts are marked undelivered by the harness, and in the saved model_view. `mark_undelivered` reconstructs the mark for older traces; it matches the held events in all 116 saved views.
+  - Tests in both directions: a delivered disclosure echoed is rejected; an intercepted draft followed by the customer's own value is accepted. A verification call cancelled with a leaking draft changes nothing. End to end: a held leak, then the customer's DOB and phone, and verification succeeds. The new tests fail under the old rule.
+  - **No earlier result changes:** D005 corrected tally, disclosure replay 13/1,301, v3.2 replay, controls 30/30.
+- **Read-backs to unverified customers** (`research/disclosure/readback/`):
+  - 6 real saved messages (all there are) plus 14 labelled synthetic cases, blind-reviewed.
+  - Covered fields: real 6/6. Synthetic 13/14 as built: one false block, an unambiguous day-first date ("22/07/1985"). Fixed narrowly; ambiguous dates stay month-first. Now 14/14.
+  - No covered leak missed. Out of coverage, reported: match confirmation (2 real) and city/state/ZIP added to a street (1 synthetic).
+- **Resolved configuration saved per run:** `trace.harness.runtime_config` is read from the running agent instance, with `runtime_matches_record`. A test checks that the two pilot arms differ only by the identity_disclosure gate.
+- **P001 frozen (NOT run): `experiments/P001_plan.json`, `research/p001/make_plan.py`.**
+  - Design: v3.2 vs v3.2 + disclosure_check; 6 dev tasks × 2 arms × 1 conversation = 12; alltools; H008/H009 settings; wording flag off in both.
+  - Tasks are drawn with a fixed seed from three strata:
+    - prior covered leak: task_019, 023, 077;
+    - ordinary verification: task_087, 095;
+    - no verification in the reference: task_012.
+  - Outcomes come from an independent blind review of the customer-visible transcript, never the filter itself: valid verification, delivered disclosures (covered / other), recovery after an intervention, progress, failure modes, cost and official completion (descriptive).
+  - Decision: PROCEED to a larger paired test, REVISE, or INCONCLUSIVE_ON_RECOVERY if the check never fires.
+  - Budget $3.00 billed, $0.75 per conversation (forecast about $1.10-1.50). Needs review and "run P001 with $3.00".
+- **Tests:** 453 passed, 14 expected failures.

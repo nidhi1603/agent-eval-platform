@@ -127,7 +127,8 @@ class Case:
         logger.remove()
         self.spec = spec
         self.trace = json.loads((REPO_ROOT / spec["source_trace"]).read_text())
-        self.view = self.trace["harness"]["model_view"]
+        # held drafts marked UNDELIVERED (provenance follows what the customer received; 2026-10-01)
+        self.view = verify_evidence.mark_undelivered(self.trace["harness"]["model_view"], self.trace["messages"])
         k = spec["held_index"]
         self.proposal = self.view[k]
         ids = [c["id"] for c in self.proposal.get("tool_calls") or []]

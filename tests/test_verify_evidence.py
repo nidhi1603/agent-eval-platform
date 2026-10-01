@@ -309,3 +309,13 @@ def test_fallback_and_feedback_never_contain_any_stored_value_of_any_customer():
                     for v in stored:
                         assert v.lower() not in reply.lower(), (u["user_id"], v)
                         assert v.lower() not in text.lower(), (u["user_id"], v)
+
+
+def test_unambiguous_day_first_dates_are_read_and_ambiguous_ones_stay_month_first():
+    """Added after the read-back review (2026-10-01): "22/07/1985" was not recognised, so a customer's own date of birth
+    in day-first order neither counted as evidence nor allowed the agent's read-back. Only UNAMBIGUOUS day-first dates
+    (first number above 12) are read that way; "08/07/1985" stays August 7, so an ambiguous date never gains a match."""
+    ve = verify_evidence
+    assert ve.stated("date_of_birth", "DOB 22/07/1985") == ["1985-07-22"]
+    assert ve.stated("date_of_birth", "DOB 08/07/1985") == ["1985-08-07"]
+    assert ve.stated("date_of_birth", "DOB 31/13/1985") == []

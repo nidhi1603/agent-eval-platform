@@ -8,7 +8,7 @@
 - **Prohibited** (a hard check): a stored date of birth, email, phone number or street address, from a customer record retrieved in this conversation, when both of these hold:
   - that customer is not yet verified (no "Verification logged successfully" receipt for that user_id);
   - the value was not supplied **independently** by the customer.
-- **Provenance** (`verify_evidence.provenance`, the one rule shared with the verification check and the probe classifier): a value is the customer's only if the customer wrote it before any agent message showed it. A value the agent showed first stays prohibited after the customer echoes it. Read-backs of independently supplied values are allowed.
+- **Provenance** (`verify_evidence.provenance`, the one rule shared with the verification check and the probe classifier): a value is the customer's only if the customer wrote it before any DELIVERED agent message showed it. A value the agent showed first stays prohibited after the customer echoes it. Read-backs of independently supplied values are allowed. Drafts the harness held, replaced or withheld do not count, because the customer never saw them (fixed after the second review: `readback/README.md`).
 - **Release.** A successful verification receipt releases that customer only. Other retrieved customers stay protected.
 - **Handling:**
   - **A verification-related, text-only draft is replaced at once**, with no regeneration, by the fixed request for the missing fields (`withheld_reply`). That request is a template of field names only. It now also leaves out fields the agent had already revealed (those can only come back as echoes). If too few usable fields remain, it sends an apology instead of a request.
@@ -27,14 +27,15 @@
 - confirming that an account exists;
 - reformatted values it does not recognise.
 
-The blind review found such other disclosures in 4 of 23 messages (below).
+The blind review found such other disclosures in 4 of 23 messages (below). The read-back review found 3 more kinds in its set: match confirmation (2 real messages) and city/state/ZIP added to a street (1 synthetic).
 
 ## Offline evidence (which messages WOULD be held or replaced; not conversation outcomes)
 
 | Question (from the review) | Evidence |
 |---|---|
 | Catches all four D005 disclosure replies? | Yes: runs 10, 18, 21 and 29. The three verification-related ones are replaced without regeneration (test) |
-| Allows read-backs of independently supplied values? | Unit tests. The blind sample barely tests it: 14 of its 15 allowed messages went to already-verified customers |
+| Allows read-backs of independently supplied values? | Unit tests. The blind sample barely tests it (14 of its 15 allowed messages went to already-verified customers), so a second review focused on it (`readback/`): all 6 real pre-verification read-backs allowed and judged correct. 14 labelled synthetic cases found 1 false block, an unambiguous day-first date, now fixed: 14/14 |
+| Does an intercepted draft spoil the customer's own later evidence? | It did: held drafts counted as shown. Fixed: provenance counts delivered messages only; tests in both directions, plus an end-to-end test (`readback/README.md`) |
 | Still blocks repeats after customer echoes? | Unit test (origin "agent") |
 | Date, phone, email and address formats? | Unit tests: 5 formats, plus verify_evidence's 30+ format tests |
 | Valid verification releases the restriction? | Unit test: released for the verified customer; another retrieved customer stays protected |

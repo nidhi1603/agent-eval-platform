@@ -81,6 +81,35 @@ class RunOptions:
     budget_accounting: str = "upper_bound"  # "billed": settle calls at the provider-billed (cache-aware) cost
 
 
+
+RUNTIME_KEYS = ("gates", "feedback", "use_adapter", "dep_search", "capability_search", "transfer_hold_once",
+                "verification_feedback", "auto_offer", "expose_model_unlocks")
+
+
+def runtime_config(ag) -> dict | None:
+    """The harness settings of the agent instance that actually ran."""
+    if ag is None or not hasattr(ag, "gates"):
+        return None
+    out = {k: getattr(ag, k) for k in RUNTIME_KEYS if hasattr(ag, k)}
+    out["gates"] = list(out.get("gates") or [])
+    out["class"] = type(ag).__name__
+    return out
+
+
+def _runtime_matches(rt: dict | None, record: dict | None) -> bool | None:
+    """Do the running agent's settings equal the validated harness record? None when either is missing."""
+    if not rt or not record:
+        return None
+    return (rt["gates"] == record["gates"] and rt.get("feedback") == record["feedback"]
+            and rt.get("use_adapter") == record["adapter"]
+            and rt.get("capability_search", False) == record.get("capability_search", False)
+            and rt.get("transfer_hold_once", False) == record.get("transfer_hold_once", False)
+            and rt.get("dep_search", False) == record.get("dep_search", False)
+            and rt.get("verification_feedback", "default") == record.get("verification_feedback", "default")
+            and rt.get("auto_offer", "all") == record.get("auto_offer", "all")
+            and rt.get("expose_model_unlocks", False) == record.get("expose_model_unlocks", False))
+
+
 def run(opts: RunOptions) -> tuple[dict, Path]:
     mode = "mock" if opts.scripted else "live"
     started = datetime.now(timezone.utc)
@@ -233,7 +262,8 @@ def _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0) -> Pa
                 from bench.adapter import WORD
                 from bench.guard import messages_as_dicts
 
-                model_view = messages_as_dicts(ag.model_state.messages)
+                model_view = (ag.seen_messages(ag.model_state) if hasattr(ag, "seen_messages")   # drafts marked undelivered
+                              else messages_as_dicts(ag.model_state.messages))
                 traj_kb = "\n".join(m.content or "" for m in (simulation.messages if simulation else [])
                                     if getattr(m, "role", None) == "tool" and "ID: doc_" in (getattr(m, "content", None) or ""))
                 via_dep = sorted(set(getattr(ag, "offered", {}) or {}) - set(WORD.findall(traj_kb))) \
@@ -244,6 +274,11 @@ def _finalize(trace, run_dir, simulation, orchestrator, budget, error, t0) -> Pa
                                 "adapter_events": getattr(ag, "adapter_events", None),
                                 "offered": sorted(getattr(ag, "offered", {}) or {}),
                                 "regenerations": getattr(ag, "regenerations", None),
+                                # what the RUNNING agent used, read from the instance (not the registered name or the
+                                # spec): the agent-name collision found after D005 made these two differ silently
+                                "runtime_config": runtime_config(ag),
+                                "runtime_matches_record": _runtime_matches(runtime_config(ag),
+                                                                           agent.harness_record(harness_spec)),
                                 "placement": "proposal time, inside the agent: held drafts and their feedback enter "
                                              "only the model's own history, never the trajectory"}
         if trace.get("sandbox_policy") is not None:
