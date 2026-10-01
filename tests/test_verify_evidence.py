@@ -222,3 +222,57 @@ def test_end_to_end_v3_1_does_not_run_the_check(tmp_path):
                    {"say": "You're verified."}, {"say": "Goodbye."}, {"say": "Goodbye."}]
     t = _run(tmp_path, agent_steps, {"version": "v3.1"})
     assert not [e for e in t["harness"]["events"] if e["event"] == "held"]
+
+
+# ---- retries, the fallback reply, failure handling (second review) ---------------------------------------------------
+
+def test_withheld_reply_asks_only_for_what_is_missing_and_reveals_nothing():
+    F = harness.Finding
+    one = harness.withheld_reply(F("verification_evidence", "m", ["v"], {"record_found": True, "supported": ["phone_number"]}))
+    assert "one more" in one and "phone number" not in one and all(x in one for x in ("date of birth", "email", "address"))
+    none = harness.withheld_reply(F("verification_evidence", "m", ["v"], {"record_found": True, "supported": []}))
+    assert "two of these" in none
+    nobody = harness.withheld_reply(F("verification_evidence", "m", ["v"], {"record_found": False, "supported": []}))
+    assert "full name or the email" in nobody
+    for text in (one, none, nobody):
+        assert harness.is_withheld_reply(text) and not any(ch.isdigit() for ch in text)
+    assert harness.withheld_reply(F("ids_observed", "m", ["x"], {})) == harness.WITHHELD["ids_observed"]
+
+
+def test_a_checker_defect_fails_closed(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("parser bug")
+    monkeypatch.setattr(verify_evidence, "assess", boom)
+    msgs = [*lookup(1, KENJI), user("DOB 07/22/1985, phone 206-555-0293")]
+    ctx = {"events": []}
+    [f] = harness.gate_verification_evidence(verify(), Evidence(messages=msgs, tool_type=lambda n: None), ctx)
+    assert f.gate == "verification_evidence" and ctx["events"][0]["event"] == "checker_error"
+
+
+def test_end_to_end_retries_never_execute_an_unsupported_verification(tmp_path):
+    """The correction budget limits model retries; it never lets the next invalid call execute. After the budget the
+    customer gets the fixed reply asking for what is missing; verification executes only once evidence exists."""
+    from tests.test_harness import LOG_089, _run
+
+    agent_steps = [{"call": "get_user_information_by_id", "args": {"user_id": "dm42f8c3a7"}},
+                   {"call": "get_current_time", "args": {}},
+                   {"call": "log_verification", "args": LOG_089},     # held (1 field so far)
+                   {"call": "log_verification", "args": LOG_089},     # retry: budget spent -> withheld, fixed reply sent
+                   {"call": "log_verification", "args": LOG_089},     # next turn: held again
+                   {"call": "log_verification", "args": LOG_089},     # retry -> withheld again
+                   {"call": "log_verification", "args": LOG_089},     # customer has now given 2 fields -> executes
+                   {"say": "Thanks, you're verified."}, {"say": "Goodbye."}, {"say": "Goodbye."}]
+    user_steps = [{"say": "Hi, I'm David Martinez (dm42f8c3a7). My phone is 303-555-7294. My card was declined."},
+                  {"say": "I already told you my phone."},
+                  {"say": "Fine: my date of birth is 06/18/1983."},
+                  {"say": "Thanks. ###STOP###"}] + [{"say": "###STOP###"}] * 3
+    t = _run(tmp_path, agent_steps, {"version": "v3.2"}, user_steps)
+    ev = t["harness"]["events"]
+    assert [e["event"] for e in ev if e["event"] in ("held", "withheld")] == ["held", "withheld", "held", "withheld"]
+    executed = [i for i, m in enumerate(t["messages"]) if m["role"] == "assistant"
+                for c in m.get("tool_calls") or [] if c["name"] == "log_verification"]
+    assert len(executed) == 1
+    said_before = [m["content"] for m in t["messages"][:executed[0]] if m["role"] == "user"]
+    assert any("06/18/1983" in s for s in said_before)                    # the second field came first
+    fixed = [m["content"] for m in t["messages"] if m["role"] == "assistant" and harness.is_withheld_reply(m.get("content"))]
+    assert len(fixed) == 2 and all("one more" in x and "phone number" not in x for x in fixed)

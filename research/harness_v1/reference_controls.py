@@ -164,6 +164,11 @@ def main(argv):
         version, argv = argv[0].split("=", 1)[1], argv[1:]
     if argv and argv[0].startswith("--retrieval="):
         RETRIEVAL, argv = argv[0].split("=", 1)[1], argv[1:]
+    # the v3.2 script (a customer who states two identity fields) can be run through any version, so v3.1 and v3.2
+    # are compared on the SAME script; v3.2 always uses it
+    states_identity = version == "v3.2"
+    if argv and argv[0] == "--states-identity":
+        states_identity, argv = True, argv[1:]
     full, hard_only = SPECS[version]
     from loguru import logger
     from tau2.runner.helpers import get_tasks
@@ -175,7 +180,7 @@ def main(argv):
         tmp = Path(d)
         for tid in ids:
             task = get_tasks(pins.DOMAIN, task_ids=[tid])[0]
-            s = script_for(task, plan=version == "v2", states_identity=version == "v3.2")
+            s = script_for(task, plan=version == "v2", states_identity=states_identity)
             b = run_one(tid, s, None, tmp)
             h = run_one(tid, s, full, tmp)
             ev = (h.get("harness") or {}).get("events") or []
@@ -210,6 +215,7 @@ def main(argv):
                   round(row["agent_input_tokens"]["harness"] / max(row["agent_input_tokens"]["baseline"], 1), 2),
                   [f.get("gate") or f.get("gates") for f in row["fired"]], (row["harness_error"] or "")[:120], flush=True)
     out = ROOT / "research" / "harness_v1" / (("reference_controls" if version == "v1" else f"reference_controls_{version}")
+                                              + ("_identity_script" if states_identity and version != "v3.2" else "")
                                               + ("" if RETRIEVAL == "bm25" else f"_{RETRIEVAL}") + ".json")
     if not argv:
         out.write_text(json.dumps(rows, indent=1, default=str))

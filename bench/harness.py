@@ -105,6 +105,30 @@ WITHHELD = {
                               "as they appear on your account: your date of birth, email address, phone number or "
                               "home address?"),
 }
+WITHHELD_VERIFY_PREFIX = "Before I can go further, I need to verify your identity."
+
+
+def withheld_reply(f: "Finding") -> str:
+    """The fixed reply sent when a hard finding stays after the correction budget. For verification_evidence it asks
+    only for what is still missing (never a stored value); the other gates keep their fixed text."""
+    if f.gate != "verification_evidence":
+        return WITHHELD[f.gate]
+    from bench.verify_evidence import FIELDS, LABEL
+
+    d = f.detail or {}
+    missing = [LABEL[x] for x in FIELDS if x not in (d.get("supported") or [])]
+    if not d.get("record_found"):
+        return (f"{WITHHELD_VERIFY_PREFIX} Could you tell me your full name or the email address on your account, and two "
+                "of these as they appear on your account: your date of birth, email address, phone number or home address?")
+    if len(d.get("supported") or []) == 1:
+        return (f"{WITHHELD_VERIFY_PREFIX} Thanks for what you've given so far. Could you tell me one more of these as it "
+                f"appears on your account: your {', '.join(missing[:-1])} or {missing[-1]}?")
+    return WITHHELD["verification_evidence"]
+
+
+def is_withheld_reply(text: str | None) -> bool:
+    """A fixed harness reply (not a model call), including the variable verification replies."""
+    return bool(text) and (text in WITHHELD.values() or text.startswith(WITHHELD_VERIFY_PREFIX))
 COMPLETION_CLAIM = re.compile(
     r"\b(?:has|have) been (?:frozen|unfrozen|closed|opened|submitted|applied|credited|filed|updated|processed|activated|"
     r"ordered|reset|approved|logged|transferred)\b|\bI(?:[’']ve| have) (?:now )?(?:frozen|unfrozen|closed|opened|submitted|"
@@ -270,7 +294,12 @@ def gate_verification_evidence(proposal: dict, ev: Evidence, ctx: dict) -> list[
         name, args = target(c)
         if name != "log_verification":
             continue
-        a = verify_evidence.assess(args.get("user_id"), ev.messages)
+        try:
+            a = verify_evidence.assess(args.get("user_id"), ev.messages)
+        except Exception as e:  # noqa: BLE001 - FAIL CLOSED: a hard prerequisite is never waived by a checker defect
+            ctx.setdefault("events", []).append({"event": "checker_error", "tool": name,
+                                                 "detail": f"{type(e).__name__}: {e}"[:300]})
+            a = verify_evidence.Assessment(user_id=args.get("user_id"), record_found=False)
         if a.allowed:
             continue
         out.append(Finding("verification_evidence", verify_evidence.feedback(a), [c["id"]],
@@ -752,7 +781,7 @@ def make_harness_agent_class():
                             for tc in proposal.tool_calls or []:
                                 state.messages.append(ToolMessage(id=tc.id, role="tool", requestor="assistant",
                                                                   content="Not executed.", error=True))
-                        reply = AssistantMessage(role="assistant", content=WITHHELD[hard_kept[0].gate])
+                        reply = AssistantMessage(role="assistant", content=withheld_reply(hard_kept[0]))
                         state.messages.append(reply)
                         return reply, state
                     self.harness_events.append({"event": "released", "gates": [f.gate for f in findings]})
