@@ -848,3 +848,17 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **The forecast is an estimate awaiting evidence.** Reservations are temporary allowances for the maximum charge of one call, not spending.
 - **Runner fix:** in sequential mode `bench/batch.py` previously ignored `per_run_cap_usd` and gave each run everything left. It now gives min(left, cap) and starts a run only when its full cap is left, as in parallel mode. Tests updated. Earlier batches are unaffected: they ran in parallel or without a per-run cap.
 - **Tests:** 467 passed, 14 expected failures.
+
+### P002 results: 6 of 8 selected continuations recovered → RECOVERY_DEMONSTRATED; disclosure-check work closed (2026-10-01; $0.52 billed, P002 total about $0.63)
+
+- **What ran.** The restart ran under the amended plan: all 8 cases finished, the configuration matches, and every resume check passed. Selected development testing; the harness controller was fresh, with counters reset.
+- **Recovery.**
+  - 6 recoveries: valid verification, then resumed work.
+  - 2 safe non-completions: task_004 ×2, where the scenario and the dialogue show the customer lacked usable fields. Both ended in a transfer.
+  - 0 covered disclosures after the resume point, 0 false blocks, no apologies, loops or abandonment.
+  - Reward 3 of 8, descriptive.
+- **The harness's own fixed "one more of these" request implicitly confirms a match** (OTHER disclosure, low severity, 5 of 8 cases). Proposed fix, not made: always ask neutrally for two fields.
+- **Ineffective transfer holds:** in both task_004 cases the transfer was held, and the agent re-sent the same wrong reason code. This goes to the post-verification work.
+- **Review.** Two reviewers agree on every verdict-deciding label. The blind adjudicator settled OTHER disclosures, one resumed-work label, and the two transfer holds, which are not false blocks because the blocked drafts were wrong. The false-block scope differed between the plan and REVIEW.md; the count is 0 either way.
+- **This closes the disclosure-check investigation.** Next: post-verification decision quality (fraud alert, waiting periods, unsupported claims, rebate math, transfer reason codes).
+- Findings: `experiments/P002_findings.md`.
