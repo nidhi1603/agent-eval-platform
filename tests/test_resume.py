@@ -61,3 +61,21 @@ def test_resume_needs_the_disclosure_check(tmp_path):
                               scripted=script, out_dir=tmp_path, agent_harness={"version": "v3.2"},
                               resume={"source_trace": SRC, "end": END}))
     assert "disclosure_check" in (trace["execution"]["error"] or "")
+
+
+def test_batch_refuses_a_per_run_cap_below_two_reservations():
+    """P002's first attempt: a $0.30 cap was below one gpt-5.2 user-simulator reservation on a restored conversation."""
+    from bench import batch
+
+    plan = json.loads((REPO_ROOT / "experiments" / "P002_plan.json").read_text())
+
+    def settings_for(p):
+        return lambda item: {**p["settings"], **(p["arms"][item["arm"]] if item["arm"] else {})}
+
+    if not all((REPO_ROOT / r["resume"]["source_trace"]).is_file() for r in plan["runs"]):
+        pytest.skip("the source traces are local")
+    assert batch.cap_headroom({**plan, "per_run_cap_usd": 0.30}, settings_for(plan))
+    assert batch.cap_headroom({**plan, "per_run_cap_usd": 0.80}, settings_for(plan)) == []
+    for b in ("P001", "H009"):
+        p = json.loads((REPO_ROOT / "experiments" / f"{b}_plan.json").read_text())
+        assert batch.cap_headroom(p, settings_for(p)) == []

@@ -142,6 +142,40 @@ def _key(item: dict) -> tuple:
     return item["task_id"], item.get("arm"), item.get("attempt", 0)
 
 
+FIXED_PROMPT_BYTES = 40_000   # system prompt, policy and tool schemas, as bytes (generous)
+
+
+def cap_headroom(plan: dict, settings_for) -> list[str]:
+    """Before any spend: each conversation's cap must hold at least TWO single-call reservations of its most
+    expensive model at the conversation's starting length (the budget reserves the whole input at the full rate
+    plus max_output_tokens; the history grows as the conversation goes on). Added after P002's first attempt
+    (2026-10-01), whose $0.30 cap was below one user-simulator reservation on a restored conversation, so every
+    run stopped at BudgetExceeded. Returns the problems found (empty when the plan is fine)."""
+    from bench.budget import input_token_bound, load_prices
+
+    cap = plan.get("per_run_cap_usd")
+    if not cap:
+        return []
+    prices, out = load_prices(), []
+    for item in schedule(plan):
+        s = settings_for(item)
+        if not ({"agent_model", "user_model"} <= set(s)):   # stub plans in unit tests name no models
+            continue
+        start = []
+        if item.get("resume"):
+            msgs = json.loads((REPO_ROOT / item["resume"]["source_trace"]).read_text())["messages"]
+            start = msgs[: item["resume"]["end"] + 1]
+        out_bound = s.get("max_output_tokens") or 16384
+        visible = [m for m in start if m["role"] == "user" or (m["role"] == "assistant" and m.get("content"))]
+        worst = max(prices[s["agent_model"]].cost(input_token_bound(start) + FIXED_PROMPT_BYTES, out_bound),
+                    # the user simulator sees only the conversation text, never tool results
+                    prices[s["user_model"]].cost(input_token_bound(visible) + FIXED_PROMPT_BYTES, out_bound))
+        if cap < 2 * worst:
+            out.append(f"{item['task_id']}/{item.get('arm')}/{item.get('attempt', 0)}: cap ${cap:.2f} < 2 x "
+                       f"${worst:.3f} (one call's reservation)")
+    return out
+
+
 def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, workers: int = 1,
               journal: Path | None = None) -> dict:
     """Run every scheduled conversation, never admitting spend beyond `approved_usd`.
@@ -171,6 +205,11 @@ def run_batch(plan: dict, approved_usd: float, out_dir: Path | None = None, work
 
     def settings_for(item):
         return {**plan["settings"], **(plan["arms"][item["arm"]] if item["arm"] else {})}
+
+    if not plan["settings"].get("scripted"):   # mock runs cost nothing
+        short = cap_headroom(plan, settings_for)
+        if short:
+            raise SystemExit("per_run_cap_usd too small for the budget's own reservations:\n  " + "\n  ".join(short))
 
     def record(row):
         done[_key(row)] = row

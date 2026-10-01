@@ -819,3 +819,20 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - customer inability needs support from both the scenario and the dialogue.
 - **Early stop: modified.** There is no automatic stop, because detecting a "meaningful return" is a reviewer's judgment. Recovery is judged at the point where verification and a return to the work have both happened, and later turns don't change the label. The 60-step bound and the cap limit cost.
 - **Reporting** leads with "X of 8 selected continuations recovered"; the verdict function's reason now starts with that count.
+
+### P002 attempt 1 failed on a budget-configuration error; plan amended, not rerun (2026-10-01; about $0.11 billed)
+
+- **Run:** approved with "run P002 with $1.50".
+- **What happened.** Every run stopped at BudgetExceeded:
+  - the budget reserves a call's whole input at the full rate, plus max_output_tokens;
+  - one gpt-5.2 user-simulator call on a restored conversation needs $0.26-0.32;
+  - so the plan's $0.30 per-conversation cap admitted at most one such call.
+  - This was my configuration error; the cap had been sized from average cost.
+- **Stopped** after 3 interrupted rows. 2 in-flight runs were killed.
+- **Spend:** $0.079 billed journaled, plus about $0.03 in the killed runs: about $0.11 billed, at most $0.19 upper bound.
+- **No outcome was observed:** no continuation got past the first user-simulator reservation, so no case was selected or dropped on its outcome. Journal kept as `experiments/P002_attempt1_journal.jsonl`.
+- **Fixes:**
+  - **Guard:** `bench.batch.cap_headroom` refuses, before any spend, a plan whose cap is below two single-call reservations of any scheduled conversation. It estimates the agent from the full history and the user simulator from the conversation text only; the estimates match the observed reservations. Test in `tests/test_resume.py`; P001 and H009 pass the check.
+  - **Plan:** $0.80 per conversation, $2.00 total, 1 worker. Nothing else changed.
+- **Needs** "run P002 with $2.00".
+- **Tests:** 466 passed, 14 expected failures.
