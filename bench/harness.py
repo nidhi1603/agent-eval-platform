@@ -62,9 +62,9 @@ V2_GATES = GATES + ("duplicate_write", "plan_before_acting", "procedure_checklis
 # v3.2 = v3.1 + the identity-verification evidence check (bench/verify_evidence.py)
 V3_2_GATES = GATES + ("verification_evidence",)
 VERSIONS = {"v1": GATES, "v2": V2_GATES, "v3": GATES, "v3.1": GATES, "v3.2": V3_2_GATES}
-ALL_GATES = V2_GATES + ("verification_evidence",)
+ALL_GATES = V2_GATES + ("verification_evidence", "identity_disclosure")   # identity_disclosure: flag disclosure_check
 HARD = {"clock_before_verification", "verification_before_write", "ids_observed", "duplicate_write",
-        "verification_evidence"}
+        "verification_evidence", "identity_disclosure"}
 SOFT = tuple(g for g in V2_GATES if g not in HARD)
 PLAN_GATES = {"plan_before_acting", "needs_covered"}  # either one turns on the task_plan tool
 ONCE_PER_CONVERSATION = {"plan_before_acting"}
@@ -104,6 +104,7 @@ WITHHELD = {
     "verification_evidence": ("Before I can go further, I need to verify your identity. Could you tell me two of these "
                               "as they appear on your account: your date of birth, email address, phone number or "
                               "home address?"),
+    "identity_disclosure": "I'm sorry, I can't share details from your account until your identity is verified.",
 }
 WITHHELD_VERIFY_PREFIX = "Before I can go further, I need to verify your identity."
 
@@ -111,19 +112,56 @@ WITHHELD_VERIFY_PREFIX = "Before I can go further, I need to verify your identit
 def withheld_reply(f: "Finding") -> str:
     """The fixed reply sent when a hard finding stays after the correction budget. For verification_evidence it asks
     only for what is still missing (never a stored value); the other gates keep their fixed text."""
+    if f.gate == "identity_disclosure":   # a verification-related draft gets the missing-fields request; others an apology
+        if not (f.detail or {}).get("verification_related"):
+            return WITHHELD["identity_disclosure"]
+        f = Finding("verification_evidence", "", [], f.detail.get("evidence") or {"record_found": True, "supported": []})
     if f.gate != "verification_evidence":
         return WITHHELD[f.gate]
     from bench.verify_evidence import FIELDS, LABEL
 
     d = f.detail or {}
-    missing = [LABEL[x] for x in FIELDS if x not in (d.get("supported") or [])]
+    supported, unusable = d.get("supported") or [], d.get("unusable") or []
+    missing = [LABEL[x] for x in FIELDS if x not in supported and x not in unusable]
+    if d.get("record_found") and len(supported) + len(missing) < 2:  # too few usable fields left: no identity request
+        return ("I'm sorry, I'm not able to complete identity verification in this conversation, so I can't access or "
+                "change your account details here.")
     if not d.get("record_found"):
         return (f"{WITHHELD_VERIFY_PREFIX} Could you tell me your full name or the email address on your account, and two "
                 "of these as they appear on your account: your date of birth, email address, phone number or home address?")
-    if len(d.get("supported") or []) == 1:
+    if len(supported) == 1:
         return (f"{WITHHELD_VERIFY_PREFIX} Thanks for what you've given so far. Could you tell me one more of these as it "
                 f"appears on your account: your {', '.join(missing[:-1])} or {missing[-1]}?")
+    if len(missing) < 4:
+        return (f"{WITHHELD_VERIFY_PREFIX} Could you tell me two of these as they appear on your account: your "
+                f"{', '.join(missing[:-1])} or {missing[-1]}?")
     return WITHHELD["verification_evidence"]
+
+
+def gate_identity_disclosure(proposal: dict, ev: Evidence, ctx: dict) -> list[Finding]:
+    """Flag disclosure_check (bench/identity_disclosure.py): customer-facing text, also beside tool calls, may not
+    contain a stored identity value of an unverified customer that the customer did not supply independently."""
+    from bench import identity_disclosure as idd
+    from bench import verify_evidence
+
+    text = proposal.get("content")
+    try:
+        found = idd.prohibited(text, ev.messages)
+    except Exception as e:  # noqa: BLE001 - FAIL CLOSED: an unchecked draft is not delivered
+        ctx.setdefault("events", []).append({"event": "checker_error", "tool": "identity_disclosure",
+                                             "detail": f"{type(e).__name__}: {e}"[:300]})
+        found = [{"user_id": None, "field": "date_of_birth", "origin": "unchecked"}]
+    if not found:
+        return []
+    related = idd.verification_related(text)
+    uid = next((x["user_id"] for x in found if x["user_id"]), None)
+    a = verify_evidence.assess(uid, ev.messages) if uid else None
+    detail = {"fields": sorted({x["field"] for x in found}), "origins": sorted({x["origin"] for x in found}),
+              "verification_related": related,
+              "replace": related and not proposal.get("tool_calls"),   # deterministic replacement, no regeneration
+              "evidence": {"record_found": bool(a and a.record_found), "supported": list(a.supported) if a else [],
+                           "unusable": list(a.unusable) if a else []}}
+    return [Finding("identity_disclosure", idd.feedback(found), [], detail)]
 
 
 def is_withheld_reply(text: str | None) -> bool:
@@ -302,9 +340,10 @@ def gate_verification_evidence(proposal: dict, ev: Evidence, ctx: dict) -> list[
             a = verify_evidence.Assessment(user_id=args.get("user_id"), record_found=False)
         if a.allowed:
             continue
-        out.append(Finding("verification_evidence", verify_evidence.feedback(a), [c["id"]],
+        out.append(Finding("verification_evidence",
+                           verify_evidence.feedback(a, fields_only=ctx.get("verification_feedback") == "fields_only"), [c["id"]],
                            {"user_id": a.user_id, "record_found": a.record_found, "supported": a.supported,
-                            "contradicted": a.contradicted}))
+                            "contradicted": a.contradicted, "unusable": a.unusable}))
     return out
 
 
@@ -506,6 +545,7 @@ GATE_FUNCS = {
     "clock_before_verification": gate_clock_before_verification,
     "verification_before_write": gate_verification_before_write,
     "verification_evidence": gate_verification_evidence,
+    "identity_disclosure": gate_identity_disclosure,
     "ids_observed": gate_ids_observed,
 }
 
@@ -518,7 +558,7 @@ def review(proposal: dict, ev: Evidence, ctx: dict, gates=GATES) -> list[Finding
     found: list[Finding] = []
     flagged: set[str] = set()
     for g in ("verification_before_write", "verification_evidence", "clock_before_verification", "ids_observed",
-              "duplicate_write"):
+              "duplicate_write", "identity_disclosure"):
         if g in gates:
             for f in GATE_FUNCS[g](proposal, ev, ctx):
                 if not set(f.call_ids) & flagged:
@@ -567,6 +607,7 @@ def make_harness_agent_class():
         dep_search: bool = False     # dependency-following tool search (bench/depsearch.py)
         capability_search: bool = False  # v3: bench/capability.py
         transfer_hold_once: bool = False  # v3.1: a transfer is held at most once, with explicit feedback
+        verification_feedback: str = "default"  # after D005: "fields_only" adds a no-example-values line
         user_tool_names: frozenset = frozenset()
 
         def __init__(self, *a, **kw):
@@ -645,6 +686,7 @@ def make_harness_agent_class():
             return {"agent_tools": set(self.agent_tool_names), "user_tools": set(self.user_tool_names),
                     "tool_type": lookup, "events": self.harness_events, "capability_advice": self.capability_search,
                     "transfer_hold_once": self.transfer_hold_once, "transfer_holds": self.transfer_holds,
+                    "verification_feedback": self.verification_feedback,
                     "offered_reads": [n for n in sorted(self.offered) if lookup(n) == "read"]}
 
         def _hold(self, proposal, findings, state, in_history=False):
@@ -770,6 +812,18 @@ def make_harness_agent_class():
                 findings = review(draft, ev, ctx, gates)
                 if not findings:
                     break
+                swap = next((f for f in findings if f.gate == "identity_disclosure" and f.detail.get("replace")), None)
+                if swap is not None:  # a verification-related leak: replaced at once by the fixed request, no rewrite
+                    reply = AssistantMessage(role="assistant", content=withheld_reply(swap))
+                    self.harness_events.append({"event": "disclosure_replaced", "fields": swap.detail["fields"],
+                                                "origins": swap.detail["origins"], "draft_text": proposal.content,
+                                                "replacement": reply.content})
+                    if in_history:
+                        for tc in proposal.tool_calls or []:
+                            state.messages.append(ToolMessage(id=tc.id, role="tool", requestor="assistant",
+                                                              content="Not executed.", error=True))
+                    state.messages.append(reply)
+                    return reply, state
                 budget_left = corrections < MAX_CORRECTIONS and self.regenerations < MAX_REGENERATIONS
                 if not budget_left:
                     hard_kept = [f for f in findings if f.gate not in RELEASE_WHEN_EXHAUSTED]

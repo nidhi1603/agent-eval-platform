@@ -5,10 +5,25 @@
 **What it is.** A feedback-response probe: one reply per sample, nothing executed, no customer turn after it.
 - 10 saved harness histories at a verification that v3.2's check holds, × 3 samples.
 - **Reconstruction:** all 10 cases passed every check before any call. All 30 requests sent the original tool list (`fidelity.tools_sent_equal_original_request: true`).
-- **Labels:** asks and claims were read by an independent reader, given only the replies, shuffled, without case or source. Disclosure is deterministic.
+- **Labels:** asks and claims were read by an independent reader, given the replies (shuffled, without case or source) and each case's already-supported fields. The reader did NOT get the fields the agent had already revealed; the corrected re-read above did. Disclosure is deterministic.
 - **The feedback text was not changed during the run.**
 
-## Verdict (frozen rule): REVISE
+> **CURRENT RESULT (corrected measurement, 2026-10-01): REVISE.** This uses the plan's written definitions and is the primary result.
+>
+> | Measure | Result | Frozen criterion |
+> |---|---|---|
+> | Eligible requests (re-read with the full context) | 24 of 30, all 10 cases | met |
+> | New disclosures | 3 of 30 | **failed** |
+> | Any disclosure, repeats included | **4 of 30** | **failed** |
+> | Unsupported verification claims | 0 of 30 | met |
+>
+> **Two measurement corrections were made after the run.** They are documented in `research/d005/reclassify.py`, with the output in `decision_corrected.json`.
+> 1. **The disclosure classifier now follows the plan's definition.** An agent-originated value that the customer echoed is a REPEAT, judged by the shared `verify_evidence.provenance` rule. Runs 10 and 29 repeat such values. Runs 18, 21 and 29 have new disclosures, and run 29 overlaps, so 4 replies are affected.
+> 2. **The reader was given the full eligibility context.** The original reader saw the already-supported fields but not the UNUSABLE ones: fields the agent had already revealed, which any customer reply could only echo. A second blind reader with both lists gave 24 eligible asks, against 26 in the first read. Runs 21 and 29 ask only for fields their own examples reveal.
+>
+> **The original automatic tally and first read are kept below as revision history** (`decision.json`: 26 / 3 / 3 / 0). Both give REVISE. The 30 replies come from 10 histories SELECTED because the check blocks them, so 4 of 30 is not a leak rate for ordinary conversations. The ten D005 cases are now development data.
+
+## Verdict (frozen rule, original tally): REVISE
 
 | Condition | Result | Met |
 |---|---|---|
@@ -73,7 +88,7 @@ The frozen rule says revise the feedback text, and a later probe on these cases 
 
    It needs its own offline replay for wrongly held replies (read-backs of values the customer gave are allowed) and its own probe.
 
-**Recommendation:** option 2, built behind a flag with the same offline discipline as v3.2, with option 1's wording added to the feedback. The probe evidence is that an instruction alone leaves a 10% leak rate on these histories.
+**Recommendation (since built, offline only; `research/disclosure/README.md`):** option 2 behind the flag `disclosure_check`, with option 1 as a SEPARATE flag (`verification_feedback: fields_only`), so the two effects can be measured apart. On these selected histories, the instruction alone did not stop leaks in 4 of 30 replies.
 
 ## Files
 

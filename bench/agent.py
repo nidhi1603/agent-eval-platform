@@ -79,6 +79,7 @@ def factory(tools, domain_policy, variant: str = "baseline", guard_rules: tuple 
         built.transfer_hold_once = bool(spec.get("transfer_hold_once"))
         built.auto_offer = spec.get("auto_offer", "all")
         built.expose_model_unlocks = bool(spec.get("expose_model_unlocks"))
+        built.verification_feedback = spec.get("verification_feedback", "default")
     if guarded:
         built.guard_rules = tuple(guard_rules)
         built.harness_nudges = tuple(nudges)  # toolkit (and db, if needed) are attached once the environment exists
@@ -95,7 +96,8 @@ def harness_record(harness: dict | None) -> dict | None:
     from bench import harness as harness_mod
 
     unknown = set(harness) - {"name", "version", "gates", "feedback", "adapter", "dep_search", "capability_search",
-                              "transfer_hold_once", "auto_offer", "expose_model_unlocks"}
+                              "transfer_hold_once", "auto_offer", "expose_model_unlocks", "disclosure_check",
+                              "verification_feedback"}
     if unknown:
         raise ValueError(f"unknown harness settings {sorted(unknown)}")
     version = harness.get("version", "v1")  # v1 is what H001 froze; v2 adds the ledger checks (bench/ledger.py)
@@ -128,6 +130,15 @@ def harness_record(harness: dict | None) -> dict | None:
         if not out["adapter"]:
             raise ValueError("expose_model_unlocks needs the adapter")
         out["expose_model_unlocks"] = True
+    if harness.get("disclosure_check"):  # after D005: identity-value disclosure check (bench/identity_disclosure.py)
+        out["gates"] = out["gates"] + ["identity_disclosure"] if "identity_disclosure" not in out["gates"] else out["gates"]
+        out["disclosure_check"] = True
+    if harness.get("verification_feedback", "default") != "default":  # after D005: wording only, separate from the check
+        if harness["verification_feedback"] != "fields_only":
+            raise ValueError("verification_feedback must be 'default' or 'fields_only'")
+        if "verification_evidence" not in out["gates"]:
+            raise ValueError("verification_feedback needs the verification_evidence check (v3.2)")
+        out["verification_feedback"] = "fields_only"
     if harness.get("dep_search"):  # dependency-following tool search (bench/depsearch.py); absent = off
         if not out["adapter"]:
             raise ValueError("dep_search needs the adapter: the documents it adds are offered through it")
@@ -174,9 +185,14 @@ def register(variant: str = "baseline", guard_rules: tuple = (), nudges: tuple =
             name += "_offer-nonmutating"
         if spec.get("expose_model_unlocks"):
             name += "_expose-unlocks"
+        if spec.get("verification_feedback") == "fields_only":
+            name += "_vfb-fields-only"
         dropped = [g for g in harness_mod.VERSIONS[spec.get("version", "v1")] if g not in spec["gates"]]
         if dropped:
             name += "_without-" + "-".join(dropped)
+        added = [g for g in spec["gates"] if g not in harness_mod.VERSIONS[spec.get("version", "v1")]]
+        if added:  # e.g. identity_disclosure via disclosure_check: a different spec must never share a registered name
+            name += "_with-" + "-".join(added)
     if name not in registry.get_agents():
         registry.register_agent_factory(partial(factory, variant=variant, guard_rules=tuple(sorted(guard_rules)),
                                                 nudges=tuple(sorted(nudges)), tool_adapter=tool_adapter,

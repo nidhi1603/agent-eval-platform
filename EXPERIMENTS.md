@@ -707,3 +707,26 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **What it shows.** The hold usually produces an appropriate ask, and no false "you're verified". An instruction alone does not stop the leak.
 - **Proposed next (not built):** a separate deterministic output-disclosure check (before verification, hold customer-facing text that contains a stored identity value the customer has not stated), plus field-names-only wording in the feedback. It needs its own offline replay and probe.
 - Findings: experiments/D005_findings.md.
+
+### D005 corrected; identity-disclosure check built and replayed (2026-10-01, $0; nothing paid)
+
+- **D005 current result (written definitions): REVISE.**
+  - Eligible asks: 24 of 30, re-read blind with the full context (supported AND agent-revealed fields).
+  - New disclosure: 3 of 30 ✗. Any disclosure: 4 of 30 ✗. Verified claims: 0 of 30.
+  - The classifier fix uses one shared provenance rule (`verify_evidence.provenance`). The original tally (26/3/3/0) is kept as history.
+  - The 30 replies come from selected histories, so this is not a leak rate.
+- **Identity-disclosure check** (flag `disclosure_check`; `bench/identity_disclosure.py`, `research/disclosure/README.md`):
+  - Before delivery, customer-facing text, including text beside tool calls, may not contain a stored DOB/email/phone/address of an unverified, retrieved customer unless the customer supplied it independently. A customer echo does not make an agent-shown value theirs.
+  - A verification-related leak is replaced at once by the fixed missing-fields request. That request now also leaves out agent-revealed fields, and sends an apology if too few usable fields remain. Other leaks get one regeneration, then a fixed apology.
+  - Fail-closed. A valid verification releases that customer only.
+  - The wording revision is a separate flag: `verification_feedback: fields_only`.
+  - **Coverage is narrow:** four identity fields in recognised formats, not all customer information.
+- **Offline evidence:**
+  - catches all 4 D005 leaks;
+  - replay over 1,301 saved agent texts: 13 would be caught (5 in D005 development histories);
+  - **blind review of 23 fresh messages (8 flagged + 15 allowed): 23/23 agree, same fields.** Its allowed messages are mostly to verified customers, so read-backs to unverified customers rest on unit tests.
+  - Reference controls 30/30 (bm25 and alltools) with the flag on.
+  - The reviewer found out-of-coverage disclosures (match confirmation, user_id, account existence) in 4 of 23.
+- **Fixed in passing:** a registered agent name did not record ADDED gates, so two specs could share a name and the second run reuse the first's settings. Names now record added gates and the new flags; no earlier run was affected.
+- **Tests:** 445 passed, 14 expected failures (platform DEFECT-1 to DEFECT-9).
+- **Next paid test (proposed, not frozen):** a small LIVE recovery test. With the combined checks, does the customer get to provide valid evidence, and does the agent verify and resume the task?

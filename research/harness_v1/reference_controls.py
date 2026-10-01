@@ -152,6 +152,11 @@ SPECS = {"v1": ({}, {"gates": ["clock_before_verification", "verification_before
          "v3.2": ({"version": "v3.2"}, {"version": "v3.2", "gates": ["clock_before_verification",
                                                                        "verification_before_write", "ids_observed",
                                                                        "verification_evidence"]}),
+         # v3.2 plus the identity-disclosure check (flag disclosure_check, bench/identity_disclosure.py)
+         "v3.2dc": ({"version": "v3.2", "disclosure_check": True},
+                    {"version": "v3.2", "disclosure_check": True,
+                     "gates": ["clock_before_verification", "verification_before_write", "ids_observed",
+                               "verification_evidence"]}),
          # v1 plus dependency-following tool search (bench/depsearch.py): the H004 treatment arm
          "v1dep": ({"dep_search": True}, {"dep_search": True, "gates": ["clock_before_verification",
                                                                          "verification_before_write", "ids_observed"]})}
@@ -166,7 +171,7 @@ def main(argv):
         RETRIEVAL, argv = argv[0].split("=", 1)[1], argv[1:]
     # the v3.2 script (a customer who states two identity fields) can be run through any version, so v3.1 and v3.2
     # are compared on the SAME script; v3.2 always uses it
-    states_identity = version == "v3.2"
+    states_identity = version.startswith("v3.2")
     if argv and argv[0] == "--states-identity":
         states_identity, argv = True, argv[1:]
     full, hard_only = SPECS[version]
@@ -215,7 +220,7 @@ def main(argv):
                   round(row["agent_input_tokens"]["harness"] / max(row["agent_input_tokens"]["baseline"], 1), 2),
                   [f.get("gate") or f.get("gates") for f in row["fired"]], (row["harness_error"] or "")[:120], flush=True)
     out = ROOT / "research" / "harness_v1" / (("reference_controls" if version == "v1" else f"reference_controls_{version}")
-                                              + ("_identity_script" if states_identity and version != "v3.2" else "")
+                                              + ("_identity_script" if states_identity and not version.startswith("v3.2") else "")
                                               + ("" if RETRIEVAL == "bm25" else f"_{RETRIEVAL}") + ".json")
     if not argv:
         out.write_text(json.dumps(rows, indent=1, default=str))

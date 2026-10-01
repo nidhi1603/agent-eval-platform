@@ -141,12 +141,26 @@ def records(messages: list[dict]) -> dict[str, dict]:
     return out
 
 
+def provenance(field_name: str, want: str, messages: list[dict]) -> str | None:
+    """Who FIRST wrote the stored value `want` of this field in `messages`: "customer" (an independent statement),
+    "agent" (the agent wrote it first; a later customer echo does not change that), or None (nobody wrote it).
+    The single provenance rule shared by the verification check, the disclosure check and the probe classifier."""
+    for m in messages:
+        role = m.get("role")
+        if role not in ("user", "assistant"):
+            continue
+        if any(matches(field_name, v, want) for v in stated(field_name, m.get("content") or "")):
+            return "customer" if role == "user" else "agent"
+    return None
+
+
 @dataclass
 class Assessment:
     user_id: str | None
     record_found: bool
     supported: list[str] = field(default_factory=list)       # fields whose latest customer statement matches
     contradicted: list[str] = field(default_factory=list)    # stated, but the latest statement does not match
+    unusable: list[str] = field(default_factory=list)        # the agent showed the stored value first: echoes cannot count
     @property
     def allowed(self) -> bool:
         return self.record_found and len(self.supported) >= 2
@@ -182,10 +196,16 @@ def assess(user_id: str | None, messages: list[dict]) -> Assessment:
             a.supported.append(f)
         elif status is False:
             a.contradicted.append(f)
+        if status is not True and provenance(f, want, messages) == "agent":
+            a.unusable.append(f)
     return a
 
 
-def feedback(a: Assessment) -> str:
+FIELDS_ONLY = ("Name the fields only. Never give example values and never repeat any value from the record: the customer "
+               "must supply every value themselves.")
+
+
+def feedback(a: Assessment, fields_only: bool = False) -> str:
     """Remediation for a held log_verification. Names kinds of field only, never a stored value."""
     head = "Not executed: the verification was not recorded. "
     if not a.user_id:
@@ -195,8 +215,17 @@ def feedback(a: Assessment) -> str:
                 "customer up first (get_user_information_by_id, _by_name or _by_email), then compare what they tell you "
                 "with that record.")
     have = ", ".join(LABEL[f] for f in a.supported) or "none"
-    rest = [LABEL[f] for f in FIELDS if f not in a.supported]
+    rest = [LABEL[f] for f in FIELDS if f not in a.supported and f not in a.unusable]
+    shown = [LABEL[f] for f in a.unusable]
+    if len(a.supported) + len(rest) < 2:
+        return (head + "Identity verification needs two of date of birth, email, phone number and address, stated by "
+                "the customer themselves. Too few are left: you showed the customer their stored " + ", ".join(shown)
+                + ", so those cannot be used. Do not verify the customer and do not reveal anything from their record."
+                + (" " + FIELDS_ONLY if fields_only else ""))
     return (head + "Identity verification needs two of date of birth, email, phone number and address, each stated by "
             f"the customer and matching the record for this user_id. So far the customer's own statements support "
-            f"{len(a.supported)} ({have}). Ask the customer for another of: {', '.join(rest)}. Do not tell the customer "
-            "what the record says, and do not treat the customer as verified until verification is logged.")
+            f"{len(a.supported)} ({have}). Ask the customer for another of: {', '.join(rest)}."
+            + (f" You showed the customer their stored {', '.join(shown)}, so those cannot be used." if shown else "")
+            + " Do not tell the customer "
+            "what the record says, and do not treat the customer as verified until verification is logged."
+            + (" " + FIELDS_ONLY if fields_only else ""))
