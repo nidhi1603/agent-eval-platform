@@ -963,3 +963,15 @@ Second review of the frozen plan. All changes were made before any paid call; th
 - **Scoring:** the first transfer call's code is still the primary outcome, described as reason-code selection only. Multiple transfer calls and other tool calls are recorded as anomalies.
 - **Budget:** $1.00, forecast $0.30-0.65 (an estimate). Needs "run P003 with $1.00".
 - **Tests:** 473 passed, 14 expected failures.
+
+### P003 run: PASS, narrowly (2026-10-02, $0.14 billed)
+
+- **Approval and freeze:** approved with "run P003" against the frozen $1.00 cap. Before the run, the plan recorded the second review's clarifications (b535789): reconsider each transfer once, keep the answer key out of model input, the narrow scope, and a tie counting as no-go.
+- **Execution:** 54 calls, all ok; the original tool lists were sent. Spend: $0.14 billed estimate, $0.44 upper bound.
+- **Gate:** G1 2 of 4, exactly at the threshold; G2 7 vs 5 cases; G3 0 of 5 failing. Result: PASS.
+- **Samples:** treatment right in 20 of 27, control in 13 of 27.
+  - Control: 0 of 12 right on originally wrong cases; 2 of 15 wrong on originally right cases; 3 text-only replies.
+  - Treatment: 0 wrong on originally right cases; no anomalies.
+- **Sensitivity:** the pass rests on one case at 2 of 3. The two unfixed cases are one customer situation (an email update), where the agent kept "no specific reason".
+- **Limits:** proposed actions only, with no reward evidence; 9 cases from 2 tasks.
+- **Next:** a full-conversation plan, standard agent vs standard agent plus a once-per-transfer re-check with doc 042. Needs its own plan and approval. Details in `experiments/P003_findings.md`.
