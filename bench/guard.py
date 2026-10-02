@@ -237,6 +237,7 @@ def make_guarded_agent_class():
             super().__init__(*a, **kw)
             self.events: list[dict] = []
             self.nudges_fired = 0
+            self.transfer_rechecked = False  # transfer_code_recheck fires at most once per conversation
 
         def _evidence(self, state) -> Evidence:
             return Evidence(messages=messages_as_dicts(state.messages),
@@ -350,6 +351,23 @@ def make_guarded_agent_class():
                             state.messages.append(SystemMessage(role="system", content=text))
                         proposal = self._regenerate(state)
                         continue  # the regenerated proposal is reviewed again (the nudge fires at most once)
+                if nudge_mod.TRANSFER_RECHECK in self.harness_nudges and not self.transfer_rechecked:
+                    draft = messages_as_dicts([proposal])[0]
+                    if nudge_mod.transfer_proposed(draft):
+                        self.transfer_rechecked = True
+                        results = nudge_mod.transfer_recheck_results(draft["tool_calls"])
+                        state.messages.append(proposal)
+                        for call_id, text in results:  # as P003's treatment: every held call's result is an error
+                            state.messages.append(ToolMessage(id=call_id, role="tool", requestor="assistant",
+                                                              error=True, content=text))
+                        proposal = self._regenerate(state)
+                        reply = messages_as_dicts([proposal])[0]
+                        self.events.append({"event": "transfer_rechecked", "check": nudge_mod.TRANSFER_RECHECK,
+                                            "draft_text": draft.get("content"),
+                                            "draft_tool_calls_full": draft["tool_calls"],
+                                            "reply_text": reply.get("content"),
+                                            "reply_tool_calls_full": reply.get("tool_calls") or []})
+                        continue  # the reply is reviewed again; this check never fires a second time
                 return proposal
 
     return GuardedLLMAgent

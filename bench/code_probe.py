@@ -215,10 +215,15 @@ def probe(case: Case, arm: str, model: str, llm_args: dict, target: str, codes: 
 
 
 def graded_reason(task_id: str) -> str | None:
-    """The reason the task's tau2 grade requires: its reference transfer action's reason, when the action compares it."""
+    """The reason the task's tau2 REWARD requires: its reference transfer action's reason, when the action compares it
+    AND the reward counts actions. (task_092 lists a transfer with compare_args None, but its reward basis is DB
+    only, so the code never changes its score.)"""
     from tau2.runner.helpers import get_tasks
 
-    for a in get_tasks(pins.DOMAIN, task_ids=[task_id])[0].evaluation_criteria.actions or []:
+    crit = get_tasks(pins.DOMAIN, task_ids=[task_id])[0].evaluation_criteria
+    if "ACTION" not in [b.value for b in crit.reward_basis]:
+        return None
+    for a in crit.actions or []:
         if a.name == TRANSFER and (a.compare_args is None or "reason" in a.compare_args):
             return a.arguments.get("reason")
     return None

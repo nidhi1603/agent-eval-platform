@@ -69,3 +69,41 @@ def test_end_to_end_the_draft_is_withheld_and_the_check_fires_once(tmp_path):
     assert "has to be submitted and approved" in text
     assert "anything else for this" in text  # fired once; the later denial went out unchanged
     assert trace["evaluation"] is not None and any("pre-send checks" in f for f in trace["research_eligibility"]["flags"])
+
+
+RECHECK = "transfer_code_recheck"
+
+
+def test_transfer_recheck_holds_once_with_p003_treatment_text_and_the_reissued_transfer_executes(tmp_path):
+    from bench import code_probe
+
+    trace, _ = scripted_run(tmp_path, script="task_004_transfer_recheck.json", task_id="task_004", agent_nudges=(RECHECK,))
+    events = trace["guard"]["events"]
+    assert [e["event"] for e in events] == ["transfer_rechecked"]
+    assert events[0]["draft_tool_calls_full"][0]["arguments"]["reason"] == "customer_requests_human_no_specific_reason"
+    assert events[0]["reply_tool_calls_full"][0]["arguments"]["reason"] == "account_ownership_dispute"
+    calls = [c for m in trace["messages"] for c in m.get("tool_calls") or [] if c["name"] == "transfer_to_human_agents"]
+    assert [c["arguments"]["reason"] for c in calls] == ["account_ownership_dispute"]   # the held draft never executed
+    assert trace["evaluation"]["reward"] == 1.0
+    # identical wording to P003's treatment arm; no task or target information in it
+    text = code_probe.feedback("treatment")
+    assert "account_ownership_dispute" in text and "task_004" not in text   # the code appears only as a row of doc 042
+    assert nudge.transfer_recheck_results([{"id": "a", "name": "transfer_to_human_agents", "arguments": {}},
+                                           {"id": "b", "name": "get_current_time", "arguments": {}}]) == \
+        [("a", text), ("b", code_probe.OTHER_HELD)]
+
+
+def test_transfer_recheck_fires_at_most_once_per_conversation(tmp_path):
+    trace, _ = scripted_run(tmp_path, script="task_004_transfer_recheck_once.json", task_id="task_004", agent_nudges=(RECHECK,))
+    assert [e["event"] for e in trace["guard"]["events"]] == ["transfer_rechecked"]
+    calls = [c for m in trace["messages"] for c in m.get("tool_calls") or [] if c["name"] == "transfer_to_human_agents"]
+    assert [c["arguments"]["reason"] for c in calls] == ["customer_requests_human_no_specific_reason"]  # not held again
+    assert trace["evaluation"]["reward"] == 0.0
+
+
+def test_without_the_check_the_first_transfer_executes(tmp_path):
+    trace, _ = scripted_run(tmp_path, script="task_004_transfer_recheck.json", task_id="task_004")
+    calls = [c for m in trace["messages"] for c in m.get("tool_calls") or [] if c["name"] == "transfer_to_human_agents"]
+    # nothing held: the wrong-code draft executes first (the script's next transfer then executes too)
+    assert [c["arguments"]["reason"] for c in calls] == ["customer_requests_human_no_specific_reason", "account_ownership_dispute"]
+    assert "guard" not in trace or not (trace["guard"] or {}).get("events")

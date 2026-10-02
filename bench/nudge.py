@@ -13,6 +13,14 @@ One check so far:
     those names (already in its context) and restates the documented unlock-and-call sequence, including
     that prerequisites still apply. At most once per conversation. The draft never enters the trajectory.
 
+  transfer_code_recheck  (after P003; the component P004 compares with the standard agent)
+    Fires when the agent proposes transfer_to_human_agents. The transfer is held, not executed; the agent gets
+    P003's treatment text exactly (bench/code_probe.feedback("treatment"): the re-check request plus the bank's
+    reason-code document, doc 042) as the held call's result, and any other call in the same message gets
+    "not executed". At most ONCE per conversation: the reissued transfer, and any later one, is handled
+    normally and never held again. The draft never enters the trajectory. It uses no task, target code or
+    grading information: the request and the document are fixed and identical in every conversation.
+
 Evidence: only the agent's own conversation plus static tool metadata (which names are discoverable).
 """
 
@@ -25,7 +33,22 @@ DENIAL = re.compile(r"(don[’']t have (?:access|a (?:way|tool|backend tool))|do
                     r"can[’']t (?:complete|look up|access|directly|retrieve|perform)|cannot (?:access|perform|complete)|"
                     r"aren[’']t exposed|no (?:backend )?tool (?:here|available)|unable to (?:access|perform|complete))", re.I)
 MAX_NAMES = 6
-NUDGES = ("locked_named_tool_before_denial_or_transfer",)
+TRANSFER = "transfer_to_human_agents"
+TRANSFER_RECHECK = "transfer_code_recheck"
+NUDGES = ("locked_named_tool_before_denial_or_transfer", TRANSFER_RECHECK)
+
+
+def transfer_proposed(proposal: dict) -> bool:
+    return any(target(c)[0] == TRANSFER for c in proposal.get("tool_calls") or [])
+
+
+def transfer_recheck_results(tool_calls: list[dict]) -> list[tuple[str, str]]:
+    """(tool_call_id, result text) for each call in a held transfer proposal: P003's treatment text for the
+    transfer, P003's "not executed" text for anything else."""
+    from bench import code_probe
+
+    text = code_probe.feedback("treatment")
+    return [(c["id"], text if target(c)[0] == TRANSFER else code_probe.OTHER_HELD) for c in tool_calls]
 
 
 RESULT_START = re.compile(r"^\s*(\d+)\.\s", re.M)

@@ -43,11 +43,11 @@ On originally wrong cases, the control's samples were never right: 0 of 12. Trea
 
 **By exposure (descriptive):**
 - **Document absent:** treatment right in 1 of 2 cases, control 0.
-- **Document present:** treatment right in 6 of 7 cases, control 5. That includes 1 of the 2 originally wrong cases, so renewed attention fixed one case where the document was already in context.
+- **Document present:** treatment right in 6 of 7 cases, control 5. That includes 1 of the 2 originally wrong cases: re-presenting the document coincided with a fix where it was already in context. This supports re-presenting it as a candidate intervention; it does not identify renewed attention as the mechanism (wording corrected after review).
 
 **The two cases treatment did not fix** are the same customer situation, which the agent summarised as "requests transfer to update their account email". In all 6 treatment samples the agent kept `customer_requests_human_no_specific_reason`. The document was not enough when the agent's own framing of the situation did not match the account-ownership tier. This is observational.
 
-**What the control did.** Re-asking without the document never fixed a wrong case. It broke 2 of 15 samples on originally right cases: one wrong code, one text-only reply. Text-only replies (3) occurred only in the control. A request-only hold is therefore not an attractive alternative on this evidence.
+**What the control did.** Re-asking without the document never fixed a wrong case. It broke 2 of 15 samples on originally right cases: one wrong code, one text-only reply. Text-only replies (3) occurred only in the control. In this selected probe the request alone did not help; that does not show that reconsideration without the document is generally ineffective (wording corrected after review).
 
 ## What this shows, and what it cannot
 

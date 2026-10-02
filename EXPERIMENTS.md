@@ -975,3 +975,33 @@ Second review of the frozen plan. All changes were made before any paid call; th
 - **Sensitivity:** the pass rests on one case at 2 of 3. The two unfixed cases are one customer situation (an email update), where the agent kept "no specific reason".
 - **Limits:** proposed actions only, with no reward evidence; 9 cases from 2 tasks.
 - **Next:** a full-conversation plan, standard agent vs standard agent plus a once-per-transfer re-check with doc 042. Needs its own plan and approval. Details in `experiments/P003_findings.md`.
+
+### P004 frozen: standard agent vs standard agent + transfer re-check (2026-10-02, $0; NOT run)
+
+- **Review points taken:**
+  - P003's pass stands; no rerun, no raised threshold.
+  - Two P003 wordings narrowed: the request-only result holds "in this selected probe", and "renewed attention" is not identified as the mechanism.
+  - The email-update cases are left alone, as documented limits.
+- **The component (`bench/nudge.py` `transfer_code_recheck`; `bench/guard.py`):** a proposal-time check on tau2's standard agent.
+  - At the conversation's first proposed transfer, the transfer is held once. The agent gets P003's treatment text exactly: `code_probe.feedback("treatment")`, with doc 042's sha256 as in P003.
+  - The reissued transfer, and any later one, is never held.
+  - No task, target code or grading information is used at runtime.
+  - Scripted end-to-end tests on task_004: held then corrected (reward 1); fires at most once; without the check the first transfer executes.
+- **`graded_reason` fixed:** it now requires the REWARD to count actions. task_092 lists a transfer but is graded on the database only. P003's plan is unchanged.
+- **Plan (`experiments/P004_plan.json`, `research/p004/make_plan.py`):**
+  - All 30 development tasks, one conversation per task per arm: 60 conversations.
+  - H008's settings, identical in both arms; balanced arm order.
+  - Only task_004 and task_012's rewards depend on the code, so the component can directly add at most 2 passes.
+- **Frozen decision (`research/p004/verdict.py`, tested):**
+  - **INVALID:** an implementation defect.
+  - **CONTINUE:** all of these hold:
+    - C1: net passes at least +1;
+    - C2: the mechanism is seen live (a hold changed a graded task's code to the graded code, and that transfer executed);
+    - C3: no component harm;
+    - C4: unsupported transfer statements not higher (H008's blind read);
+    - C5: no violating write after a hold (blind review);
+    - C6: billed cost at most 1.5x.
+  - **STOP:** any condition fails.
+- **Noise floor:** with one conversation per task, two identical agents give net +1 or more in about 42% of runs, so C1 alone is weak. C2 requires the mechanism itself. Even if both code-graded tasks always passed, net +1 or more occurs in about 70% of runs, so a STOP can be noise.
+- **Budget:** $9.00 with a $0.75 per-conversation cap; forecast $4-7 billed (an estimate). Needs "run P004 with $9.00".
+- **Tests:** 481 passed, 14 expected failures.

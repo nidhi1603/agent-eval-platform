@@ -87,6 +87,7 @@ def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dic
         agent_variant=s.get("agent_variant", "baseline"),
         agent_tool_adapter=s.get("tool_adapter"),
         agent_harness=s.get("harness"),
+        agent_nudges=tuple(s.get("nudges") or ()),  # proposal-time checks on the standard agent (bench/nudge.py)
         budget_accounting=s.get("budget_accounting", "upper_bound"),
         scripted=Path(s["scripted"]) if s.get("scripted") else None,  # mock smoke tests only
         resume=item.get("resume"),  # bench/resume.py: targeted recovery tests start from a saved conversation
@@ -102,6 +103,8 @@ def _run_one(item: dict, settings: dict, cap: float, out_dir: str | None) -> dic
         "tool_adapter": (((trace.get("config") or {}).get("agent") or {}).get("tool_adapter")),
         "harness": (((trace.get("config") or {}).get("agent") or {}).get("harness")),
         "harness_activity": _harness_activity(trace),
+        "nudges": (((trace.get("config") or {}).get("agent") or {}).get("nudges")) or [],
+        "nudge_events": [e.get("event") for e in ((trace.get("guard") or {}).get("events") or [])],
         "harness_runtime_config": (trace.get("harness") or {}).get("runtime_config"),
         "harness_runtime_matches_record": (trace.get("harness") or {}).get("runtime_matches_record"),
         "agent_variant": (((trace.get("config") or {}).get("agent") or {}).get("variant") or {}),
