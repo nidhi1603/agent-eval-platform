@@ -32,6 +32,10 @@ def tasks_dir() -> Path:
     return data_dir() / "tau2" / "domains" / DOMAIN / "tasks"
 
 
+def documents_dir() -> Path:
+    return data_dir() / "tau2" / "domains" / DOMAIN / "documents"
+
+
 def runtime_tasks_sha256() -> str:
     """Hash of the task files tau2 actually loads (tasks/task_*.json), not the stale tasks.json."""
     h = hashlib.sha256()

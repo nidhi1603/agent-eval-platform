@@ -68,11 +68,13 @@ def _tier_doc_seen(msgs, i):
                for m in msgs[:i])
 
 
-TIER_CONTENT = ("highest tier that applies", "TIER 1 (HIGHEST PRIORITY)", "Human Agent Transfer Reason Codes")
+TIER_CONTENT = ("TIER 1 (HIGHEST PRIORITY)", "always select from the highest tier",
+                "Use these when a specific operational scenario applies")   # body text only, never the bare title
 
 
 def _tier_content_seen(msgs, i):
-    """Stricter: the tier document's TITLE or TEXT appears in an earlier tool result (a search hit or a file read)."""
+    """Strict (after the transfer-table review): the tier document's BODY text (the tier table) appears in an earlier
+    tool result the agent received. A title in an index listing does not count."""
     return any(m["role"] == "tool" and any(t in (m.get("content") or "") for t in TIER_CONTENT) for m in msgs[:i])
 
 

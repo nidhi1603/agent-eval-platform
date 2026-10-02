@@ -920,3 +920,28 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
     - failed to transfer: 4.
 - **Reason codes against the tier document:** with the tier document's content seen before the call, 8 of 10 codes were correct; without it, 8 of 20 clear cases. Observational only.
 - **Proposed single mechanism (not built):** reason-code grounding. Put doc 042's text in context before a transfer executes, and ask for the highest applicable tier. It can affect only the code, which only task_004 and task_012 grade. The first test would be a small next-message probe at the existing wrong-code points, with its own plan.
+
+### P003 frozen: controlled reason-code probe (2026-10-02, $0; NOT run)
+
+- **Corrections to the transfer report (review):**
+  - Successful conversations: 8 of 15 decisions were correct with no mistake. The other 4 had the right transfer decision but a policy-wrong code (a summary first said 12).
+  - "Deterministic remedy" was too strong: inserting the document is deterministic, but choosing the tier is the model's judgment.
+  - "Cannot obstruct a correct transfer" is unproven, and is now measured.
+  - The score opportunity is limited: of 9 graded transfers, 5 already matched and 4 did not.
+- **Document exposure verified from the saved tool output.** In all 10 "seen" transfers, the tier table's BODY was in an earlier tool result, not just the title in a listing. `export.py` now uses only the body text.
+- **P003 (`experiments/P003_plan.json`, `bench/code_probe.py`, `research/p003/make_plan.py`).**
+  - **Design:** next-message probe at saved transfer proposals; the held transfer's tool result differs only by arm:
+    - control: a re-check request;
+    - treatment: the same request plus doc 042's full text.
+  - **Cases (fixed rule):** policy-clear transfer calls, one per conversation (first such call): 20 cases, 11 originally wrong and 9 originally right, across 5 tasks. 20 policy-unclear and 5 repeat calls are excluded and listed.
+  - **Samples:** 3 per arm per case, 120 in total.
+  - **Scoring:** a missing transfer call, an invalid code or a text-only reply counts as wrong. A case is correct in an arm when the majority of its samples are.
+  - **Gate (screening thresholds), first failure decides:**
+    - G1: treatment corrects at least half of the originally wrong cases;
+    - G2: treatment has more correct cases than control;
+    - G3: no originally right case breaks under treatment;
+    - PASS → plan standard agent vs standard agent plus this component in full conversations; FAIL → drop the component.
+  - **Caveat:** task_035's target is the readers' policy reading (doc 042 names no code there, and tau2 accepts any). Results are also reported without task_035.
+- **Reconstruction:** all 20 cases pass. Their history and tool list match the original call that proposed the transfer. This reuses D005's offered-tool and capability-draft alignment, needed for the H009 exposure arms.
+- **Budget:** $2.00, forecast $0.60-1.40 (an estimate). Needs "run P003 with $2.00".
+- **Tests:** 472 passed, 14 expected failures.

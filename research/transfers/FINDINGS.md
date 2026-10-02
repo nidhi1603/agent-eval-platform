@@ -31,7 +31,7 @@
 | None | 12 | | |
 
 **Successful conversations (15 decision points).**
-- 8 were correct with no mistake.
+- 8 were correct with no mistake. (A summary first said "12 of 15 correct"; 12 counts the 4 below, whose decision to transfer was correct but whose code was policy-wrong.)
 - 4 transfers passed with a code the readers judged wrong under policy. All are task_035, where the grade ignores the code.
 - 2 were repeat transfers; 1 was transferred instead of acting.
 - A reason-code check would have changed those 4 codes. Under the grader that is harmless; under policy it is a fix.
@@ -43,7 +43,7 @@
 | yes (10) | **8** | 2 | 0 |
 | no (35) | 8 | 12 | 15 |
 
-The "in context" signal is deterministic (`tier_doc_content_seen_before`): the document's title or tier text appears in an earlier tool result. It can also match an index listing, so 10 is an upper bound. In the 30 transfers with a clear code, codes were right in 8 of 10 when doc 042 had been seen and 8 of 20 when it had not. This is observational: tasks differ between the two groups, so it does not show cause.
+The "in context" signal is deterministic (`tier_doc_content_seen_before`). **Verified after review:** it requires the document's BODY text, its tier table, in an earlier tool result the agent received; a title in an index listing does not count. All 10 cases meet this strict test, so the comparison is about content exposure, not listings. In the 30 transfers with a clear code, codes were right in 8 of 10 when doc 042 had been seen and 8 of 20 when it had not. This is observational: tasks differ between the two groups, so it does not show cause.
 
 **Policy against answer key** (the 9 transfers where the key grades a code): they agree on all 9 (5 right, 4 wrong). For the other 36 transfers the key does not grade the code.
 
@@ -65,8 +65,9 @@ The "in context" signal is deterministic (`tier_doc_content_seen_before`): the d
 
 **Why this one:**
 - The cause is mostly missing information (7 of 9 wrong codes), and the remedy is specific: one known document, not a generic "search first" hold.
-- It is deterministic and needs no answer key.
-- It cannot obstruct a correct decision to transfer: the transfer still happens, possibly with a different code.
+- **Its score opportunity is limited:** among the 9 executed transfers whose codes are graded, 5 already matched and 4 did not. Correcting those 4 would not necessarily repair the other mistakes in their conversations, and it cannot help where the required transfer is never attempted. It is a candidate component, not a new direction for the project.
+- **Inserting the document is deterministic and needs no answer key. Choosing the applicable tier is still the model's judgment**, so the remedy as a whole is not deterministic.
+- **Whether it obstructs correct transfers is UNPROVEN.** Reconsidering could change a correct code, produce an invalid call, or fail to re-issue the transfer. These outcomes must be measured.
 - The evidence: codes were right in 8 of 10 transfers when the document had been seen.
 
 **Why not the others first:**
