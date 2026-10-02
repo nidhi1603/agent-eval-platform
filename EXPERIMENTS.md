@@ -1038,3 +1038,11 @@ Second review of the frozen plan:
 - **Blind claims read:** 0 unsupported transfer statements in either arm.
 - **Deviation:** my tool's 2-hour limit killed the batch at 57 of 60. Two in-flight recheck conversations were journaled as operator-stopped ($0.38, counted conservatively) and rerun within the cap, disclosed.
 - Details in `experiments/P004_findings.md`.
+
+#### P004 write-up corrected (review)
+
+- The original attempt was INCOMPLETE. The result is "STOP after a disclosed infrastructure-related rerun amendment": the plan did not authorize reruns after an operator timeout.
+- 26 tasks failed in both arms, not 27.
+- $6.01 is the total accounted cost, including the $0.38 allowance; treatment spend at most $2.98 vs $3.03.
+- C5 was vacuous (no writes after a hold). "Unwanted transfers" is renamed: these transfers were not policy-reviewed.
+- The reason-code transfer component is CLOSED: no more spending on it, and no broader performance claim.
