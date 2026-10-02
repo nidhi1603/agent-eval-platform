@@ -881,7 +881,7 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 
 - **Corpus:** 79 failed conversations from H008, H009 and P001. Two independent readers each labelled all 79 (56 from the H008/H009 audits, 23 read in full). Instructions were fixed before reading.
 - **Agreement:** the readers agree on the first-mistake class in 60 of 79. 8 differences are the act-versus-root-cause split between TRANSFER and RETRIEVAL.
-- **Unsupported completion claims are not the first failure.** They appear in 21-23 failed conversations, but come after an earlier consequential mistake in all but one.
+- **Unsupported completion claims are not the first failure.** They appear in 21-23 failed conversations, but come after an earlier consequential mistake in all but one. What a recovery-producing intervention would change is not established.
 - **Recurring first mistakes (conversations / tasks):**
   - cash-back "who acts": 12 / 2;
   - credit-limit request left pending: 8 / 1;
@@ -892,10 +892,12 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - expired referral program: 6 / 1;
   - required tool unused: 4 / 2;
   - fraud alert cleared: 2 / 1.
-- **Transfer check (answer key used for analysis only):** 0 of 15 transfer-expected conversations used the expected reason code, and 20 transferred where no transfer was expected.
+- **Transfer check (answer key used for analysis only).** Among these FAILED conversations only (not an accuracy estimate):
+  - 0 of 15 on transfer-expected tasks used the expected reason code;
+  - 20 transferred on tasks whose reference actions contain no transfer. Each transfer's appropriateness is not yet judged.
 - **Availability:** in the 16 agreed policy-step failures, the rule and the evidence were both already in context, so this is a knowledge-to-action gap. Few first mistakes are fully detectable without the answer key.
 - **Suggestion (for review, nothing built):**
   1. Transfer decisions first: the most cross-cutting failure, partly checkable against the knowledge base's reason-code tiers.
-  2. Procedure completion: the largest by conversations but concentrated in 4 tasks; v2's checklist gave no benefit in H002.
+  2. Procedure completion: the largest by conversations but concentrated in 4 tasks. The whole v2 configuration, which included a checklist, showed no observed gain in H002; the checklist's own effect was not isolated.
   3. Claims, fraud and waiting periods are not first failures here.
 - Findings: `research/post_verification/FINDINGS.md`.

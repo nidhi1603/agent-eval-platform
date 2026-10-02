@@ -26,7 +26,7 @@
 - In all but one, the first claim comes AFTER an earlier consequential mistake.
 - One conversation (task_017) has a claim at the first-mistake turn, which only one reader classed CLAIM.
 
-A claims check would improve honesty in about a quarter of failed conversations. It would not have prevented these task failures.
+**Corrected after review:** unsupported claims usually occurred AFTER an earlier identified mistake. This tally does not establish what a recovery-producing intervention, such as one that catches the claim and prompts a fix, would have changed.
 
 ## Recurring first mistakes (`patterns.py` → `patterns.json`)
 
@@ -41,15 +41,19 @@ A claims check would improve honesty in about a quarter of failed conversations.
 | Gave a referral tool after the program's end date | 6 | 015 | The only recurring TIMING failure |
 | Required emergency or customer-side tool not used | 4 | 031, 035 | |
 | Fraud alert cleared right after the customer reported an unauthorized charge | 2 | 087 | P001 only |
-| Unassigned (interruptions, customer-simulator issues, single cases) | 15 | | |
+| Unassigned (customer-simulator issues, single cases; includes the 2 interrupted runs below) | 15 | | |
+
+**The patterns are mutually exclusive:** each conversation is in exactly one row, and the rows sum to 79 (`patterns.json`).
+
+**Interrupted, not completed failures:** 2 conversations (H008 task_031 and task_023, API credit outage, no official reward) are interrupted runs, reported separately. They are among the 79 because they have no passing reward. The other 77 are completed failures.
 
 **Availability, for the 60 agreed conversations (`tally.json` agreed_detail):**
 - **Policy step skipped or misread (16):** the governing rule AND the needed evidence were already in context in all 16. This is a knowledge-to-action gap, not retrieval.
 - **Detectable without the answer key:** "yes" by both readers in only 3 of 60 conversations (2 transfer, 1 arguments); "partial" for most. A generic deterministic check catches few of these first mistakes outright.
 
 **Transfer check (deterministic, using the answer key for analysis only):**
-- On tasks whose reference actions include a transfer, **0 of 15 conversations used the expected reason code**.
-- 20 conversations transferred on tasks that expect no transfer.
+- **Among these selected FAILED conversations**, 0 of 15 on transfer-expected tasks used the expected reason code. Successful conversations are excluded from this corpus, so this is not an estimate of overall transfer accuracy. The full transfer analysis (`research/transfers/`) includes successful transfers.
+- 20 conversations transferred on tasks whose reference actions contain no transfer. Whether each transfer was inappropriate depends on the dialogue and the policy, which this count does not check.
 - Both readers marked a transfer situation as present in 41 to 43 conversations and mishandled in 36.
 
 **Fraud and waiting periods.** Neither is a recurring first failure in this corpus:
@@ -59,7 +63,7 @@ A claims check would improve honesty in about a quarter of failed conversations.
 ## What this suggests (for review; nothing built)
 
 1. **Transfer decisions: when to transfer, and with which reason code.** The most cross-cutting first failure:
-   - first mistake in at least 16 conversations across at least 6 tasks (the transfer pattern, plus the cash-back transfers);
+   - first mistake in at least 16 conversations across at least 6 tasks. **This figure OVERLAPS the pattern table:** it is the transfer pattern (8) plus the cash-back conversations whose first mistake was a transfer (8);
    - a wrong or missing reason code in every transfer-expected conversation;
    - many transfers where none was expected.
 
@@ -69,7 +73,7 @@ A claims check would improve honesty in about a quarter of failed conversations.
 2. **Procedure completion: who acts, and finishing the documented steps** (cash-back handover, CLI completion, retention protocol).
    - The largest by conversations (about 28), but concentrated in 4 tasks.
    - The rule and evidence were available in every agreed case.
-   - Caution: harness v2's procedure checklist was tried in H002 and gave no benefit (0/20) at +42% cost. A new attempt should explain why it would differ.
+   - Caution: the WHOLE harness v2 configuration, which included a procedure checklist, showed no observed pass improvement in H002 (0/20) and cost more (+42% upper bound). That experiment did not isolate the checklist's effect.
 3. **Not first:** unsupported claims, fraud handling, waiting periods.
 
 **Limits.**
