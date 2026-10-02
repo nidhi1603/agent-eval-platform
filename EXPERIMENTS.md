@@ -1026,3 +1026,15 @@ Second review of the frozen plan:
 - **New scripted check:** a transfer bundled with a search. The whole message is held, neither call executes, and both are reported as not executed (the search gets "Not executed: another call...", the transfer the re-check text). The agent then repeats the search and transfers with the graded code. The hold event now records what each held call was told.
 - **Unchanged:** model settings, document and wording. Budget $9.00; needs "run P004 with $9.00".
 - **Tests:** 483 passed, 14 expected failures.
+
+### P004 run: STOP (2026-10-02, $6.01 billed)
+
+- **Approval and execution:** "run P004 with $9.00". 60 of 60 conversations finished; 30 complete pairs; no interruptions; no component defects.
+- **Passes:** 3 vs 3 (net 0). task_017 passed only in the baseline, task_031 only with the re-check.
+- **Frozen rule:** C1 and C2 fail; C3-C6 are met. Verdict: STOP. That means no further spending on this candidate under this plan; it does not show the component has no effect.
+- **The component:** 10 firings, each delivering the exact frozen text. The agent re-sent the same code in 9; 1 changed an ungraded code.
+  - On task_004, the only live score-relevant chance, it re-sent the wrong code.
+  - On task_012, neither arm transferred.
+- **Blind claims read:** 0 unsupported transfer statements in either arm.
+- **Deviation:** my tool's 2-hour limit killed the batch at 57 of 60. Two in-flight recheck conversations were journaled as operator-stopped ($0.38, counted conservatively) and rerun within the cap, disclosed.
+- Details in `experiments/P004_findings.md`.
