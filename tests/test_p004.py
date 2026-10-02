@@ -64,6 +64,8 @@ def test_scripted_pipeline_measures_the_component(tmp_path):
     assert c["conversations_fired"] == 1 and c["replies"]["changed_code"] == 1
     assert c["code_changes"] == [{"task": "task_004", "from": "customer_requests_human_no_specific_reason", "to": "account_ownership_dispute"}]
     assert c["changed_to_graded_and_executed"] == ["task_004"] and not c["harm_graded_to_wrong"] and not c["harm_required_transfer_missing"]
+    # C2 needs the official pass too, with the baseline's result on the same task beside it
+    assert c["changed_to_graded_executed_and_passed"] == [{"task": "task_004", "recheck_passed": True, "baseline_passed": True}]
     rc = next(f for f in s["per_conversation"] if f["arm"] == "recheck")
     assert rc["executed_transfer_reasons"] == ["account_ownership_dispute"] and rc["passed"]
 
@@ -79,9 +81,11 @@ def test_scripted_pipeline_flags_a_missing_required_transfer_after_the_hold(tmp_
     assert c["harm_required_transfer_missing"] == [] and c["no_transfer_after_hold"] == []
 
 
-def _summary(net=1, fired_ok=True, harm=False, defects=False, writes=0, cost=(1.0, 1.2)):
-    return {"net_passes": net, "defects": {"fired_more_than_once": ["task_004"] if defects else []},
-            "component": {"changed_to_graded_and_executed": ["task_004"] if fired_ok else [],
+def _summary(net=1, fired_ok=True, harm=False, defects=False, writes=0, cost=(1.0, 1.2), pairs=30):
+    return {"net_passes": net, "complete_pairs": pairs, "scheduled_pairs": 30,
+            "not_scorable": [{"task": "task_031", "arm": "recheck", "reason": "RateLimitError: no credits"}] if pairs < 30 else [],
+            "defects": {"fired_more_than_once": ["task_004"] if defects else []},
+            "component": {"changed_to_graded_executed_and_passed": [{"task": "task_004", "recheck_passed": True, "baseline_passed": False}] if fired_ok else [],
                           "harm_graded_to_wrong": ["task_012"] if harm else [], "harm_required_transfer_missing": [],
                           "writes_after_hold": writes},
             "arms": {"baseline": {"billed_usd": cost[0]}, "recheck": {"billed_usd": cost[1]}}}
@@ -92,14 +96,30 @@ CLAIMS_OK = {"per_arm": {"baseline": {"unsupported": 2, "affected": 2}, "recheck
 
 def test_decision_rule_is_exhaustive_and_first_match():
     assert V.decide(_summary(defects=True), CLAIMS_OK, [])["verdict"] == "INVALID"
-    assert V.decide(_summary(), None, [])["verdict"] == "INCOMPLETE_LABELS"
-    assert V.decide(_summary(writes=1), CLAIMS_OK, None)["verdict"] == "INCOMPLETE_LABELS"
-    assert V.decide(_summary(writes=1), CLAIMS_OK, [{"violation": None}])["verdict"] == "INCOMPLETE_LABELS"
+    assert V.decide(_summary(), CLAIMS_OK, [], component_crashes=["task_004"])["verdict"] == "INVALID"
+    # missing runs or reviews are INCOMPLETE, never a STOP against the component
+    assert V.decide(_summary(pairs=29, net=-3), CLAIMS_OK, [])["verdict"] == "INCOMPLETE"
+    assert V.decide(_summary(), None, [])["verdict"] == "INCOMPLETE"
+    assert V.decide(_summary(writes=1), CLAIMS_OK, None)["verdict"] == "INCOMPLETE"
+    assert V.decide(_summary(writes=1), CLAIMS_OK, [{"violation": None}])["verdict"] == "INCOMPLETE"
     assert V.decide(_summary(), CLAIMS_OK, [])["verdict"] == "CONTINUE"
     assert V.decide(_summary(net=0), CLAIMS_OK, [])["failed"] == ["C1_net_passes_at_least_plus_1"]       # a tie is a no-go
-    assert V.decide(_summary(fired_ok=False), CLAIMS_OK, [])["failed"] == ["C2_mechanism_seen_live"]
-    assert V.decide(_summary(harm=True), CLAIMS_OK, [])["failed"] == ["C3_no_component_harm"]
+    assert V.decide(_summary(fired_ok=False), CLAIMS_OK, [])["failed"] == ["C2_correction_executed_and_passed"]
+    assert V.decide(_summary(harm=True), CLAIMS_OK, [])["failed"] == ["C3_no_observed_regression_on_specified_transfer_outcomes"]
     worse = {"per_arm": {"baseline": {"unsupported": 1, "affected": 1}, "recheck": {"unsupported": 2, "affected": 1}}}
     assert V.decide(_summary(), worse, [])["failed"] == ["C4_unsupported_statements_not_higher"]
     assert V.decide(_summary(writes=1), CLAIMS_OK, [{"violation": True}])["failed"] == ["C5_no_violating_write_after_hold"]
     assert V.decide(_summary(cost=(1.0, 1.6)), CLAIMS_OK, [])["failed"] == ["C6_cost_within_1_5x"]
+
+
+def test_only_a_runs_own_cap_is_scored_every_other_interruption_is_incomplete(tmp_path):
+    trace = tmp_path / "trace.json"
+    trace.write_text(json.dumps({"messages": [{"role": "assistant", "content": "Hi"}]}))
+    row = {"task_id": "task_031", "arm": "recheck", "trace": str(trace), "status": "interrupted_or_failed", "official_reward": None}
+    cap = V.features({**row, "attribution": {"cause": "interrupted", "evidence": "BudgetExceeded: chat call needs up to $0.3"}}, PLAN, None)
+    credit = V.features({**row, "attribution": {"cause": "provider", "evidence": "RateLimitError: no credits remaining"}}, PLAN, None)
+    crash = V.features({**row, "attribution": {"cause": "harness", "evidence": "ValueError: AssistantMessage must have..."}}, PLAN, None)
+    assert cap["scorable"] and cap["cap_interrupted"] and not cap["passed"]       # its own cap: a failure, pair kept
+    assert not credit["scorable"] and "RateLimitError" in credit["not_scorable_reason"]
+    assert not crash["scorable"]
+    assert not V.features({**row, "trace": None, "attribution": {"evidence": "RateLimitError: x"}}, PLAN, None)["scorable"]

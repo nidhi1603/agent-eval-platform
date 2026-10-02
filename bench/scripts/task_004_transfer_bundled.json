@@ -1,0 +1,15 @@
+{
+  "description": "MOCK. transfer_code_recheck with a transfer bundled with another call: the whole message is held, NEITHER call executes, both are reported to the agent as not executed, and the agent then recovers: it repeats the search (executed) and transfers with the graded code (executed).",
+  "agent": [
+    {"calls": [{"call": "KB_search", "args": {"query": "account ownership dispute procedure"}},
+               {"call": "transfer_to_human_agents", "args": {"reason": "customer_requests_human_no_specific_reason", "summary": "Customer asks for a human."}}]},
+    {"call": "KB_search", "args": {"query": "account ownership dispute procedure"}},
+    {"call": "transfer_to_human_agents", "args": {"reason": "account_ownership_dispute", "summary": "Customer reports someone else claims ownership of their account."}},
+    {"say": "You're being transferred now."}
+  ],
+  "user": [
+    {"say": "Hi, someone else says my checking account is theirs and I need a human to sort it out."},
+    {"say": "Thanks. ###STOP###"},
+    {"say": "###STOP###"}
+  ]
+}

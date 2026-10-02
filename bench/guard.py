@@ -365,6 +365,7 @@ def make_guarded_agent_class():
                         self.events.append({"event": "transfer_rechecked", "check": nudge_mod.TRANSFER_RECHECK,
                                             "draft_text": draft.get("content"),
                                             "draft_tool_calls_full": draft["tool_calls"],
+                                            "held_results": [{"tool_call_id": i, "text": t} for i, t in results],
                                             "reply_text": reply.get("content"),
                                             "reply_tool_calls_full": reply.get("tool_calls") or []})
                         continue  # the reply is reviewed again; this check never fires a second time

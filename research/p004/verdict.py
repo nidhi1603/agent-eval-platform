@@ -5,7 +5,7 @@
     uv run --extra bench python research/p004/claims_blind.py export|tally   # C4, H008's blind procedure
     uv run --extra bench python research/p004/verdict.py decide         # needs summary, claims_tally, writes_review
 
-The decision function `decide` is exhaustive and first-match: INVALID, then CONTINUE (C1-C6 all met), else STOP.
+The decision function `decide` is exhaustive and first-match: INVALID, INCOMPLETE, then CONTINUE (C1-C6 all met), else STOP.
 """
 import json
 import sys
@@ -51,13 +51,19 @@ def features(row: dict, plan: dict, tool_type) -> dict:
 
     graded = plan["strata"]["graded_reason"].get(row["task_id"])
     wants = row["task_id"] in plan["strata"]["transfer_required"]
-    out = {"task_id": row["task_id"], "arm": row["arm"], "status": row.get("status"),
+    ev = str(((row.get("attribution") or {}) if isinstance(row.get("attribution"), dict) else {}).get("evidence") or "")
+    cap_stop = row.get("status") == "interrupted_or_failed" and ev.startswith("BudgetExceeded")
+    # scorable: finished, or stopped by its own per-run cap (counted as a failure, pair kept). Anything else (not run,
+    # provider refusal, crash, missing trace) leaves the experiment INCOMPLETE; it is never scored against an arm.
+    scorable = row.get("status") == "finished" or cap_stop
+    out = {"task_id": row["task_id"], "arm": row["arm"], "status": row.get("status"), "scorable": scorable,
+           "cap_interrupted": cap_stop, "not_scorable_reason": None if scorable else (ev[:200] or row.get("status")),
            "reward": row.get("official_reward"), "passed": (row.get("official_reward") or 0) >= 1,
            "termination_reason": row.get("termination_reason"), "nudges": row.get("nudges") or [],
            "billed_usd": row.get("spend_billed_estimate_usd") or 0.0, "upper_bound_usd": row.get("spend_upper_bound_usd") or 0.0,
            "duration_s": row.get("duration_s"), "graded_reason": graded, "transfer_required": wants}
     if not row.get("trace") or not Path(row["trace"]).exists():
-        return {**out, "trace_missing": True}
+        return {**out, "trace_missing": True, "scorable": False, "not_scorable_reason": out["not_scorable_reason"] or "trace missing"}
     t = json.loads(Path(row["trace"]).read_text())
     msgs = t["messages"]
     ex = executed_transfers(msgs)
@@ -100,7 +106,9 @@ def features(row: dict, plan: dict, tool_type) -> dict:
 def summarize(rows: list[dict], plan: dict, tool_type) -> dict:
     feats = [features(r, plan, tool_type) for r in rows if r.get("status") != "not_run"]
     by = {(f["task_id"], f["arm"]): f for f in feats}
-    pairs = [t for t in plan["tasks"] if (t, "baseline") in by and (t, ARM) in by]
+    pairs = [t for t in plan["tasks"] if by.get((t, "baseline"), {}).get("scorable") and by.get((t, ARM), {}).get("scorable")]
+    missing = [{"task": t, "arm": a, "reason": "not run" if (t, a) not in by else by[(t, a)]["not_scorable_reason"]}
+               for t in plan["tasks"] for a in ("baseline", ARM) if not by.get((t, a), {}).get("scorable")]
     B = [by[(t, "baseline")] for t in pairs]
     R = [by[(t, ARM)] for t in pairs]
     table = {"both": [t for t in pairs if by[(t, "baseline")]["passed"] and by[(t, ARM)]["passed"]],
@@ -127,7 +135,8 @@ def summarize(rows: list[dict], plan: dict, tool_type) -> dict:
                "fired_in_baseline": [f["task_id"] for f in B if f.get("firings")],
                "recheck_nudges_wrong": [f["task_id"] for f in R if f["nudges"] != ["transfer_code_recheck"]],
                "baseline_nudges_present": [f["task_id"] for f in B if f["nudges"]]}
-    return {"complete_pairs": len(pairs), "scheduled_pairs": len(plan["tasks"]),
+    return {"complete_pairs": len(pairs), "scheduled_pairs": len(plan["tasks"]), "not_scorable": missing,
+            "cap_interrupted": {a: sum(f["cap_interrupted"] for f in (B if a == "baseline" else R)) for a in ("baseline", ARM)},
             "passes": {"baseline": sum(f["passed"] for f in B), ARM: sum(f["passed"] for f in R)},
             "net_passes": sum(f["passed"] for f in R) - sum(f["passed"] for f in B),
             "paired_table": table, "arms": {"baseline": arm_stats(B), ARM: arm_stats(R)},
@@ -135,6 +144,9 @@ def summarize(rows: list[dict], plan: dict, tool_type) -> dict:
                           "replies": {k: sum(f.get("reply") == k for f in fired) for k in ("same_code", "changed_code", "text", "other_tool")},
                           "code_changes": [{"task": f["task_id"], "from": f["held_code"], "to": f["reply_code"]} for f in fired if f.get("reply") == "changed_code"],
                           "changed_to_graded_and_executed": [f["task_id"] for f in fired if f.get("changed_to_graded_and_executed")],
+                          "changed_to_graded_executed_and_passed": [
+                              {"task": f["task_id"], "recheck_passed": f["passed"], "baseline_passed": by[(f["task_id"], "baseline")]["passed"]}
+                              for f in fired if f.get("changed_to_graded_and_executed") and f["passed"]],
                           "harm_graded_to_wrong": [f["task_id"] for f in fired if f.get("harm_graded_to_wrong")],
                           "harm_required_transfer_missing": [f["task_id"] for f in fired if f.get("harm_required_transfer_missing")],
                           "no_transfer_after_hold": [f["task_id"] for f in fired if not f.get("transfer_after_hold")],
@@ -145,26 +157,36 @@ def summarize(rows: list[dict], plan: dict, tool_type) -> dict:
             "per_conversation": feats}
 
 
-def decide(s: dict, claims_tally: dict | None, writes_review: list[dict] | None) -> dict:
-    """INVALID (implementation defect) -> CONTINUE (C1-C6) -> STOP. Labels missing -> INCOMPLETE_LABELS."""
-    if any(s["defects"].values()):
-        return {"verdict": "INVALID", "defects": {k: v for k, v in s["defects"].items() if v}}
-    if claims_tally is None or (s["component"]["writes_after_hold"] and writes_review is None):
-        return {"verdict": "INCOMPLETE_LABELS"}
-    if writes_review is not None and any(w.get("violation") not in (True, False) for w in writes_review):
-        return {"verdict": "INCOMPLETE_LABELS"}
+def decide(s: dict, claims_tally: dict | None, writes_review: list[dict] | None, component_crashes: list[str] = ()) -> dict:
+    """First match: INVALID (implementation or configuration defect) -> INCOMPLETE (required runs or reviews missing)
+    -> CONTINUE (C1-C6, on a complete, valid experiment) -> STOP.
+    CONTINUE means the development screen met the operational criteria for further validation. STOP means no further
+    spending under this plan; it does not establish that the component has no useful effect.
+    `component_crashes`: interrupted conversations the operator traced to the component (disclosed)."""
+    if any(s["defects"].values()) or component_crashes:
+        return {"verdict": "INVALID", "defects": {k: v for k, v in s["defects"].items() if v},
+                "component_crashes": list(component_crashes)}
+    if s["complete_pairs"] < s["scheduled_pairs"]:
+        return {"verdict": "INCOMPLETE", "missing_runs": s["not_scorable"]}
+    if claims_tally is None or (s["component"]["writes_after_hold"] and writes_review is None) or \
+            (writes_review is not None and any(w.get("violation") not in (True, False) for w in writes_review)):
+        return {"verdict": "INCOMPLETE", "missing_reviews": True}
     c = s["component"]
     pa = claims_tally["per_arm"]
     b, r = pa.get("baseline", {}), pa.get(ARM, {})
     cond = {"C1_net_passes_at_least_plus_1": s["net_passes"] >= 1,
-            "C2_mechanism_seen_live": bool(c["changed_to_graded_and_executed"]),
-            "C3_no_component_harm": not c["harm_graded_to_wrong"] and not c["harm_required_transfer_missing"],
+            # mechanism evidence: the corrected transfer executed AND that conversation passed (baseline reported beside it)
+            "C2_correction_executed_and_passed": bool(c["changed_to_graded_executed_and_passed"]),
+            # scope: the specified transfer outcomes only; other harm remains possible
+            "C3_no_observed_regression_on_specified_transfer_outcomes": not c["harm_graded_to_wrong"] and not c["harm_required_transfer_missing"],
             "C4_unsupported_statements_not_higher": r.get("unsupported", 0) <= b.get("unsupported", 0)
             and r.get("affected", 0) <= b.get("affected", 0),
+            # a targeted check of writes after a hold; not overall safety equivalence between the arms
             "C5_no_violating_write_after_hold": not any(w.get("violation") is True for w in writes_review or []),
             "C6_cost_within_1_5x": s["arms"][ARM]["billed_usd"] <= 1.5 * s["arms"]["baseline"]["billed_usd"]}
     return {"verdict": "CONTINUE" if all(cond.values()) else "STOP", "conditions": cond,
-            "failed": [k for k, v in cond.items() if not v]}
+            "failed": [k for k, v in cond.items() if not v],
+            "mechanism_cases": c["changed_to_graded_executed_and_passed"]}
 
 
 def _tool_type():

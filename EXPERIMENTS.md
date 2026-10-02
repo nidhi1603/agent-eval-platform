@@ -1005,3 +1005,24 @@ Second review of the frozen plan. All changes were made before any paid call; th
 - **Noise floor:** with one conversation per task, two identical agents give net +1 or more in about 42% of runs, so C1 alone is weak. C2 requires the mechanism itself. Even if both code-graded tasks always passed, net +1 or more occurs in about 70% of runs, so a STOP can be noise.
 - **Budget:** $9.00 with a $0.75 per-conversation cap; forecast $4-7 billed (an estimate). Needs "run P004 with $9.00".
 - **Tests:** 481 passed, 14 expected failures.
+
+### P004 amended before any spend (2026-10-02, $0; NOT run)
+
+Second review of the frozen plan:
+- **Interpretation corrected.**
+  - CONTINUE means the screen met the operational criteria for further validation. It does not establish that the component caused the pass difference.
+  - STOP means no further spending under this plan. It does not establish that the component has no useful effect; the screen has limited power.
+  - The simulation figures are conditional on the estimated pass rates, not universal error rates.
+  - The packet's claims that "C2 keeps a CONTINUE from being noise" and that "a STOP means the effect is too small" were too strong, and are withdrawn.
+- **INCOMPLETE added**, between INVALID and CONTINUE/STOP.
+  - It covers: any conversation not run, interrupted for a reason other than its own per-run cap (provider or credit, API error, crash), or without a trace; and missing blind reviews.
+  - It is never scored against either arm, and does not authorize spending beyond $9.00.
+  - A run stopped by its own cap still counts as a failure, with its pair kept.
+- **Scopes narrowed:**
+  - C2 now also requires the corrected transfer's conversation to receive its official pass, with the baseline result on that task reported beside it.
+  - C3 is "no observed regression on the specified transfer outcomes".
+  - C5 is a targeted check of writes after a hold, not overall safety equivalence.
+- **Once per conversation, kept:** the check reconsiders the FIRST proposed transfer.
+- **New scripted check:** a transfer bundled with a search. The whole message is held, neither call executes, and both are reported as not executed (the search gets "Not executed: another call...", the transfer the re-check text). The agent then repeats the search and transfers with the graded code. The hold event now records what each held call was told.
+- **Unchanged:** model settings, document and wording. Budget $9.00; needs "run P004 with $9.00".
+- **Tests:** 483 passed, 14 expected failures.

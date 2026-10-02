@@ -107,3 +107,20 @@ def test_without_the_check_the_first_transfer_executes(tmp_path):
     # nothing held: the wrong-code draft executes first (the script's next transfer then executes too)
     assert [c["arguments"]["reason"] for c in calls] == ["customer_requests_human_no_specific_reason", "account_ownership_dispute"]
     assert "guard" not in trace or not (trace["guard"] or {}).get("events")
+
+
+def test_a_bundled_call_is_held_with_the_transfer_reported_unexecuted_and_recoverable(tmp_path):
+    from bench import code_probe
+
+    trace, _ = scripted_run(tmp_path, script="task_004_transfer_bundled.json", task_id="task_004", agent_nudges=(RECHECK,))
+    (e,) = trace["guard"]["events"]
+    held_ids = [c["id"] for c in e["draft_tool_calls_full"]]
+    assert [c["name"] for c in e["draft_tool_calls_full"]] == ["KB_search", "transfer_to_human_agents"]
+    # both held calls were told they did not run: the search gets "not executed", the transfer the re-check text
+    assert [r["text"] for r in e["held_results"]] == [code_probe.OTHER_HELD, code_probe.feedback("treatment")]
+    assert all(r["text"].startswith("Not executed") for r in e["held_results"])
+    executed = [c for m in trace["messages"] for c in m.get("tool_calls") or []]
+    assert not set(held_ids) & {c["id"] for c in executed}          # neither held call reached the environment
+    # recovery: the search is repeated and executes, then the graded transfer executes
+    assert [c["name"] for c in executed] == ["KB_search", "transfer_to_human_agents"]
+    assert executed[1]["arguments"]["reason"] == "account_ownership_dispute" and trace["evaluation"]["reward"] == 1.0

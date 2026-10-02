@@ -3,7 +3,7 @@
  "kind": "full conversations, two paired arms (official tau2 grade); alltools; billed budget accounting",
  "status": "FROZEN DRAFT, NOT RUN. Needs review and Nidhi's explicit approval with the amount.",
  "question": "Does adding the transfer reason-code re-check that passed P003 to tau2's standard agent change official task completion on the development tasks, and at what cost and harm?",
- "arms_note": "'baseline' is tau2's standard LLMAgent, unmodified. 'recheck' is the same agent with ONE proposal-time check, bench/nudge.py transfer_code_recheck (in bench/guard.py's checked agent, with no permission rules and no other check): at the conversation's first proposed transfer_to_human_agents, the transfer is held once and the agent gets P003's treatment text exactly (code_probe.feedback('treatment'); doc 042 sha256 as frozen in P003). The reissued transfer, and any later one, is never held. No task, target code or grading information is used at runtime.",
+ "arms_note": "'baseline' is tau2's standard LLMAgent, unmodified. 'recheck' is the same agent with ONE proposal-time check, bench/nudge.py transfer_code_recheck (in bench/guard.py's checked agent, with no permission rules and no other check): it reconsiders the conversation's FIRST proposed transfer_to_human_agents: the transfer is held once (with any other call in the same message, which is reported to the agent as not executed) and the agent gets P003's treatment text exactly (code_probe.feedback('treatment'); doc 042 sha256 as frozen in P003). The reissued transfer, and any later one, is never held. No task, target code or grading information is used at runtime.",
  "arms": {
   "baseline": {
    "agent_variant": "baseline"
@@ -500,20 +500,22 @@
   ]
  },
  "decision_rule": {
-  "note": "an engineering screen fixed before the run (not a significance test). One conversation per task per arm is noisy: see noise_floor. CONTINUE justifies a separately planned validation, never a benchmark claim.",
-  "INVALID": "an implementation defect: the check fired more than once in a conversation, fired on a proposal without a transfer, fired in the baseline arm, or a recheck conversation's recorded nudges are not exactly [transfer_code_recheck]; or a crash traced to the component. Reported; the defect is fixed and the affected conversations are rerun once, disclosed.",
-  "CONTINUE": "all of C1-C6 on complete pairs",
-  "C1": "net passes (recheck - baseline) >= +1",
-  "C2": "the mechanism is seen live: at least 1 recheck conversation on a code-graded task where the hold changed the transfer's code TO the graded code and that transfer executed",
-  "C3": "no component harm: 0 recheck conversations where (a) the held draft's code was the graded code and the executed code is not, or (b) the task requires a transfer and none was executed after the hold",
+  "note": "an engineering screen fixed before the run (not a significance test); first match wins. One conversation per task per arm is noisy: see noise_floor. CONTINUE means the development screen met the operational criteria for further validation; it does not establish that the component caused the pass difference. STOP means no further spending under this plan; it does not establish that the component has no useful effect (the screen has limited power).",
+  "INVALID": "an implementation or configuration defect: the check fired more than once in a conversation, fired on a proposal without a transfer, fired in the baseline arm, a recheck conversation's recorded nudges are not exactly [transfer_code_recheck], a baseline conversation has any; or an interruption the operator traces to the component (disclosed). The defect is fixed and the affected conversations are rerun once, disclosed.",
+  "INCOMPLETE": "required runs or reviews are missing: any scheduled conversation not run, interrupted for any reason other than its own per-run cap (provider refusal or credit exhaustion, API error, crash), or without a trace; or the blind claims read or the writes review missing. Never scored against either arm. It does not authorize spending beyond the $9.00 cap: finishing needs a new approval.",
+  "CONTINUE": "all of C1-C6, evaluated only on a complete, valid experiment (30 of 30 pairs)",
+  "C1": "net passes (recheck - baseline) >= +1: a spending criterion, not proof of effectiveness",
+  "C2": "mechanism evidence: at least 1 recheck conversation on a code-graded task where the hold changed the transfer's code TO the graded code, that transfer executed, and the conversation received its official pass; the baseline result on the same task is reported beside it. Supports the mechanism; does not attribute the overall difference",
+  "C3": "no OBSERVED regression on the specified transfer outcomes: 0 recheck conversations where (a) the held draft's code was the graded code and no transfer with the graded code executed after the hold, or (b) the task requires a transfer and none executed after the hold. Other harm remains possible",
   "C4": "unsupported transfer statements (blind read, primary definition): recheck not higher than baseline, in statements and in conversations",
-  "C5": "0 confirmed policy-violating writes executed after a hold (blind review)",
+  "C5": "0 confirmed policy-violating writes executed after a hold (blind review). A targeted check of what follows a hold; it does not establish overall safety equivalence between the arms",
   "C6": "recheck billed cost <= 1.5 x baseline billed cost (totals over complete pairs)",
-  "STOP": "any of C1-C6 fails: the candidate ends; no tuning cycle (a tie or a regression is a no-go)",
-  "censoring": "a conversation interrupted by its per-run cap counts as a failure and its pair is kept; interruptions per arm are reported",
+  "STOP": "any of C1-C6 fails on a complete, valid experiment: no further spending on this candidate under this plan; no tuning cycle (a tie or a regression is a no-go)",
+  "censoring": "a conversation interrupted by its OWN per-run cap counts as a failure and its pair is kept (the cost is part of the arm); interruptions per arm are reported",
   "scoring": "every conversation counts once; nothing is retried"
  },
  "noise_floor": {
+  "caveat": "conditional on these estimated pass probabilities and on independent conversations; not universal error rates",
   "basis": "per-task pass probability = (standard-agent passes + 0.5) / (runs + 1) from H008/H009 baseline arms (12 tasks); 0.03 for the other 18; 100,000 simulations",
   "no effect (same agent twice)": {
    "P(net >= +1)": 0.419,
