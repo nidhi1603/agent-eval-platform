@@ -1,0 +1,216 @@
+[
+ {
+  "id": "d01f885",
+  "real_decision": true,
+  "available_information": "Verified customer closed a Silver Zoom Card, then asked whether a Rho-Bank business card beats 3.5% travel/advertising with no FX fee and what its annual fee is; the agent found Business Platinum earn/FX docs but its BM25 searches never surfaced the annual-fee docs (business_platinum_rewards_card_008/_011, $450 standard, $0 first year promo). Doc 042 was never retrieved.",
+  "transfer_basis": "unsupported",
+  "decision_correct": false,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "kb_search_unsuccessful_customer_requests_transfer",
+   "chosen_correct": false
+  },
+  "observed_mistake": "transferred_instead_of_acting",
+  "suspected_cause": "missing_fact",
+  "outcome_after": "transfer_receipt",
+  "notes": "The annual fee and first-year waiver the customer wanted are in the KB, so the agent could have answered; it transferred after failed quoted-phrase searches. Even on its own view (searched, not found, customer asked) the tier-2 code is kb_search_unsuccessful..., not specialized_department_required."
+ },
+ {
+  "id": "d10555c",
+  "real_decision": true,
+  "available_information": "Customer reported a sudden 127-point drop from an erroneous 60-day delinquency; KB search returned doc 012 (11/14 incident protocol: call emergency_credit_bureau_incident_transfer_1114 then transfer_to_human_agents, no verification). Doc 042 appeared only as a filename in an ls listing; its content was never read.",
+  "transfer_basis": "required",
+  "decision_correct": true,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "technical_system_error",
+   "chosen_correct": false
+  },
+  "observed_mistake": "wrong_reason_code",
+  "suspected_cause": "missing_rule",
+  "outcome_after": "transfer_receipt",
+  "notes": "Transfer was mandated by doc 012 and the emergency tool was called first after asking the customer; the backend batch error is a tier-1 technical_system_error, so a tier-2 code was chosen. The agent never checked the current time against the protocol window."
+ },
+ {
+  "id": "d17cd57",
+  "real_decision": true,
+  "available_information": "Customer wants to set a travel notification for a Platinum Rewards Card; the agent grepped and searched thoroughly and found no travel-notice procedure (true of the KB). It told the customer, offered a transfer, the customer requested one, and the agent then read doc 042 before transferring.",
+  "transfer_basis": "permitted",
+  "decision_correct": true,
+  "reason_code": {
+   "chosen": "kb_search_unsuccessful_customer_requests_transfer",
+   "applicable_under_policy": "kb_search_unsuccessful_customer_requests_transfer",
+   "chosen_correct": true
+  },
+  "observed_mistake": "none",
+  "suspected_cause": "none",
+  "outcome_after": "transfer_receipt",
+  "notes": "This matches the 042 definition exactly: searched, not found, customer told, customer asked. Minor: the earlier message included some speculative app/phone suggestions."
+ },
+ {
+  "id": "d33304c",
+  "real_decision": true,
+  "available_information": "Customer reported an erroneous 60-day delinquency and a 127-point drop; KB search returned doc 012 (incident protocol: IMMEDIATELY call emergency_credit_bureau_incident_transfer_1114() then transfer_to_human_agents; no verification). Doc 042 was not retrieved and the current time was not checked.",
+  "transfer_basis": "required",
+  "decision_correct": true,
+  "reason_code": {
+   "chosen": "technical_system_error",
+   "applicable_under_policy": "technical_system_error",
+   "chosen_correct": true
+  },
+  "observed_mistake": "other",
+  "suspected_cause": "rule_seen_misapplied",
+  "outcome_after": "transfer_receipt",
+  "notes": "Transferring was right and the code fits, but the agent skipped the mandated emergency_credit_bureau_incident_transfer_1114 call that doc 012 requires before the transfer."
+ },
+ {
+  "id": "d3bdf7c",
+  "real_decision": false,
+  "notes": "Same conversation as d33304c: the agent had already transferred twice (idx 4 and 10, both successful receipts) and the customer ended with STOP. The ASK appears to be triggered by 'specialist' wording; there was no live transfer question and no agent turn followed."
+ },
+ {
+  "id": "d5f8406",
+  "real_decision": true,
+  "available_information": "Customer asked how to set a travel notification; repeated searches and greps found no travel-notice procedure (doc 042 seen only as a filename in ls). The agent offered a human transfer twice, and the customer chose in-app steps instead.",
+  "transfer_basis": "permitted",
+  "decision_correct": true,
+  "observed_mistake": "other",
+  "suspected_cause": "rule_seen_misapplied",
+  "outcome_after": "ended",
+  "notes": "Not transferring was fine because the customer declined the offered transfer. But the agent presented invented app steps, timing advice and a 1-800-RHO-BANK number 'according to our documentation', against policy guideline 1 (say when information is not found). That shaped the customer's choice."
+ },
+ {
+  "id": "d6b5997",
+  "real_decision": true,
+  "available_information": "Verified customer reported a cash-back discrepancy; the agent saw the Gold card's 7,021-point balance against 5,305 points summed from transactions, and doc 006 (points representation). It never retrieved doc 003 (cash back dispute: give submit_cash_back_dispute_0589 to the user) or doc 042. A transfer was already made at idx 41, and the customer had asked for an 'internal investigation', not a human.",
+  "transfer_basis": "unsupported",
+  "decision_correct": false,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "unclear",
+   "chosen_correct": false
+  },
+  "observed_mistake": "transferred_instead_of_acting",
+  "suspected_cause": "missing_rule",
+  "outcome_after": "transfer_receipt",
+  "notes": "This second transfer_to_human_agents call was used as a note-passing channel to 'update the case' after an earlier successful transfer. The KB has an in-scope cash back dispute path (per-transaction review plus a user dispute tool). The agent also invented an audit timeline and claimed it would monitor the case."
+ },
+ {
+  "id": "d758414",
+  "real_decision": false,
+  "notes": "Same incident scenario: the agent had already called the emergency tool and transferred three times (idx 17, 28 and 32, all successful) before the customer said they would keep waiting and STOP. There was no live transfer question at idx 36 and no agent turn exists."
+ },
+ {
+  "id": "d7f79f2",
+  "real_decision": true,
+  "available_information": "Customer wants an email change but could verify only 1 of 2 fields (phone); the claimed current email did not match the record, and they had no DOB, address or bypass code. KB searches found no alternate verification method. Doc 042 (and the bypass-code doc) appeared in search results at idx 17 and 21. The agent offered a transfer and the customer requested it.",
+  "transfer_basis": "permitted",
+  "decision_correct": true,
+  "reason_code": {
+   "chosen": "customer_requests_human_no_specific_reason",
+   "applicable_under_policy": "account_ownership_dispute",
+   "chosen_correct": false
+  },
+  "observed_mistake": "wrong_reason_code",
+  "suspected_cause": "rule_seen_misapplied",
+  "outcome_after": "transfer_receipt",
+  "notes": "The transfer itself was appropriate: identity could not be verified and the customer asked. But an identity-verification failure is tier-1 account_ownership_dispute, so the tier-3 code is wrong. Also, the agent told the unverified customer that their claimed current email did not match the record."
+ },
+ {
+  "id": "d91c380",
+  "real_decision": true,
+  "available_information": "Customer asked how to set a travel notice; the agent's searches found no procedure. It told the customer so and offered a transfer, and the customer explicitly asked to be transferred. Doc 042 was seen only as a filename in ls.",
+  "transfer_basis": "permitted",
+  "decision_correct": false,
+  "observed_mistake": "failed_to_transfer",
+  "suspected_cause": "missing_rule",
+  "outcome_after": "conversation_continued",
+  "notes": "Instead of honoring the accepted offer (kb_search_unsuccessful_customer_requests_transfer), the agent ran another search and unlocked unrelated tools, including the decoy initial_transfer_to_human_agent_0218 whose scoping protocol (doc 010, card declines) it never read. The continuation (dc2a64e) shows it never really transferred. The point itself is only a search, which might be defensible taken alone."
+ },
+ {
+  "id": "da75e20",
+  "real_decision": true,
+  "available_information": "Customer reported erroneous 60-day delinquency reporting; KB search returned doc 012 (incident protocol). The agent unlocked and called emergency_credit_bureau_incident_transfer_1114 before the transfer. Doc 042 was never retrieved.",
+  "transfer_basis": "required",
+  "decision_correct": true,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "technical_system_error",
+   "chosen_correct": false
+  },
+  "observed_mistake": "wrong_reason_code",
+  "suspected_cause": "missing_rule",
+  "outcome_after": "transfer_receipt",
+  "notes": "The protocol steps were followed, except the time check and some unnecessary tool unlocks. A backend batch error is a tier-1 technical_system_error, but a tier-2 code was used."
+ },
+ {
+  "id": "db190d5",
+  "real_decision": true,
+  "available_information": "Verified customer qualified for the Platinum rebate (doc platinum_rewards_card_010), then asked the agent to submit a Diamond Elite application; the KB has no agent application tool (diamond_elite_card_001 covers only invitation and eligibility). The agent offered self-service help or a transfer, and the customer chose transfer. Doc 042 was never retrieved.",
+  "transfer_basis": "permitted",
+  "decision_correct": true,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "unclear",
+   "chosen_correct": null
+  },
+  "observed_mistake": "none",
+  "suspected_cause": "none",
+  "outcome_after": "transfer_receipt",
+  "notes": "Submitting a card application was outside the agent's tools and the customer asked for a transfer, so it is allowed. Tier 2 specialized_department_required versus kb_search_unsuccessful_customer_requests_transfer is not settled by 042. The agent overstated the KB ('applications must be submitted through portal or specialist'), and the customer had already applied via their own tool (idx 30), which the agent likely could not see."
+ },
+ {
+  "id": "dbd49d7",
+  "real_decision": false,
+  "notes": "The incident transfer had already been completed (emergency tool at idx 14, successful transfer_to_human_agents at idx 16). The customer's last message adds contact preferences and ends with TRANSFER; there was no live transfer question and no agent turn at idx 20."
+ },
+ {
+  "id": "dc2a64e",
+  "real_decision": true,
+  "available_information": "Same conversation as d91c380: no travel-notice procedure in the KB; the agent offered a transfer and the customer explicitly requested it (idx 45). The agent then called the decoy initial_transfer_to_human_agent_0218 five times ('lines busy') and never called transfer_to_human_agents. The customer eventually settled for direct contact options. Doc 042 was seen only as a filename.",
+  "transfer_basis": "permitted",
+  "decision_correct": false,
+  "observed_mistake": "failed_to_transfer",
+  "suspected_cause": "missing_rule",
+  "outcome_after": "ended",
+  "notes": "The real transfer (kb_search_unsuccessful_customer_requests_transfer) was permitted and had been offered and accepted. The agent used an inapplicable special-protocol decoy tool without reading its governing doc (010, card purchase declines), told the customer a transfer had been initiated, and then invented contact steps. At the final message the customer had given up on the transfer."
+ },
+ {
+  "id": "dc77fbc",
+  "real_decision": true,
+  "available_information": "Customer wants an email change but supplied a non-matching 'current email' and only the phone matched; no DOB or address available. The customer explicitly asked to be transferred to a human (idx 25) after the agent itself listed transfer as an option. Doc 042 was seen only as a filename.",
+  "transfer_basis": "permitted",
+  "decision_correct": false,
+  "observed_mistake": "failed_to_transfer",
+  "suspected_cause": "consent",
+  "outcome_after": "ended",
+  "notes": "Consent was already explicit, but the agent re-asked instead of transferring (account_ownership_dispute would apply). In that message it disclosed the on-file email and user_id to an unverified caller, a verification-policy breach. The user simulator ended with TRANSFER and no transfer was ever made."
+ },
+ {
+  "id": "dd0cb27",
+  "real_decision": true,
+  "available_information": "Verified customer (Light Blue checking open since 11/01/2024, $2,500) wanted to open a Silver savings account and an EcoCard. Search at idx 86-87 returned doc bank_accounts_(general)_002 (agent opens personal savings via open_bank_account_4821 after eligibility checks). The customer chose 'Option 1: transfer to a specialist', which the agent had offered. Doc 042 was seen only as a filename.",
+  "transfer_basis": "unsupported",
+  "decision_correct": false,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "unclear",
+   "chosen_correct": false
+  },
+  "observed_mistake": "transferred_instead_of_acting",
+  "suspected_cause": "rule_seen_misapplied",
+  "outcome_after": "transfer_receipt",
+  "notes": "Opening a personal savings account is an in-scope agent action and the customer met the eligibility rules. Policy guideline 6 says to help first even when a transfer is requested, so the transfer (and the 'specialized department' claim) was not warranted. The EcoCard had already been applied for by the customer's own tool."
+ },
+ {
+  "id": "ddf2604",
+  "real_decision": true,
+  "available_information": "Verified customer: the agent confirmed rebate eligibility and applied a $150 statement credit, then said it has no tool to submit the Diamond Elite application and offered a transfer or self-service. The customer asked for a transfer at idx 62 and the conversation ended. Doc 042 was never retrieved.",
+  "transfer_basis": "permitted",
+  "decision_correct": null,
+  "observed_mistake": "none",
+  "suspected_cause": "none",
+  "outcome_after": "ended",
+  "notes": "A transfer would have been permitted (application outside the agent's tools, customer request). But the user simulator ended the episode (TRANSFER marker) in the same turn, so the agent had no next message and its non-transfer cannot be judged. Separately, the $150 credit was posted without confirming the annual fee had been billed."
+ }
+]

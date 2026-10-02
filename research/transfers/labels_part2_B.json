@@ -1,0 +1,244 @@
+[
+ {
+  "id": "d065ffd",
+  "real_decision": true,
+  "available_information": "Verified customer reporting cash back that doesn't add up on Gold Rewards and EcoCard. Agent had all 23 transactions, doc 006 (points representation) and doc 021 (customer service can investigate and correct cash back discrepancies), and apply_statement_credit unlocked. It never retrieved doc 003 (cash back dispute: give the customer submit_cash_back_dispute_0589) or doc 042.",
+  "transfer_basis": "unsupported",
+  "decision_correct": false,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "unclear",
+   "chosen_correct": false
+  },
+  "observed_mistake": "transferred_instead_of_acting",
+  "suspected_cause": "missing_rule",
+  "outcome_after": "transfer_receipt",
+  "notes": "The transaction data shows real under-credits (Gold Uber $240 got 240 pts, not 600 at the flat 2.5%; Nordstrom 775 vs 800; EcoCard Thrive Market green 175 vs 875). The agent instead chased a balance-vs-recent-transactions gap and escalated to a made-up 'rewards investigations team'. The customer consented, but per-transaction disputes were within scope (doc 003)."
+ },
+ {
+  "id": "d11c2d2",
+  "real_decision": true,
+  "available_information": "Verified customer with a Light Blue checking account open about a year asked the agent to 'just open the savings account' (Silver Account) and said she would fund it later. The agent knew the savings-opening rules (14-day checking tenure) and its own grep output showed open_bank_account_4821 and doc 002 (Opening Personal Savings Accounts). Doc 042 was not seen.",
+  "transfer_basis": "unsupported",
+  "decision_correct": false,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "unclear",
+   "chosen_correct": false
+  },
+  "observed_mistake": "transferred_instead_of_acting",
+  "suspected_cause": "rule_seen_misapplied",
+  "outcome_after": "transfer_receipt",
+  "notes": "Doc 002 lets the agent open the account itself with open_bank_account_4821 (unfunded is allowed, with a 30-day funding window). The customer never chose the transfer option (A); she asked the agent to open the account. So this was also a transfer without consent (guideline 5). Eligibility records (savings count, negative balances) were not checked either."
+ },
+ {
+  "id": "d2cdf3b",
+  "real_decision": true,
+  "available_information": "Verified customer wants to know whether the Business Platinum Rewards Card has a 0% foreign transaction fee before applying, rather than closing her Silver Zoom. The agent ran seven BM25-only searches, saw BP doc 003 (4% media/advertising) and Business Gold FTF 0%, but never retrieved BP docs 006/008, which state FTF 0%. Doc 042 was not seen.",
+  "transfer_basis": "unsupported",
+  "decision_correct": false,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "kb_search_unsuccessful_customer_requests_transfer",
+   "chosen_correct": false
+  },
+  "observed_mistake": "transferred_instead_of_acting",
+  "suspected_cause": "missing_fact",
+  "outcome_after": "transfer_receipt",
+  "notes": "The answer was in the KB, and the agent could have found it with a dense/grep search. The customer chose 'confirm with a specialist' only because the agent offered it. On the agent's own (incomplete) view, the tier-2 code kb_search_unsuccessful_customer_requests_transfer fits better than specialized_department_required."
+ },
+ {
+  "id": "d337868",
+  "real_decision": true,
+  "available_information": "Customer wants to change her email. She gave kenji.tanaka@gmail.com, but the record (found by name) has kenji.tanaka@outlook.com, so only the phone matched (one of the two required fields). She has no DOB or address on hand and asked for a human. No KB procedure for an email change was found, and doc 042 was not seen (it appeared only as a filename in an ls listing).",
+  "transfer_basis": "permitted",
+  "decision_correct": false,
+  "observed_mistake": "other",
+  "suspected_cause": "rule_seen_misapplied",
+  "outcome_after": "ended",
+  "notes": "Verification failed and the customer asked for a human, so a transfer was appropriate (tier 1 account_ownership_dispute covers verification failures). Instead, the agent's message at the decision point disclosed the on-file email (outlook.com) to an unverified caller, against the system-prompt rule not to leak information before verification, and delayed the transfer."
+ },
+ {
+  "id": "d545e7f",
+  "real_decision": false,
+  "available_information": null,
+  "transfer_basis": null,
+  "decision_correct": null,
+  "observed_mistake": null,
+  "suspected_cause": null,
+  "outcome_after": null,
+  "notes": "Travel-notification question. The KB has no procedure or tool for it. The agent offered a transfer at msg 36, the customer declined in favor of app guidance, and at the decision point the customer only wanted step-by-step help, so a transfer was not a live question. Separately, the agent made up app menu paths and lead-time advice that are not in the KB (guideline 1)."
+ },
+ {
+  "id": "d63ee6f",
+  "real_decision": true,
+  "available_information": "Verified customer. The agent applied the $150 Platinum fee rebate, then the customer asked to apply for the Diamond Elite Card (has an invitation, no Rho-Bank+). KB searches found no agent tool for card applications: card docs say to apply via the dashboard/online, and Diamond Elite is invitation-only. The customer picked 'transfer to human to submit on my behalf' from options that included self-service, and consented to a credit check. Doc 042 was not seen.",
+  "transfer_basis": "permitted",
+  "decision_correct": true,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "unclear",
+   "chosen_correct": null
+  },
+  "observed_mistake": "none",
+  "suspected_cause": "none",
+  "outcome_after": "transfer_receipt",
+  "notes": "The agent has no application tool, and the customer explicitly chose the transfer, so a transfer is allowed. However, the agent made up the claim that a human would submit the application on her behalf, plus an app navigation path. The best code is unclear (customer_requests_human_no_specific_reason vs specialized_department_required)."
+ },
+ {
+  "id": "d6ec2a7",
+  "real_decision": false,
+  "available_information": null,
+  "transfer_basis": null,
+  "decision_correct": null,
+  "observed_mistake": null,
+  "suspected_cause": null,
+  "outcome_after": null,
+  "notes": "The decision index (59) is past the end of the conversation: msg 58 is the customer's closing ###STOP###. A transfer already happened at msg 55 (account-level balance sync escalation), and the customer's mention of 'the human agent's follow-up' just acknowledges it. Side note: the agent rewrote transaction rewards with update_transaction_rewards_3847 without any cash back dispute (docs 003/004)."
+ },
+ {
+  "id": "d78565a",
+  "real_decision": true,
+  "available_information": "Customer reports a sudden 127-point drop from a 60-day delinquency they never incurred. The agent read doc 012 in full (Backend Incident 11/14 protocol: no verification; IMMEDIATELY call emergency_credit_bureau_incident_transfer_1114() then transfer_to_human_agents). It had already transferred once at msg 16 without calling the emergency tool. Doc 042 was not read (filename only in ls).",
+  "transfer_basis": "required",
+  "decision_correct": true,
+  "reason_code": {
+   "chosen": "request_completed_customer_wants_human_followup",
+   "applicable_under_policy": "technical_system_error",
+   "chosen_correct": false
+  },
+  "observed_mistake": "other",
+  "suspected_cause": "rule_seen_misapplied",
+  "outcome_after": "transfer_receipt",
+  "notes": "This is a second, redundant transfer, made after the customer asked for a mortgage letter. The required emergency_credit_bureau_incident_transfer_1114 call was still never made, and the agent did not check the date against the protocol window. The reason code dropped from tier 1 (technical_system_error, used at msg 16) to tier 3, which is wrong."
+ },
+ {
+  "id": "d8217f4",
+  "real_decision": true,
+  "available_information": "Customer asks how to set a travel notification for a Platinum card trip to Japan and then wants app steps, lead time and whether 'Japan' is enough. KB searches and greps found only passing mentions ('enable travel notifications', senior support handles travel notices), with no procedure or tool. Doc 042 was not read.",
+  "transfer_basis": "permitted",
+  "decision_correct": true,
+  "observed_mistake": "other",
+  "suspected_cause": "rule_seen_misapplied",
+  "outcome_after": "ended",
+  "notes": "The KB can't resolve this, so guideline 5 calls for offering a transfer (with consent). Not transferring was correct, because the customer wanted self-service and never asked. But the agent never offered a transfer: it made up a menu path, a 48-hour lead time, and a claim that it could set the travel notice itself."
+ },
+ {
+  "id": "d97d83b",
+  "real_decision": true,
+  "available_information": "Verified customer at an ATM; Green card declined for $550. Records show $350 already withdrawn today against the $600 Green limit. The card is ACTIVE with no fraud alert or velocity block, and the account has been open since 2021. The customer asked once (user transfer tool plus message) for a human 'to request a temporary limit increase' after the agent said it couldn't raise limits. Doc 040 (temporary debit card limit increase, request_temporary_debit_card_limit_increase_8374, up to 150% for 24h) and doc 042 were never retrieved.",
+  "transfer_basis": "unsupported",
+  "decision_correct": false,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "unclear",
+   "chosen_correct": false
+  },
+  "observed_mistake": "transferred_instead_of_acting",
+  "suspected_cause": "missing_rule",
+  "outcome_after": "transfer_receipt",
+  "notes": "Under doc 040 the agent could raise the ATM limit to $900, which covers the $550 attempt (overdraft history is unchecked but likely clean). The agent wrongly said it couldn't, and only offered the transfer because of that. Guideline 6 says to help first when the issue is within capabilities."
+ },
+ {
+  "id": "da94b93",
+  "real_decision": true,
+  "available_information": "Customer wants to change her email. Lookup by gmail failed. The name lookup shows an outlook email and a matching phone, so only one field verified. She has no DOB or address and explicitly asked for a human. No email-change procedure was found, and doc 042 was not retrieved.",
+  "transfer_basis": "permitted",
+  "decision_correct": true,
+  "reason_code": {
+   "chosen": "customer_requests_human_no_specific_reason",
+   "applicable_under_policy": "account_ownership_dispute",
+   "chosen_correct": false
+  },
+  "observed_mistake": "wrong_reason_code",
+  "suspected_cause": "missing_rule",
+  "outcome_after": "transfer_receipt",
+  "notes": "Transferring was reasonable: verification failed, the agent could do nothing more, and the customer asked. Doc 042's tier 1 lists 'identity verification failures requiring specialist' under account_ownership_dispute, which outranks the tier-3 code chosen. Arguable, since the customer is not disputing ownership."
+ },
+ {
+  "id": "db22db9",
+  "real_decision": true,
+  "available_information": "Same rewards case as d065ffd (Gold/EcoCard). The agent pulled all 23 transactions and found a 1,716-point gap between the Gold balance and the summed transactions. It saw doc 006, and doc 021/004 ids appeared in clipped search results. It never retrieved doc 003 (customer cash back dispute tool) or doc 042. The customer said to escalate if the agent couldn't trace the ledger.",
+  "transfer_basis": "unsupported",
+  "decision_correct": false,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "unclear",
+   "chosen_correct": false
+  },
+  "observed_mistake": "transferred_instead_of_acting",
+  "suspected_cause": "missing_rule",
+  "outcome_after": "transfer_receipt",
+  "notes": "The agent never checked per-transaction rates. Gold is 2.5% flat, yet Uber earned 240/600 and Nordstrom 775/800, and EcoCard green Thrive Market 175/875 and Tentree 600/1000. These are handled through the doc 003 dispute path. The transfer went to a made-up 'rewards team', and the follow-up message invented a 1-3 day timeline."
+ },
+ {
+  "id": "dbdf71f",
+  "real_decision": true,
+  "available_information": "Customer reports an erroneous 60-day delinquency and a 127-point drop. The agent retrieved and read doc 012 (11/14 incident: no verification, IMMEDIATELY call emergency_credit_bureau_incident_transfer_1114() then transfer_to_human_agents). Doc 042 was not read.",
+  "transfer_basis": "required",
+  "decision_correct": true,
+  "reason_code": {
+   "chosen": "technical_system_error",
+   "applicable_under_policy": "technical_system_error",
+   "chosen_correct": true
+  },
+  "observed_mistake": "other",
+  "suspected_cause": "rule_seen_misapplied",
+  "outcome_after": "transfer_receipt",
+  "notes": "The transfer itself was required and immediate, and the tier-1 code is defensible. But the agent skipped the required pre-transfer emergency_credit_bureau_incident_transfer_1114 call (it grepped for it but never unlocked or called it) and did not check that the current time was inside the protocol window."
+ },
+ {
+  "id": "dc40920",
+  "real_decision": false,
+  "available_information": null,
+  "transfer_basis": null,
+  "decision_correct": null,
+  "observed_mistake": null,
+  "suspected_cause": null,
+  "outcome_after": null,
+  "notes": "A transfer was already done at msg 16, after the required emergency_credit_bureau_incident_transfer_1114 call (doc 012 protocol). At the decision point the customer is asking about timelines and how to share contact details, not for a human, so this is not a live transfer decision. Side note: the agent unlocked several unrelated tools (initial_transfer 1822/0218, open_bank_account, transfer_funds, update_transaction_rewards)."
+ },
+ {
+  "id": "dc7c079",
+  "real_decision": false,
+  "available_information": null,
+  "transfer_basis": null,
+  "decision_correct": null,
+  "observed_mistake": null,
+  "suspected_cause": null,
+  "outcome_after": null,
+  "notes": "Travel-notification question with no KB procedure. The agent offered a transfer at msgs 30 and 36. The customer chose self-service troubleshooting and at the decision point only wanted a chat-message draft, so a transfer was not a live question. Some app guidance was speculative, but it was hedged."
+ },
+ {
+  "id": "dd40a98",
+  "real_decision": true,
+  "available_information": "Verified customer. The agent found her eligible for the $150 Platinum rebate (not applied), and she then asked to apply for the Diamond Elite Card with an invitation. KB searches found no agent application tool. Diamond Elite doc 001 (invitation-only) and other card docs say to apply online. The agent offered a self-service walkthrough or a transfer, and the customer chose 'B \u2014 transfer me to a specialist'. Doc 042 was not seen.",
+  "transfer_basis": "permitted",
+  "decision_correct": true,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "unclear",
+   "chosen_correct": null
+  },
+  "observed_mistake": "none",
+  "suspected_cause": "none",
+  "outcome_after": "transfer_receipt",
+  "notes": "The transfer was the customer's explicit choice for something outside the agent's tools, so it is allowed. The agent claimed a specialist would submit the application on her behalf, which is not in the KB. Separately, the rebate the agent confirmed was never applied as a statement credit, though apply_statement_credit_8472 was unlocked."
+ },
+ {
+  "id": "de77203",
+  "real_decision": true,
+  "available_information": "Verified customer with the Gold/EcoCard rewards issue. The agent recalculated (Gold 2.5%, EcoCard green 5x) and updated four transactions itself with update_transaction_rewards_3847. It saw doc 006, and doc 004/021 ids in clipped results, but never doc 003 or doc 042. The account-level balance still showed the old values, and the customer asked the agent to 'open the escalation to investigate the root cause', which the agent had offered.",
+  "transfer_basis": "permitted",
+  "decision_correct": true,
+  "reason_code": {
+   "chosen": "specialized_department_required",
+   "applicable_under_policy": "request_completed_customer_wants_human_followup",
+   "chosen_correct": false
+  },
+  "observed_mistake": "wrong_reason_code",
+  "suspected_cause": "missing_rule",
+  "outcome_after": "transfer_receipt",
+  "notes": "The core request had been handled, though by bypassing the doc 003 dispute path that doc 004 presupposes. The transfer is a customer-requested follow-up for a root-cause investigation the agent cannot do, which fits the tier-3 follow-up code, not specialized_department_required. After the transfer the agent promised to re-check the balance later, which it cannot do."
+ }
+]

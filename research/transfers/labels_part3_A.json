@@ -1,0 +1,236 @@
+[
+  {
+    "id": "d0b8a7a",
+    "real_decision": true,
+    "available_information": "Verified Silver Rewards customer; agent saw rate/rounding docs (006, 007) and doc 004 (resolved cash back dispute corrections) only as a listed search hit; it never retrieved doc 003 (cash back dispute submission) or the reason-code doc 042. It had already rewritten three transactions' rewards itself, then saw the account-level reward_points still at 3240; customer chose the agent's 'escalate now' option.",
+    "transfer_basis": "permitted",
+    "decision_correct": null,
+    "reason_code": {
+      "chosen": "specialized_department_required",
+      "applicable_under_policy": "unclear",
+      "chosen_correct": null
+    },
+    "observed_mistake": "other",
+    "suspected_cause": "missing_rule",
+    "outcome_after": "transfer_receipt",
+    "notes": "The escalation is for an account-level balance 'sync' that the agent created by applying rewards corrections without a resolved cash back dispute (doc 003/004 flow skipped); given that state, nothing else was actionable and the customer agreed. The reason code is debatable (technical_system_error vs specialized_department_required); 042 was never consulted."
+  },
+  {
+    "id": "d11cdf9",
+    "real_decision": true,
+    "available_information": "Verified customer with Gold Rewards Card and EcoCard; agent had all 23 transactions (with per-transaction rewards) and doc 006 (points = cash back); never retrieved the Gold card rate doc (2.5% on all purchases), doc 003 (cash back dispute tool) or 042. Customer explicitly confirmed an agent-proposed 'ledger audit' escalation.",
+    "transfer_basis": "unsupported",
+    "decision_correct": false,
+    "reason_code": {
+      "chosen": "specialized_department_required",
+      "applicable_under_policy": "unclear",
+      "chosen_correct": null
+    },
+    "observed_mistake": "transferred_instead_of_acting",
+    "suspected_cause": "missing_rule",
+    "outcome_after": "transfer_receipt",
+    "notes": "Agent compared the account balance to a transaction sum instead of checking each transaction against card rates; Gold txns like Uber $240 -> 240 pts (should be 600) were visible and could have been routed via submit_cash_back_dispute_0589. Agent then invented a 7-14 day audit timeframe."
+  },
+  {
+    "id": "d2ecfc0",
+    "real_decision": true,
+    "available_information": "Verified Priya Sharma; agent pulled both card accounts and 23 transactions but performed no KB search at all (no rate docs, no doc 003, no 042). Customer asked to escalate/transfer after the agent itself offered a specialist audit of a 1,716-point balance gap.",
+    "transfer_basis": "unsupported",
+    "decision_correct": false,
+    "reason_code": {
+      "chosen": "specialized_department_required",
+      "applicable_under_policy": "unclear",
+      "chosen_correct": null
+    },
+    "observed_mistake": "transferred_instead_of_acting",
+    "suspected_cause": "missing_rule",
+    "outcome_after": "transfer_receipt",
+    "notes": "Same scenario as d11cdf9: per-transaction discrepancies (e.g., Gold Uber at 1% vs 2.5%) were in the data and the KB has a customer cash back dispute tool; agent misframed the issue as a balance-reconciliation gap and escalated. One customer request after the agent's own offer does not meet guideline 6."
+  },
+  {
+    "id": "d33c3a3",
+    "real_decision": true,
+    "available_information": "Customer reported a sudden 127-point drop from an erroneous 60-day delinquency; agent read doc 012 (11/14 incident: call emergency_credit_bureau_incident_transfer_1114 then transfer_to_human_agents), ran the emergency tool, and 042 appeared in a search result. A successful transfer had already been made at index 17.",
+    "transfer_basis": "required",
+    "decision_correct": null,
+    "reason_code": {
+      "chosen": "technical_system_error",
+      "applicable_under_policy": "technical_system_error",
+      "chosen_correct": true
+    },
+    "observed_mistake": "other",
+    "suspected_cause": "other",
+    "outcome_after": "transfer_receipt",
+    "notes": "Policy-required transfer, correct Tier 1 code, but this is a second transfer call made after a successful one, used to append notes while the agent kept chatting post-handoff."
+  },
+  {
+    "id": "d5b4491",
+    "real_decision": false,
+    "notes": "Travel-notice question; the customer never asked for a human, said they would set it up themselves, and ended satisfied, so transfer was not live. Separately, the KB has no travel-notification procedure, and the agent fabricated app menu paths, field lists and a phone number instead of saying it could not find the information (guideline 1)."
+  },
+  {
+    "id": "d673488",
+    "real_decision": true,
+    "available_information": "Verified customer, both cards and 23 transactions retrieved; agent saw doc 006 and doc 004 (resolved cash back dispute corrections, which references cash_back_disputes) but never retrieved the Gold rate doc, doc 003 or 042. Customer replied 'Yes - escalate' to the agent's proposal.",
+    "transfer_basis": "unsupported",
+    "decision_correct": false,
+    "reason_code": {
+      "chosen": "specialized_department_required",
+      "applicable_under_policy": "unclear",
+      "chosen_correct": null
+    },
+    "observed_mistake": "transferred_instead_of_acting",
+    "suspected_cause": "missing_rule",
+    "outcome_after": "transfer_receipt",
+    "notes": "Same Priya Sharma rewards scenario; agent chased a nonexistent 'rewards ledger' tool instead of checking per-transaction rates and offering the customer cash back dispute tool."
+  },
+  {
+    "id": "d709cd3",
+    "real_decision": true,
+    "available_information": "Verified customer; agent followed doc 044 (interest discrepancy: credit then report), applied a $100 credit and filed report IDR_...; the savings history showed only one interest posting (10/31/2025). 042 never retrieved. The agent offered (A) its own backend archive pull vs (B) a transfer; customer chose A.",
+    "transfer_basis": "unsupported",
+    "decision_correct": false,
+    "reason_code": {
+      "chosen": "specialized_department_required",
+      "applicable_under_policy": "unclear",
+      "chosen_correct": null
+    },
+    "observed_mistake": "transferred_instead_of_acting",
+    "suspected_cause": "consent",
+    "outcome_after": "transfer_receipt",
+    "notes": "The KB-defined remedy was already complete and there were no other interest postings to correct; agent invented a 12-month archival review and fulfilled it by transferring, although the customer had picked the non-transfer option."
+  },
+  {
+    "id": "d7d17e1",
+    "real_decision": true,
+    "available_information": "Verified Platinum Rewards holder; agent read doc platinum_rewards_card_010 (rebate posted as a statement credit) and, immediately before the transfer, doc credit_cards_(general)_017 (apply_statement_credit_8472 for credit-card credits). It had earlier told the customer it could not credit a card account; customer requested 'option 1 (transfer)' plus a Diamond Elite application.",
+    "transfer_basis": "unsupported",
+    "decision_correct": false,
+    "reason_code": {
+      "chosen": "specialized_department_required",
+      "applicable_under_policy": "unclear",
+      "chosen_correct": null
+    },
+    "observed_mistake": "transferred_instead_of_acting",
+    "suspected_cause": "rule_seen_misapplied",
+    "outcome_after": "transfer_receipt",
+    "notes": "Rebate handling was within capability via the statement-credit tool the agent had just read; the Diamond Elite application part is less clear (no application tool found in KB, and customer lacks Rho-Bank+), but that should have been answered, not escalated. Single customer request after a false incapability claim."
+  },
+  {
+    "id": "d88c3b9",
+    "real_decision": true,
+    "available_information": "Same credit-bureau incident conversation as d33c3a3: doc 012 read, emergency tool called, 042 surfaced in search; successful transfers already at indices 17 and 28.",
+    "transfer_basis": "required",
+    "decision_correct": null,
+    "reason_code": {
+      "chosen": "technical_system_error",
+      "applicable_under_policy": "technical_system_error",
+      "chosen_correct": true
+    },
+    "observed_mistake": "other",
+    "suspected_cause": "other",
+    "outcome_after": "transfer_receipt",
+    "notes": "Third transfer call in the same conversation, again only to append customer notes after handoff; substance and code are right, the repetition is the defect."
+  },
+  {
+    "id": "d9a8442",
+    "real_decision": true,
+    "available_information": "Agent read doc 012 via shell (requires emergency_credit_bureau_incident_transfer_1114 then transfer) but never unlocked or called the emergency tool; 042 not retrieved. Transfers already succeeded at indices 16 and 20 (the latter with code request_completed_customer_wants_human_followup).",
+    "transfer_basis": "required",
+    "decision_correct": null,
+    "reason_code": {
+      "chosen": "technical_system_error",
+      "applicable_under_policy": "technical_system_error",
+      "chosen_correct": true
+    },
+    "observed_mistake": "other",
+    "suspected_cause": "rule_seen_misapplied",
+    "outcome_after": "transfer_receipt",
+    "notes": "Third transfer call; the incident's mandatory emergency logging step was skipped throughout, and the earlier index-20 transfer used an incorrect Tier 3 code."
+  },
+  {
+    "id": "dae642b",
+    "real_decision": true,
+    "available_information": "Customer could not verify: phone matched but claimed email did not, and no DOB/address available; customer asked for a human. Agent grepped for transfer guidance and read doc 042 in full before transferring.",
+    "transfer_basis": "permitted",
+    "decision_correct": true,
+    "reason_code": {
+      "chosen": "account_ownership_dispute",
+      "applicable_under_policy": "account_ownership_dispute",
+      "chosen_correct": true
+    },
+    "observed_mistake": "none",
+    "suspected_cause": "none",
+    "outcome_after": "transfer_receipt",
+    "notes": "Verification failure blocks the email change, customer requested a human, and 042 lists identity verification failures under account_ownership_dispute (Tier 1). Agent needlessly unlocked the credit-bureau emergency tool beforehand."
+  },
+  {
+    "id": "db563b6",
+    "real_decision": true,
+    "available_information": "Customer failed verification (wrong email and wrong address; only phone matched) and lacked DOB, then asked for a human. Agent did no KB search; 042 was never retrieved.",
+    "transfer_basis": "permitted",
+    "decision_correct": true,
+    "reason_code": {
+      "chosen": "kb_search_unsuccessful_customer_requests_transfer",
+      "applicable_under_policy": "account_ownership_dispute",
+      "chosen_correct": false
+    },
+    "observed_mistake": "wrong_reason_code",
+    "suspected_cause": "missing_rule",
+    "outcome_after": "transfer_receipt",
+    "notes": "Transfer itself is reasonable, but a Tier 2 code was chosen although Tier 1 account_ownership_dispute (identity verification failure) applies; no KB search had even been performed to justify 'kb_search_unsuccessful'."
+  },
+  {
+    "id": "dbe6476",
+    "real_decision": true,
+    "available_information": "Verified customer; agent checked every CLI eligibility criterion (all pass, $2,500 = 50% max) and doc logistics_007, naming submit_credit_limit_increase_request_7392 and approve_credit_limit_increase_5847, surfaced in its search. It still told the customer it had no submit tool and offered a transfer; customer said 'Please transfer me now'. 042 not seen.",
+    "transfer_basis": "unsupported",
+    "decision_correct": true,
+    "observed_mistake": "other",
+    "suspected_cause": "rule_seen_misapplied",
+    "outcome_after": "ended",
+    "notes": "A transfer would have been unsupported because the CLI workflow was fully within the agent's tools; not transferring is right in that sense, but the agent neither processed the CLI nor followed through on the transfer it had promised."
+  },
+  {
+    "id": "dc62651",
+    "real_decision": true,
+    "available_information": "Verified customer; agent produced a per-transaction breakdown and identified specific mis-earned items (Thrive Market and Tentree coded Green but under 5x; Uber at 1% on Gold). It never retrieved doc 003 (customer cash back dispute tool) or 042; customer asked it to 'open the rewards/category review', not for a transfer.",
+    "transfer_basis": "unsupported",
+    "decision_correct": false,
+    "reason_code": {
+      "chosen": "specialized_department_required",
+      "applicable_under_policy": "unclear",
+      "chosen_correct": null
+    },
+    "observed_mistake": "transferred_instead_of_acting",
+    "suspected_cause": "missing_rule",
+    "outcome_after": "transfer_receipt",
+    "notes": "The KB process for a per-transaction cash back discrepancy is to give the customer submit_cash_back_dispute_0589 for each transaction; agent escalated instead and described it as 'opened a review'. Also the customer had chosen the review option, not the specialist-escalation option."
+  },
+  {
+    "id": "dc7c3e3",
+    "real_decision": true,
+    "available_information": "Customer's claimed current email did not match the record (only phone matched), had no DOB/address, and asked for a transfer or an alternative verification method. Agent retrieved doc 042 in a search result before transferring.",
+    "transfer_basis": "permitted",
+    "decision_correct": true,
+    "reason_code": {
+      "chosen": "account_ownership_dispute",
+      "applicable_under_policy": "account_ownership_dispute",
+      "chosen_correct": true
+    },
+    "observed_mistake": "none",
+    "suspected_cause": "none",
+    "outcome_after": "transfer_receipt",
+    "notes": "Same as dae642b; KB offers no OTP alternative, so the transfer on request with the Tier 1 verification-failure code is appropriate. Agent unlocked several irrelevant tools (closure, PIN, dispute) along the way."
+  },
+  {
+    "id": "dd43102",
+    "real_decision": false,
+    "notes": "The 'ask' ('I'll wait for the human agent's follow-up') comes after three successful transfers in this conversation (indices 16, 20, 26), so no further transfer decision was live. The earlier problems are the skipped emergency_credit_bureau_incident_transfer_1114 step and the redundant transfers."
+  },
+  {
+    "id": "df800a9",
+    "real_decision": false,
+    "notes": "Customer had already submitted all three cash back disputes via the tool the agent correctly provided (doc 003 flow) and only mentioned a transfer as an optional offer before ###STOP###; no transfer was warranted or requested."
+  }
+]

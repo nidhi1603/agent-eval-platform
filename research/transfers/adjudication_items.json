@@ -1,0 +1,430 @@
+[
+ {
+  "id": "d0b8a7a",
+  "point": "research/transfers/points/d0b8a7a.json",
+  "label_1": {
+   "id": "d0b8a7a",
+   "real_decision": true,
+   "available_information": "Verified Silver Rewards customer; agent saw rate/rounding docs (006, 007) and doc 004 (resolved cash back dispute corrections) only as a listed search hit; it never retrieved doc 003 (cash back dispute submission) or the reason-code doc 042. It had already rewritten three transactions' rewards itself, then saw the account-level reward_points still at 3240; customer chose the agent's 'escalate now' option.",
+   "transfer_basis": "permitted",
+   "decision_correct": null,
+   "reason_code": {
+    "chosen": "specialized_department_required",
+    "applicable_under_policy": "unclear",
+    "chosen_correct": null
+   },
+   "observed_mistake": "other",
+   "suspected_cause": "missing_rule",
+   "outcome_after": "transfer_receipt",
+   "notes": "The escalation is for an account-level balance 'sync' that the agent created by applying rewards corrections without a resolved cash back dispute (doc 003/004 flow skipped); given that state, nothing else was actionable and the customer agreed. The reason code is debatable (technical_system_error vs specialized_department_required); 042 was never consulted."
+  },
+  "label_2": {
+   "id": "d0b8a7a",
+   "real_decision": true,
+   "available_information": "Verified customer (Silver Rewards Card) said cash back looked wrong. The agent saw docs 006 (points = cash back), 007 (rounding) and the Silver rate docs, and found shortfalls on Amazon and Sushi. It edited the transaction rewards itself with update_transaction_rewards_3847, then found the account-level balance still at 3240 and the customer chose the 'escalate' option the agent had offered. It never retrieved doc 003 (cash back dispute process), doc 004 or doc 042.",
+   "transfer_basis": "unsupported",
+   "decision_correct": false,
+   "reason_code": {
+    "chosen": "specialized_department_required",
+    "applicable_under_policy": "unclear",
+    "chosen_correct": null
+   },
+   "observed_mistake": "transferred_instead_of_acting",
+   "suspected_cause": "missing_rule",
+   "outcome_after": "transfer_receipt",
+   "notes": "The agent invented an 'escalate to rewards ops' path and edited the rewards directly. Doc 003 (Submitting a Cash Back Dispute) says to give the customer submit_cash_back_dispute_0589 for each disputed transaction; it never appeared in this agent's retrievals. The transfer only cleans up a sync problem the agent created by skipping that process."
+  }
+ },
+ {
+  "id": "d337868",
+  "point": "research/transfers/points/d337868.json",
+  "label_1": {
+   "id": "d337868",
+   "real_decision": true,
+   "available_information": "Customer wants to change her email. She gave kenji.tanaka@gmail.com, but the record (found by name) has kenji.tanaka@outlook.com, so only the phone matched (one of the two required fields). She has no DOB or address on hand and asked for a human. No KB procedure for an email change was found, and doc 042 was not seen (it appeared only as a filename in an ls listing).",
+   "transfer_basis": "permitted",
+   "decision_correct": false,
+   "observed_mistake": "other",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "ended",
+   "notes": "Verification failed and the customer asked for a human, so a transfer was appropriate (tier 1 account_ownership_dispute covers verification failures). Instead, the agent's message at the decision point disclosed the on-file email (outlook.com) to an unverified caller, against the system-prompt rule not to leak information before verification, and delayed the transfer."
+  },
+  "label_2": {
+   "id": "d337868",
+   "real_decision": true,
+   "available_information": "Customer asked to change the account email. The email he gave did not match; a name lookup found a record with a different email, and only the phone matched (1 of the required 2 fields). He has no DOB or address on hand and explicitly asked for a human. Only the general policy prompt applied (guideline 5: offer and transfer when unresolvable). Doc 042 was never read; it appeared only as a filename in an 'ls' listing.",
+   "transfer_basis": "required",
+   "decision_correct": false,
+   "reason_code": null,
+   "observed_mistake": "failed_to_transfer",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "ended",
+   "notes": "Instead of transferring, the agent offered 'one more attempt' and disclosed the on-file email (outlook.com) and user_id to an unverified caller, which is a serious verification and privacy breach. The customer repeated the request and the conversation ended with no transfer."
+  }
+ },
+ {
+  "id": "d33c3a3",
+  "point": "research/transfers/points/d33c3a3.json",
+  "label_1": {
+   "id": "d33c3a3",
+   "real_decision": true,
+   "available_information": "The customer reported a sudden credit-score drop from a Rho-Bank 60-day delinquency report despite autopay. The agent retrieved doc 012 (Backend Incident 11/14), which says to call emergency_credit_bureau_incident_transfer_1114 and then transfer immediately, with no verification needed. The agent did both earlier, at idx 9 and 17. Doc 042 appeared among search hits.",
+   "transfer_basis": "required",
+   "decision_correct": true,
+   "reason_code": {
+    "chosen": "technical_system_error",
+    "applicable_under_policy": "technical_system_error",
+    "chosen_correct": true
+   },
+   "observed_mistake": "none",
+   "suspected_cause": "none",
+   "outcome_after": "transfer_receipt",
+   "notes": "This is a second, redundant transfer call made to append the customer's extra details after the protocol was already completed. It is harmless but unnecessary. The agent then invented secure-upload instructions."
+  },
+  "label_2": {
+   "id": "d33c3a3",
+   "real_decision": true,
+   "available_information": "Customer reported a sudden 127-point drop from an erroneous 60-day delinquency; agent read doc 012 (11/14 incident: call emergency_credit_bureau_incident_transfer_1114 then transfer_to_human_agents), ran the emergency tool, and 042 appeared in a search result. A successful transfer had already been made at index 17.",
+   "transfer_basis": "required",
+   "decision_correct": null,
+   "reason_code": {
+    "chosen": "technical_system_error",
+    "applicable_under_policy": "technical_system_error",
+    "chosen_correct": true
+   },
+   "observed_mistake": "other",
+   "suspected_cause": "other",
+   "outcome_after": "transfer_receipt",
+   "notes": "Policy-required transfer, correct Tier 1 code, but this is a second transfer call made after a successful one, used to append notes while the agent kept chatting post-handoff."
+  }
+ },
+ {
+  "id": "d5f8406",
+  "point": "research/transfers/points/d5f8406.json",
+  "label_1": {
+   "id": "d5f8406",
+   "real_decision": true,
+   "available_information": "Customer asked how to set a travel notification. The agent's searches and greps found no procedure (only incidental 'enable travel notifications' tips in Gold/Diamond docs). It offered a human transfer, and the customer chose step-by-step app guidance instead.",
+   "transfer_basis": "permitted",
+   "decision_correct": true,
+   "reason_code": null,
+   "observed_mistake": "other",
+   "suspected_cause": "other",
+   "outcome_after": "ended",
+   "notes": "Not transferring was correct because the customer declined the offered transfer and policy forbids transferring without consent. The mistake at this point is different: the agent made up specific app steps and timing advice the KB does not contain, which violates guideline 1."
+  },
+  "label_2": {
+   "id": "d5f8406",
+   "real_decision": true,
+   "available_information": "Customer asked how to set a travel notification; repeated searches and greps found no travel-notice procedure (doc 042 seen only as a filename in ls). The agent offered a human transfer twice, and the customer chose in-app steps instead.",
+   "transfer_basis": "permitted",
+   "decision_correct": true,
+   "observed_mistake": "other",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "ended",
+   "notes": "Not transferring was fine because the customer declined the offered transfer. But the agent presented invented app steps, timing advice and a 1-800-RHO-BANK number 'according to our documentation', against policy guideline 1 (say when information is not found). That shaped the customer's choice."
+  }
+ },
+ {
+  "id": "d709cd3",
+  "point": "research/transfers/points/d709cd3.json",
+  "label_1": {
+   "id": "d709cd3",
+   "real_decision": true,
+   "available_information": "The agent read doc 044 (interest discrepancy procedure), docs 012/046 (APY boosts) and the Gold savings transaction history. That complete history shows one interest credit ($450, 10/31) and one ACH deposit. The agent already applied a $100 credit and filed the discrepancy report as doc 044 requires. The customer then asked for a 12-month review and chose option A (the agent pulls archived history), not option B (transfer).",
+   "transfer_basis": "unsupported",
+   "decision_correct": false,
+   "reason_code": {
+    "chosen": "specialized_department_required",
+    "applicable_under_policy": "unclear",
+    "chosen_correct": null
+   },
+   "observed_mistake": "transferred_instead_of_acting",
+   "suspected_cause": "other",
+   "outcome_after": "transfer_receipt",
+   "notes": "The doc 044 workflow was finished, and the complete record has no other interest postings to correct. The agent assumed hidden 'archived' data and made up a backend escalation route. It transferred even though the customer had chosen the non-transfer option."
+  },
+  "label_2": {
+   "id": "d709cd3",
+   "real_decision": true,
+   "available_information": "Verified customer; agent followed doc 044 (interest discrepancy: credit then report), applied a $100 credit and filed report IDR_...; the savings history showed only one interest posting (10/31/2025). 042 never retrieved. The agent offered (A) its own backend archive pull vs (B) a transfer; customer chose A.",
+   "transfer_basis": "unsupported",
+   "decision_correct": false,
+   "reason_code": {
+    "chosen": "specialized_department_required",
+    "applicable_under_policy": "unclear",
+    "chosen_correct": null
+   },
+   "observed_mistake": "transferred_instead_of_acting",
+   "suspected_cause": "consent",
+   "outcome_after": "transfer_receipt",
+   "notes": "The KB-defined remedy was already complete and there were no other interest postings to correct; agent invented a 12-month archival review and fulfilled it by transferring, although the customer had picked the non-transfer option."
+  }
+ },
+ {
+  "id": "d7305e5",
+  "point": "research/transfers/points/d7305e5.json",
+  "label_1": {
+   "id": "d7305e5",
+   "real_decision": true,
+   "available_information": "Verified customer filed two cash back disputes via submit_cash_back_dispute_0589 (the agent provided the tool per doc 003). The agent then ran get_user_dispute_history_7291 (transaction_disputes table) and presented an unrelated pre-existing duplicate_charge dispute (filed 11/10, provisional credit given) as the customer's case. The customer objected and asked for escalation to reconcile case IDs, reason and provisional credit. The agent has no tool for the cash_back_disputes table. Doc 042 was not retrieved.",
+   "transfer_basis": "permitted",
+   "decision_correct": true,
+   "reason_code": {
+    "chosen": "specialized_department_required",
+    "applicable_under_policy": "unclear",
+    "chosen_correct": null
+   },
+   "observed_mistake": "none",
+   "suspected_cause": "none",
+   "outcome_after": "transfer_receipt",
+   "notes": "The reconciliation demand came from the agent's own conflation of two dispute tables. It could have explained that the duplicate_charge record is a separate card dispute. But it cannot see cash back dispute status, and the customer explicitly asked to escalate, so the transfer itself is defensible. The code is debatable: complex_billing_dispute (Tier 1) may fit better than specialized_department_required."
+  },
+  "label_2": {
+   "id": "d7305e5",
+   "real_decision": true,
+   "available_information": "The cash-back disputes had already been submitted successfully through submit_cash_back_dispute_0589 (receipts dsp_d313c3405dc0 and dsp_d2b606a746e5). The agent then queried get_user_dispute_history_7291, which reads the credit-card transaction_disputes table (doc 016), and reported a pre-existing duplicate_charge dispute (filed 11/10) as if it were the customer's cash-back dispute. Docs 003 and 004, both seen, describe cash-back disputes as a separate process/database. Doc 042 not seen.",
+   "transfer_basis": "unsupported",
+   "decision_correct": false,
+   "reason_code": {
+    "chosen": "specialized_department_required",
+    "applicable_under_policy": "unclear",
+    "chosen_correct": null
+   },
+   "observed_mistake": "transferred_instead_of_acting",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "transfer_receipt",
+   "notes": "HARD CALL. The customer's 'reconciliation' request came entirely from the agent misreading an unrelated record. The agent could have explained that the dispute IDs differ because they are separate disputes, and nothing needed fixing. One could argue 'permitted', since the customer asked and the agent cannot view cash_back_disputes."
+  }
+ },
+ {
+  "id": "d8217f4",
+  "point": "research/transfers/points/d8217f4.json",
+  "label_1": {
+   "id": "d8217f4",
+   "real_decision": false,
+   "notes": "Travel-notification how-to question that the agent handled itself. The customer never asked for a human and no KB rule makes this a transfer case. The agent invented app steps and claimed the KB shows agents adding destination regions."
+  },
+  "label_2": {
+   "id": "d8217f4",
+   "real_decision": true,
+   "available_information": "Customer asks how to set a travel notification for a Platinum card trip to Japan and then wants app steps, lead time and whether 'Japan' is enough. KB searches and greps found only passing mentions ('enable travel notifications', senior support handles travel notices), with no procedure or tool. Doc 042 was not read.",
+   "transfer_basis": "permitted",
+   "decision_correct": true,
+   "observed_mistake": "other",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "ended",
+   "notes": "The KB can't resolve this, so guideline 5 calls for offering a transfer (with consent). Not transferring was correct, because the customer wanted self-service and never asked. But the agent never offered a transfer: it made up a menu path, a 48-hour lead time, and a claim that it could set the travel notice itself."
+  }
+ },
+ {
+  "id": "d88c3b9",
+  "point": "research/transfers/points/d88c3b9.json",
+  "label_1": {
+   "id": "d88c3b9",
+   "real_decision": true,
+   "available_information": "Same credit-bureau incident conversation as d33c3a3. Doc 012 was retrieved, the emergency tool was called (idx 9), and the first transfer was done (idx 17). Doc 042 appeared among search hits.",
+   "transfer_basis": "required",
+   "decision_correct": true,
+   "reason_code": {
+    "chosen": "technical_system_error",
+    "applicable_under_policy": "technical_system_error",
+    "chosen_correct": true
+   },
+   "observed_mistake": "none",
+   "suspected_cause": "none",
+   "outcome_after": "transfer_receipt",
+   "notes": "This is a third, redundant transfer call made only to add the customer's notes. The protocol had already been met, so it is not harmful."
+  },
+  "label_2": {
+   "id": "d88c3b9",
+   "real_decision": true,
+   "available_information": "Same credit-bureau incident conversation as d33c3a3: doc 012 read, emergency tool called, 042 surfaced in search; successful transfers already at indices 17 and 28.",
+   "transfer_basis": "required",
+   "decision_correct": null,
+   "reason_code": {
+    "chosen": "technical_system_error",
+    "applicable_under_policy": "technical_system_error",
+    "chosen_correct": true
+   },
+   "observed_mistake": "other",
+   "suspected_cause": "other",
+   "outcome_after": "transfer_receipt",
+   "notes": "Third transfer call in the same conversation, again only to append customer notes after handoff; substance and code are right, the repetition is the defect."
+  }
+ },
+ {
+  "id": "d91c380",
+  "point": "research/transfers/points/d91c380.json",
+  "label_1": {
+   "id": "d91c380",
+   "real_decision": true,
+   "available_information": "Customer asked how to set a travel notice; the agent's searches found no procedure. It told the customer so and offered a transfer, and the customer explicitly asked to be transferred. Doc 042 was seen only as a filename in ls.",
+   "transfer_basis": "permitted",
+   "decision_correct": false,
+   "observed_mistake": "failed_to_transfer",
+   "suspected_cause": "missing_rule",
+   "outcome_after": "conversation_continued",
+   "notes": "Instead of honoring the accepted offer (kb_search_unsuccessful_customer_requests_transfer), the agent ran another search and unlocked unrelated tools, including the decoy initial_transfer_to_human_agent_0218 whose scoping protocol (doc 010, card declines) it never read. The continuation (dc2a64e) shows it never really transferred. The point itself is only a search, which might be defensible taken alone."
+  },
+  "label_2": {
+   "id": "d91c380",
+   "real_decision": true,
+   "available_information": "Travel-notification request. After extensive searching the agent told the customer the KB has no how-to, and the customer explicitly asked to be transferred to a human. The agent's next search result list named doc credit_cards_(general)_010 (purchase-decline transfer protocol), which does not apply here.",
+   "transfer_basis": "permitted",
+   "decision_correct": false,
+   "reason_code": null,
+   "observed_mistake": "failed_to_transfer",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "conversation_continued",
+   "notes": "The agent had nothing more it could do and the customer had asked, so guideline 5 points to a transfer. Instead it searched again and unlocked unrelated tools (statement credit, fund transfer, initial_transfer_to_human_agent_0218). The continuation (dc2a64e) shows this led to a fake 'lines busy' loop."
+  }
+ },
+ {
+  "id": "d9a8442",
+  "point": "research/transfers/points/d9a8442.json",
+  "label_1": {
+   "id": "d9a8442",
+   "real_decision": true,
+   "available_information": "Credit-bureau incident. The agent read doc 012 in full by shell; it says to IMMEDIATELY use emergency_credit_bureau_incident_transfer_1114 and then transfer_to_human_agents. The agent never unlocked or called the emergency tool and transferred three times (idx 16, 20, 26). Doc 042 was not retrieved.",
+   "transfer_basis": "required",
+   "decision_correct": true,
+   "reason_code": {
+    "chosen": "technical_system_error",
+    "applicable_under_policy": "technical_system_error",
+    "chosen_correct": true
+   },
+   "observed_mistake": "other",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "transfer_receipt",
+   "notes": "Transferring is right and the reason code fits. However, the required emergency_credit_bureau_incident_transfer_1114 step was skipped, even though the agent had read the doc that requires it. This is also a repeated transfer."
+  },
+  "label_2": {
+   "id": "d9a8442",
+   "real_decision": true,
+   "available_information": "Agent read doc 012 via shell (requires emergency_credit_bureau_incident_transfer_1114 then transfer) but never unlocked or called the emergency tool; 042 not retrieved. Transfers already succeeded at indices 16 and 20 (the latter with code request_completed_customer_wants_human_followup).",
+   "transfer_basis": "required",
+   "decision_correct": null,
+   "reason_code": {
+    "chosen": "technical_system_error",
+    "applicable_under_policy": "technical_system_error",
+    "chosen_correct": true
+   },
+   "observed_mistake": "other",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "transfer_receipt",
+   "notes": "Third transfer call; the incident's mandatory emergency logging step was skipped throughout, and the earlier index-20 transfer used an incorrect Tier 3 code."
+  }
+ },
+ {
+  "id": "da368e0",
+  "point": "research/transfers/points/da368e0.json",
+  "label_1": {
+   "id": "da368e0",
+   "real_decision": true,
+   "available_information": "Email-change request. The customer gave phone 206-555-0293, which matches, and email kenji.tanaka@gmail.com, which does NOT match (on file: outlook.com; an email lookup returned no record). The agent still logged verification. The customer could not supply the new email, a DOB or an address, and asked for a human three times. The agent read doc 042 at i=34.",
+   "transfer_basis": "permitted",
+   "decision_correct": true,
+   "reason_code": {
+    "chosen": "customer_requests_human_no_specific_reason",
+    "applicable_under_policy": "account_ownership_dispute",
+    "chosen_correct": false
+   },
+   "observed_mistake": "wrong_reason_code",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "transfer_receipt",
+   "notes": "HARD CALL on the code. Transferring was fine (repeated requests, task blocked). But identity verification actually failed (only 1 of 2 factors matched), which is the tier-1 'identity verification failures requiring specialist' case. The agent's false verification log is a serious separate error."
+  },
+  "label_2": {
+   "id": "da368e0",
+   "real_decision": true,
+   "available_information": "Customer wanted to change their email but had no new address. For verification they gave a matching phone and an email (kenji.tanaka@gmail.com) that does NOT match the record (kenji.tanaka@outlook.com), and had no DOB or address. The agent nevertheless logged verification. The customer asked for a human three times (30, 32, 41). The agent retrieved doc 042 by search before transferring.",
+   "transfer_basis": "permitted",
+   "decision_correct": true,
+   "reason_code": {
+    "chosen": "customer_requests_human_no_specific_reason",
+    "applicable_under_policy": "unclear",
+    "chosen_correct": null
+   },
+   "observed_mistake": "other",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "transfer_receipt",
+   "notes": "A transfer was reasonable because the change could not be completed without the new email and the customer asked repeatedly. However, the agent misapplied the 2-of-4 verification rule and told the human agent that identity was 'verified by confirming phone and email'. If the failed verification were recognized, account_ownership_dispute (identity verification failure, Tier 1) could be the better code."
+  }
+ },
+ {
+  "id": "daf77c7",
+  "point": "research/transfers/points/daf77c7.json",
+  "label_1": {
+   "id": "daf77c7",
+   "real_decision": true,
+   "available_information": "Travel-notification question. The KB had no procedure or tool (only 'enable travel notifications' mentions). Instead of saying so, the agent claimed 'according to our docs' the notice can be added via app, web or phone, offered to add it itself, and invented step-by-step app menus. The customer declined a transfer at the end. Doc 042 not seen.",
+   "transfer_basis": "permitted",
+   "decision_correct": true,
+   "reason_code": null,
+   "observed_mistake": "other",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "ended",
+   "notes": "Not transferring was acceptable because the customer explicitly said no transfer was needed. But the agent broke guideline 1 (made up procedures and capabilities) instead of disclosing the KB gap and offering a transfer per guideline 5."
+  },
+  "label_2": {
+   "id": "daf77c7",
+   "real_decision": false,
+   "notes": "Not a live decision. The customer only wanted self-service travel-notice instructions, never asked for a human, and closed with 'No transfer needed'. Note that the agent invented an app walkthrough and offered to place the notice itself, though no KB procedure or tool for this exists."
+  }
+ },
+ {
+  "id": "dc2a64e",
+  "point": "research/transfers/points/dc2a64e.json",
+  "label_1": {
+   "id": "dc2a64e",
+   "real_decision": true,
+   "available_information": "This continues d91c380. The customer asked for a human at 45, 55 and 59. The agent misapplied the purchase-decline protocol (doc credit_cards_(general)_010, seen in results at 47) by calling initial_transfer_to_human_agent_0218 five times ('lines are busy') and never calling transfer_to_human_agents. The customer finally accepted direct contact options.",
+   "transfer_basis": "permitted",
+   "decision_correct": false,
+   "reason_code": null,
+   "observed_mistake": "failed_to_transfer",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "ended",
+   "notes": "Doc 010 applies only to purchase declines, and even it says to use transfer_to_human_agents on the fourth request. The agent manufactured busy-line failures until the customer gave up, then made up app steps again. At the final message the customer had withdrawn the request, but only because of the agent's misuse of the protocol."
+  },
+  "label_2": {
+   "id": "dc2a64e",
+   "real_decision": true,
+   "available_information": "Same conversation as d91c380: no travel-notice procedure in the KB; the agent offered a transfer and the customer explicitly requested it (idx 45). The agent then called the decoy initial_transfer_to_human_agent_0218 five times ('lines busy') and never called transfer_to_human_agents. The customer eventually settled for direct contact options. Doc 042 was seen only as a filename.",
+   "transfer_basis": "permitted",
+   "decision_correct": false,
+   "observed_mistake": "failed_to_transfer",
+   "suspected_cause": "missing_rule",
+   "outcome_after": "ended",
+   "notes": "The real transfer (kb_search_unsuccessful_customer_requests_transfer) was permitted and had been offered and accepted. The agent used an inapplicable special-protocol decoy tool without reading its governing doc (010, card purchase declines), told the customer a transfer had been initiated, and then invented contact steps. At the final message the customer had given up on the transfer."
+  }
+ },
+ {
+  "id": "dc77fbc",
+  "point": "research/transfers/points/dc77fbc.json",
+  "label_1": {
+   "id": "dc77fbc",
+   "real_decision": true,
+   "available_information": "Customer wants an email change but supplied a non-matching 'current email' and only the phone matched; no DOB or address available. The customer explicitly asked to be transferred to a human (idx 25) after the agent itself listed transfer as an option. Doc 042 was seen only as a filename.",
+   "transfer_basis": "permitted",
+   "decision_correct": false,
+   "observed_mistake": "failed_to_transfer",
+   "suspected_cause": "consent",
+   "outcome_after": "ended",
+   "notes": "Consent was already explicit, but the agent re-asked instead of transferring (account_ownership_dispute would apply). In that message it disclosed the on-file email and user_id to an unverified caller, a verification-policy breach. The user simulator ended with TRANSFER and no transfer was ever made."
+  },
+  "label_2": {
+   "id": "dc77fbc",
+   "real_decision": true,
+   "available_information": "Customer asked to change their email. Phone matched, but the claimed current email didn't match the one on file, and the customer had no DOB or address. The agent offered a transfer, and the customer explicitly asked for a human agent at 25. Doc 042 was not retrieved.",
+   "transfer_basis": "permitted",
+   "decision_correct": false,
+   "reason_code": null,
+   "observed_mistake": "failed_to_transfer",
+   "suspected_cause": "rule_seen_misapplied",
+   "outcome_after": "ended",
+   "notes": "Verification failed and the customer explicitly asked, yet the agent stalled with a redundant 'one more attempt' question. In that same message it disclosed the on-file email (kenji.tanaka@outlook.com) and user_id to an unverified person, which is a privacy breach. The conversation ended with no transfer call; the applicable code would have been account_ownership_dispute."
+  }
+ }
+]

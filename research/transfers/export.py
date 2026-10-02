@@ -63,8 +63,17 @@ def _render(msgs, upto):
 
 
 def _tier_doc_seen(msgs, i):
+    """Upper bound: the document id or a code appears in any earlier tool result (directory listings included)."""
     return any(m["role"] == "tool" and (TIER_DOC in (m.get("content") or "") or "account_ownership_dispute" in (m.get("content") or ""))
                for m in msgs[:i])
+
+
+TIER_CONTENT = ("highest tier that applies", "TIER 1 (HIGHEST PRIORITY)", "Human Agent Transfer Reason Codes")
+
+
+def _tier_content_seen(msgs, i):
+    """Stricter: the tier document's TITLE or TEXT appears in an earlier tool result (a search hit or a file read)."""
+    return any(m["role"] == "tool" and any(t in (m.get("content") or "") for t in TIER_CONTENT) for m in msgs[:i])
 
 
 def main():
@@ -76,8 +85,9 @@ def main():
                 continue
             msgs = json.loads(Path(r["trace"]).read_text())["messages"]
             task = json.loads((TASKS / f"{r['task_id']}.json").read_text())
+            # a reference transfer whose compare_args excludes "reason" (task_035: []) accepts any code
             expected = [(a.get("arguments") or {}).get("reason") for a in task["evaluation_criteria"].get("actions") or []
-                        if a["name"] == "transfer_to_human_agents"]
+                        if a["name"] == "transfer_to_human_agents" and (a.get("compare_args") is None or "reason" in a["compare_args"])]
             points = []
             results = {m.get("tool_call_id"): m for m in msgs if m["role"] == "tool"}
             tcalls = [(i, c) for i, m in enumerate(msgs) if m["role"] == "assistant"
@@ -90,7 +100,8 @@ def main():
             asks = [i for i, m in enumerate(msgs) if m["role"] == "user" and m.get("content") and HUMAN.search(m["content"]) and i > last_t]
             if asks:
                 points.append({"kind": "ASK", "i": asks[0] + 1})
-            if expected and not tcalls:
+            transfer_expected = any(a["name"] == "transfer_to_human_agents" for a in task["evaluation_criteria"].get("actions") or [])
+            if transfer_expected and not tcalls:
                 last = max((i for i, m in enumerate(msgs) if m["role"] == "assistant" and m.get("content")), default=len(msgs) - 1)
                 points.append({"kind": "EXPECTED", "i": last})
             for p in points:
@@ -102,7 +113,8 @@ def main():
                 key[c] = {"batch": b, "task_id": r["task_id"], "arm": r["arm"], "attempt": r.get("attempt", 0),
                           "run_id": r["run_id"], "official_reward": r.get("official_reward"), **p,
                           "expected_codes": expected, "code_matches_answer_key": (p.get("reason_code") in expected) if expected and p["kind"] == "T" else None,
-                          "tier_doc_seen_before": _tier_doc_seen(msgs, p["i"])}
+                          "tier_doc_seen_before": _tier_doc_seen(msgs, p["i"]),
+                          "tier_doc_content_seen_before": _tier_content_seen(msgs, p["i"])}
     (OUT / "KEY_do_not_give_to_readers.json").write_text(json.dumps(key, indent=1))
     ids = sorted(key)
     (OUT / "parts.json").write_text(json.dumps({"part1": ids[: len(ids) // 2], "part2": ids[len(ids) // 2:]}, indent=1))

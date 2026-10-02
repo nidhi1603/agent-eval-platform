@@ -41,10 +41,15 @@ def _transfers():
         made = [(c2["arguments"] or {}).get("reason") for m in msgs if m["role"] == "assistant"
                 for c2 in m.get("tool_calls") or [] if c2["name"] == "transfer_to_human_agents"]
         task = json.loads((TASKS / f"{v['task_id']}.json").read_text())
-        want = [(a.get("arguments") or {}).get("reason") for a in task["evaluation_criteria"].get("actions") or []
-                if a["name"] == "transfer_to_human_agents"]
+        refs = [a for a in task["evaluation_criteria"].get("actions") or [] if a["name"] == "transfer_to_human_agents"]
+        # corrected 2026-10-01: a reference transfer whose compare_args excludes "reason" (task_035: compare_args [])
+        # accepts any code; it was first counted as a mismatch
+        want = [(a.get("arguments") or {}).get("reason") for a in refs
+                if a.get("compare_args") is None or "reason" in a["compare_args"]]
+        any_code = bool(refs) and not want
         out[c] = {"batch": v["batch"], "arm": v["arm"], "task_id": v["task_id"], "transfers_made": made,
-                  "transfer_expected": want, "reason_code_matches": (bool(made) and made[-1] in want) if want else None}
+                  "transfer_expected": want or (["<any code>"] if any_code else []),
+                  "reason_code_matches": (bool(made) and made[-1] in want) if want else (bool(made) if any_code else None)}
     return out
 
 

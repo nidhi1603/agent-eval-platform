@@ -901,3 +901,22 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   2. Procedure completion: the largest by conversations but concentrated in 4 tasks. The whole v2 configuration, which included a checklist, showed no observed gain in H002; the checklist's own effect was not isolated.
   3. Claims, fraud and waiting periods are not first failures here.
 - Findings: `research/post_verification/FINDINGS.md`.
+
+### Transfer decision table (2026-10-01, $0)
+
+- **Failure-tally wording corrected per review:**
+  - failed-only corpus; "transferred on tasks whose reference has no transfer" is not yet a judgment;
+  - claims versus recovery is not established;
+  - H002 tested the whole v2 configuration.
+  - The patterns are exclusive (they sum to 79); the overlapping "16 or more transfer" figure is labelled; the 2 interrupted runs are reported separately.
+  - **Bug fixed:** task_035's reference transfer checks no arguments, so "0 of 15 right codes" becomes "0 of 13 failed conversations on tasks that grade the code".
+- **Decision table (`research/transfers/`).**
+  - 68 decision points from every H008, H009 and P001 conversation, successful ones included; 55 are real decisions.
+  - Two blind readers labelled every point from policy and visible context, without the answer key; a blind adjudicator settled 14.
+  - Observed mistakes:
+    - transferred instead of acting: 19 (cause: rule never retrieved 10, mostly task_019's cash-back procedure; misapplied 7; missing fact 2);
+    - wrong reason code: 9 (tier document never retrieved 7);
+    - other: 11 (task_035 emergency tool skipped; task_012 invented procedure);
+    - failed to transfer: 4.
+- **Reason codes against the tier document:** with the tier document's content seen before the call, 8 of 10 codes were correct; without it, 8 of 20 clear cases. Observational only.
+- **Proposed single mechanism (not built):** reason-code grounding. Put doc 042's text in context before a transfer executes, and ask for the highest applicable tier. It can affect only the code, which only task_004 and task_012 grade. The first test would be a small next-message probe at the existing wrong-code points, with its own plan.
