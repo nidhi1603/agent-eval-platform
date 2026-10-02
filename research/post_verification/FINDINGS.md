@@ -52,7 +52,7 @@
 - **Detectable without the answer key:** "yes" by both readers in only 3 of 60 conversations (2 transfer, 1 arguments); "partial" for most. A generic deterministic check catches few of these first mistakes outright.
 
 **Transfer check (deterministic, using the answer key for analysis only):**
-- **Among these selected FAILED conversations**, 0 of 15 on transfer-expected tasks used the expected reason code. Successful conversations are excluded from this corpus, so this is not an estimate of overall transfer accuracy. The full transfer analysis (`research/transfers/`) includes successful transfers.
+- **Among these selected FAILED conversations**, on the tasks that grade the reason code (task_004, task_012), 0 of 13 used the expected code. This was first reported as "0 of 15" because task_035's reference transfer, which checks no arguments, was counted as a mismatch. task_035's 2 failed conversations did transfer. Successful conversations are excluded from this corpus, so this is not an estimate of overall transfer accuracy. The full transfer analysis (`research/transfers/`) includes successful transfers.
 - 20 conversations transferred on tasks whose reference actions contain no transfer. Whether each transfer was inappropriate depends on the dialogue and the policy, which this count does not check.
 - Both readers marked a transfer situation as present in 41 to 43 conversations and mishandled in 36.
 
@@ -64,7 +64,7 @@
 
 1. **Transfer decisions: when to transfer, and with which reason code.** The most cross-cutting first failure:
    - first mistake in at least 16 conversations across at least 6 tasks. **This figure OVERLAPS the pattern table:** it is the transfer pattern (8) plus the cash-back conversations whose first mistake was a transfer (8);
-   - a wrong or missing reason code in every transfer-expected conversation;
+   - a wrong or missing reason code in all 13 failed conversations on tasks that grade the code;
    - many transfers where none was expected.
 
    A deterministic check is partly possible without the answer key. The bank's transfer-reason tiering document exists in the knowledge base, so a check could require it to be retrieved and the chosen code to match a documented tier for the situation. Choosing the tier itself needs judgment.

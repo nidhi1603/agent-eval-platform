@@ -893,7 +893,7 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - required tool unused: 4 / 2;
   - fraud alert cleared: 2 / 1.
 - **Transfer check (answer key used for analysis only).** Among these FAILED conversations only (not an accuracy estimate):
-  - 0 of 15 on transfer-expected tasks used the expected reason code;
+  - 0 of 13 on tasks that grade the reason code used the expected code (first reported as 0 of 15; corrected in the transfer-table entry);
   - 20 transferred on tasks whose reference actions contain no transfer. Each transfer's appropriateness is not yet judged.
 - **Availability:** in the 16 agreed policy-step failures, the rule and the evidence were both already in context, so this is a knowledge-to-action gap. Few first mistakes are fully detectable without the answer key.
 - **Suggestion (for review, nothing built):**
