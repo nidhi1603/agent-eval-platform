@@ -1,0 +1,206 @@
+[
+ {
+  "id": "x04b17f",
+  "first_mistake": {"class": "CALC", "i": 29, "description": "Told the customer she did NOT qualify for the Platinum annual-fee rebate, claiming the 12/10/2024-01/09/2025 window totalled $6,859.16 (< $7,500). The task's reference outcome is that she qualifies (Diamond Elite application expected), so the monthly-window totals/verdict were wrong; the customer then took the 'not qualified' branch and applied for the Silver Rewards Card."},
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {"level": "partial", "signal": "Recompute per-anniversary-window posted totals from the get_credit_card_transactions_by_user output and compare with the agent's stated window totals and pass/fail verdict (needs the threshold and window rule from the retrieved doc_credit_cards_platinum_rewards_card_010/007)."},
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {"present": false, "mishandled": null},
+   "TIMING": {"present": true, "mishandled": false},
+   "CALC": {"present": true, "mishandled": true},
+   "TRANSFER": {"present": false, "mishandled": null}
+  },
+  "notes": "The exported transaction output is truncated at 1,500 characters, so I could not re-derive the window sums myself; the CALC label rests on the reference outcome (qualifies), and a window-boundary/posting-date misallocation (TIMING) cannot be fully ruled out. Later the agent wrongly said it could not submit applications and invented app menu paths, but that had no effect on the outcome."
+ },
+ {
+  "id": "x0f1820",
+  "first_mistake": {"class": "TRANSFER", "i": 26, "description": "Verification had failed (the email the caller gave did not match the one on file, and he had no DOB or address), and at i=25 the customer explicitly asked for a human. The agent did not call transfer_to_human_agents (expected reason account_ownership_dispute). It asked again instead and the customer ended the chat."},
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {"level": "yes", "signal": "The customer's turn contains an explicit transfer request and the next agent turn contains no transfer_to_human_agents call."},
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {"present": false, "mishandled": null},
+   "TIMING": {"present": false, "mishandled": null},
+   "CALC": {"present": false, "mishandled": null},
+   "TRANSFER": {"present": true, "mishandled": true}
+  },
+  "notes": "In the same message (i=26) the agent also revealed the on-file email (kenji.tanaka@outlook.com) and user_id to a caller who had not been verified, which is a separate VERIFICATION/privacy error. 'I'm ready to transfer you' was conditional, so I did not count it as a claim."
+ },
+ {
+  "id": "x198007",
+  "first_mistake": {"class": "RETRIEVAL", "i": 27, "description": "The agent checked the account by matching total points against the summed transaction points, not each transaction's rewards against the card's earn rate. It concluded the EcoCard was consistent and the Gold gap was an unexplained ledger item. It never retrieved doc_credit_cards_credit_cards_(general)_003 (give the customer submit_cash_back_dispute_0589 for each mis-rewarded transaction) or the Gold 2.5% rate doc. That led to the transfer at i=33 ('specialized_department_required') in place of the four expected cash-back disputes."},
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {"level": "partial", "signal": "A rewards-discrepancy conversation ends in transfer_to_human_agents with no cash-back dispute procedure retrieved. Checking each transaction's rewards_earned against amount x card rate (rates from the KB) would flag the mismatches."},
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {"present": false, "mishandled": null},
+   "TIMING": {"present": false, "mishandled": null},
+   "CALC": {"present": true, "mishandled": true},
+   "TRANSFER": {"present": true, "mishandled": true}
+  },
+  "notes": "EcoCard earn rates (5/1 points per dollar) were in context from doc 006, but the agent still never checked transactions one by one. The transfer at 33 is where success became impossible. The class could also be TRANSFER at 33; I chose RETRIEVAL because the missing dispute procedure is the root cause."
+ },
+ {
+  "id": "x1ad2ab",
+  "first_mistake": {"class": "FRAUD", "i": 55, "description": "Cleared the customer-initiated fraud alert on the Evergreen card (reason customer_verified) right after the customer said a ~$500 California electronics charge was NOT his. Doc 039 (retrieved at i=44) allows clearing only when the customer confirms the recent transactions are legitimate, and the agent had stated that condition itself at i=47."},
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {"level": "partial", "signal": "clear_debit_card_fraud_alert_4892 called with reason 'customer_verified' after a user message reporting an unrecognized/unauthorized transaction (needs simple NL detection of the disavowal)."},
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {"present": true, "mishandled": true},
+   "TIMING": {"present": true, "mishandled": true},
+   "CALC": {"present": true, "mishandled": true},
+   "TRANSFER": {"present": false, "mishandled": null}
+  },
+  "notes": "Later errors: in the dispute, transaction_type was signature_purchase (never asked; PIN expected), discovery_date was 11/14 (made up) and customer_max_liability_amount was 500 (50 expected). The card was frozen, not closed with close_debit_card, and the replacement was STANDARD/CLASSIC, not the expected free EXPEDITED/PREMIUM."
+ },
+ {
+  "id": "x28ac4d",
+  "first_mistake": {"class": "CALC", "i": 49, "description": "Applied a $0.67 interest_correction credit and then reported expected 5.525% vs actual 5.5%. Expected values were 6.85% vs 5.625%, a $98 credit. The agent never retrieved the docs on checking-account APY boosts and on credit-card bonuses not stacking, so its expected APY covered only the Gold Rewards bonus. It applied the credit before the customer agreed (consent came at i=54)."},
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {"level": "partial", "signal": "An interest_correction credit was applied without first retrieving the APY-bonus/boost doc for each held product (green and purple checking, platinum, gold and eco cards), and before the customer consented to the credit."},
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {"present": false, "mishandled": null},
+   "TIMING": {"present": false, "mishandled": null},
+   "CALC": {"present": true, "mishandled": true},
+   "TRANSFER": {"present": false, "mishandled": null}
+  },
+  "notes": "At i=41 the agent had already told the customer the $450 matched the expected rate, an earlier wrong conclusion that caused no irreversible harm. The root cause is retrieval (doc_bank_accounts_(general)_043-046 and gold_account_013/014 were never retrieved). 'I will monitor the investigation' is a promise about the future, so I did not count it as a claim."
+ },
+ {
+  "id": "x3af71a",
+  "first_mistake": {"class": "FRAUD", "i": 73, "description": "Cleared the customer-initiated fraud alert on the Evergreen card (customer_verified) after the customer said the $499.99 TechZone charge was not his. The customer asked for the removal, but doc 039 (retrieved at i=56) allows clearing only when the customer confirms the transactions are legitimate, and says to escalate when the customer reports transactions they did not make."},
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {"level": "partial", "signal": "clear_debit_card_fraud_alert_4892 with reason 'customer_verified' in the same turn as filing a fraud dispute, or right after the customer disavows a transaction."},
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {"present": true, "mishandled": true},
+   "TIMING": {"present": true, "mishandled": true},
+   "CALC": {"present": true, "mishandled": false},
+   "TRANSFER": {"present": false, "mishandled": null}
+  },
+  "notes": "Further errors: discovery_date was 11/12 (the customer said he was alerted and responded on 11/06), transaction_type was signature_purchase (never asked; changed only after the customer offered it, and the edit was never made), and the replacement was STANDARD/CLASSIC, not the expected free EXPEDITED/PREMIUM. At i=63 the agent also wrongly said the customer had 'confirmed transactions are legitimate'."
+ },
+ {
+  "id": "x3d093c",
+  "first_mistake": {"class": "OTHER", "i": 37, "description": "The KB has no travel-notification procedure, and the agent's searches showed only passing mentions. It invented one, 'According to our support docs', with app, web and phone channels, and offered to set the notice up itself, then gave a made-up app menu path at i=43. It never admitted the gap, so the customer never asked for the expected transfer (kb_search_unsuccessful_customer_requests_transfer)."},
+  "interpretation": "clear_violation",
+  "rule_available_before": null,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {"level": "partial", "signal": "Grounding check: the procedure, channels or menu path the assistant attributes to 'our docs' do not appear in any retrieved document or tool output."},
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {"present": false, "mishandled": null},
+   "TIMING": {"present": false, "mishandled": null},
+   "CALC": {"present": false, "mishandled": null},
+   "TRANSFER": {"present": true, "mishandled": true}
+  },
+  "notes": "This is a made-up procedure presented as KB-sourced (it could also be labeled POLICY_STEP). The agent also unlocked a dozen unrelated action tools it never used."
+ },
+ {
+  "id": "x43c79c",
+  "first_mistake": {"class": "OTHER", "i": 22, "description": "Said 'According to our docs, you can add a travel notice through the mobile app, online banking, or 1-800-RHO-BANK' and offered to add the notice itself, though the KB has no such procedure. At i=30 it gave a made-up step-by-step app walkthrough. It never admitted the KB gap, so no transfer was requested or made."},
+  "interpretation": "clear_violation",
+  "rule_available_before": null,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {"level": "partial", "signal": "Grounding check: travel-notice procedure and channels attributed to the docs do not appear in any retrieved text (searches returned only a passing 'enable travel notifications' line)."},
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {"present": false, "mishandled": null},
+   "TIMING": {"present": false, "mishandled": null},
+   "CALC": {"present": false, "mishandled": null},
+   "TRANSFER": {"present": true, "mishandled": true}
+  },
+  "notes": "Same pattern as the other task_012 failures. At i=30 it partly admitted the KB gives no lead time, but by then it had already supplied detailed instructions, so the customer ended without a transfer."
+ },
+ {
+  "id": "x51eff4",
+  "first_mistake": {"class": "OTHER", "i": 36, "description": "Answered 'According to our documentation' with ways to set travel alerts and said customer service can add a travel notice, none of which the KB supports. At i=44 and i=48 it gave a made-up iOS step list and secure-message advice. It never admitted the KB gap, so no transfer."},
+  "interpretation": "clear_violation",
+  "rule_available_before": null,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {"level": "partial", "signal": "Grounding check on doc-attributed procedural claims, plus a give_discoverable_user_tool error for a made-up tool name ('open_travel_notification_form') at i=12."},
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {"present": false, "mishandled": null},
+   "TIMING": {"present": false, "mishandled": null},
+   "CALC": {"present": false, "mishandled": null},
+   "TRANSFER": {"present": true, "mishandled": true}
+  },
+  "notes": "At i=12 the agent tried to hand the customer a nonexistent discoverable tool (it errored), an early sign it was making things up. At i=36 it offered 'connect you to a human agent' as an option while presenting made-up instructions as documented."
+ },
+ {
+  "id": "x5889bf",
+  "first_mistake": {"class": "RETRIEVAL", "i": 31, "description": "Told the customer the KB does not confirm the Business Platinum Rewards Card's foreign transaction fee or annual fee. doc_business_credit_cards_business_platinum_rewards_card_008 (0% FTF, $450 fee with first year $0), _002 (4% on travel/software/advertising) and _011 (first-year waiver) were never retrieved, and its BM25 searches kept returning unrelated docs. The customer then asked for a transfer, and the agent transferred at i=35 instead of steering her to apply for Business Platinum and handling the closure-reason logging and the Platinum retention credit."},
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": null,
+  "detectable_without_answer_key": {"level": "partial", "signal": "The agent says the KB lacks fee/FTF info for a named product, while the KB index contains a doc titled '<product>: Understanding Your Annual Fee...' (a title/keyword lookup would catch it)."},
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {"present": false, "mishandled": null},
+   "TIMING": {"present": false, "mishandled": null},
+   "CALC": {"present": false, "mishandled": null},
+   "TRANSFER": {"present": true, "mishandled": true}
+  },
+  "notes": "Identity was never verified, and at i=25 the agent wrongly said Business Platinum's 4% covered advertising only. The transfer at the customer's request was a downstream result of the retrieval failure."
+ },
+ {
+  "id": "x76e3ee",
+  "first_mistake": {"class": "TRANSFER", "i": 52, "description": "The agent properly admitted the KB gap at i=44, and the customer asked for a human at i=45. The agent never called transfer_to_human_agents (expected reason kb_search_unsuccessful_customer_requests_transfer). It used the discoverable initial_transfer_to_human_agent_0218 'protocol' tool, which kept returning 'lines are busy', retried five times, and then gave contact options."},
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {"level": "yes", "signal": "An explicit customer transfer request is followed by no transfer_to_human_agents call before the conversation ends; only an initial_transfer_* discoverable tool was used."},
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {"present": false, "mishandled": null},
+   "TIMING": {"present": false, "mishandled": null},
+   "CALC": {"present": false, "mishandled": null},
+   "TRANSFER": {"present": true, "mishandled": true}
+  },
+  "notes": "This is the only task_012 conversation where the agent admitted the gap and the customer asked for a transfer. 'I've initiated the transfer... lines are busy' matches the tool receipt, so it is not counted as a claim."
+ },
+ {
+  "id": "x76ffd8",
+  "first_mistake": {"class": "OTHER", "i": 30, "description": "The agent said there is no step-by-step travel-notification page in the KB, but in the same message it gave detailed instructions (enable alerts, contact the 'concierge/travel desk for Platinum cardholders', call or secure-message with dates) attributed to the KB, which are partly made up (the concierge belongs to other cards). With detailed instructions given, the customer ended without asking for the expected transfer."},
+  "interpretation": "contested",
+  "rule_available_before": null,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {"level": "partial", "signal": "Grounding check: product-specific claims (a Platinum concierge/travel desk) do not appear in retrieved Platinum Rewards docs."},
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {"present": false, "mishandled": null},
+   "TIMING": {"present": false, "mishandled": null},
+   "CALC": {"present": false, "mishandled": null},
+   "TRANSFER": {"present": true, "mishandled": true}
+  },
+  "notes": "This was borderline. The agent partly admitted the gap and offered a transfer, and the simulator chose the 'detailed instructions' branch and ended, so a CUSTOMER_SIM reading is possible. I labeled it OTHER (padding the gap with made-up guidance)."
+ }
+]

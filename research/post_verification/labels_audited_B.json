@@ -1,0 +1,2067 @@
+[
+ {
+  "id": "x178292",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 26,
+   "description": "After submitting the CLI (24), the agent told the customer the bank would run eligibility checks and email a decision, skipping logistics_007 Step 2 checks and the Step 4 approve_credit_limit_increase_5847 (new limit $7,500) that the agent itself must perform."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "submit_credit_limit_increase_request_7392 returned Status PENDING and the agent's closing message contains no approve_credit_limit_increase_5847/deny_credit_limit_increase_5848 call, although the retrieved doc 007 names those tools as the required next step (needs doc tool-name parsing)"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Misread an internal agent step as an external bank process. 'Rho-Bank will now run eligibility checks' is not counted as a claim because the receipt shows the request PENDING."
+ },
+ {
+  "id": "x55a8d4",
+  "first_mistake": {
+   "class": "RETRIEVAL",
+   "i": 38,
+   "description": "Closed the Silver Zoom Card immediately after verification and a dispute check, without the retention protocol (closure-reason history, logging 'found_better_card', offering a better Rho card). The retention doc logistics_003 was not retrieved until 61."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "close_credit_card_account_7834 called with no prior get_closure_reason_history_8293/log_credit_card_closure_reason_4521 call even though the customer stated a closure reason (a protocol-aware check is needed)"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": true
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Later (68) applied a 2+-year loyalty fee waiver to a card opened 06/20/2024 without the customer asking, and misstated the Platinum fee as $450; both counted as mishandled TIMING (tenure) and CALC (fee amount)."
+ },
+ {
+  "id": "x27275a",
+  "first_mistake": {
+   "class": "TOOL_ACCESS",
+   "i": 16,
+   "description": "Read doc (general)_012 which says to IMMEDIATELY call emergency_credit_bureau_incident_transfer_1114 then transfer; at 16 it went straight to transfer_to_human_agents without unlocking or calling the emergency tool."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "transfer_to_human_agents called while a retrieved doc names an emergency tool that was never unlocked or called"
+  },
+  "claims": [
+   18
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Claim at 18: 'escalated this as an urgent credit-bureau incident' with no emergency-tool receipt. Three transfers in total; the second used an ill-fitting code."
+ },
+ {
+  "id": "xe60452",
+  "first_mistake": {
+   "class": "CALC",
+   "i": 58,
+   "description": "The customer asked for the maximum 50% temporary ATM increase on the Green card; the agent requested new_limit 723 instead of $900 (150% of $600)."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": false,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "receipt shows previous limit $600 and new $723 after the customer asked for the maximum; a check of new_limit against 1.5x the receipt's previous limit catches it after the fact"
+  },
+  "claims": [
+   60,
+   76
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": true
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "The $600 limit was not shown before 58. At 74 it raised the Blue card despite an overdraft fee on 11/01/2025 (TIMING mishandled). Claims at 60 and 76 report 'overdraft_fees_last_30_days: 0' with no transaction lookup."
+ },
+ {
+  "id": "x390f5a",
+  "first_mistake": {
+   "class": "RETRIEVAL",
+   "i": 63,
+   "description": "Reconciled only point totals, never checked per-transaction earn rates, and transferred at 63 instead of giving submit_cash_back_dispute_0589, which is described only in the never-retrieved (general)_003."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "no deterministic signal for the unretrieved dispute doc; weak proxy: transfer_to_human_agents with specialized_department_required for an in-scope rewards issue"
+  },
+  "claims": [
+   65
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Claim at 65: 'started the full ledger audit process'. Also declared EcoCard rewards matching though four transactions were under-rewarded."
+ },
+ {
+  "id": "x4cf7be",
+  "first_mistake": {
+   "class": "TRANSFER",
+   "i": 36,
+   "description": "The customer asked to apply for the Diamond Elite Card first and be transferred about the rebate afterwards; the agent transferred immediately (36) without suggesting she apply herself, so the application never happened."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "transfer_to_human_agents (specialized_department_required) immediately after a card-application request, with no self-service guidance offered"
+  },
+  "claims": [
+   40
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Claim at 40: notes 'added to the specialist handoff' with no tool call after the transfer. Contested: no doc says agents submit applications and the customer did ask for a transfer."
+ },
+ {
+  "id": "xc9bd5e",
+  "first_mistake": {
+   "class": "TRANSFER",
+   "i": 32,
+   "description": "Skipped the retention-protocol checks and logging, could not confirm the Business Platinum 0% FTF (doc ..._business_platinum_rewards_card_008 never surfaced), and transferred to a human at 32 with specialized_department_required, ending the conversation before the customer could switch cards."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "transfer_to_human_agents with reason specialized_department_required after an unsuccessful KB search for product info; skipped tools named in the retrieved retention doc"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Contested because the customer asked to confirm FTF with a specialist; the information was in the KB and the retention steps were skipped regardless."
+ },
+ {
+  "id": "x236b15",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 35,
+   "description": "Rewrote rewards on the two short-rewarded transactions directly with update_transaction_rewards_3847 (35) instead of giving submit_cash_back_dispute_0589; (general)_004 (retrieved at 30) describes that tool as a correction after a resolved dispute."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "rewards-update write (update_transaction_rewards_3847) with no cash-back dispute on record, while a retrieved doc ties the tool to resolved disputes"
+  },
+  "claims": [
+   39,
+   41
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Amazon written as 157 points (floor rule gives 156). Claims at 39/41 that 182 points were added to the rewards balance; account-level reward_points was not updated by any tool."
+ },
+ {
+  "id": "xb16b5d",
+  "first_mistake": {
+   "class": "RETRIEVAL",
+   "i": 46,
+   "description": "Told the customer the KB does not show Business Platinum earning above 3.5% on travel/advertising; doc business_platinum_rewards_card_002 (4%) never surfaced. The customer then chose closure and the card was closed at 48."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "none without knowing the unretrieved product doc"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Also never logged 'annual_fee' before the $50 retention credit and never checked pending replacements."
+ },
+ {
+  "id": "x1b5bdd",
+  "first_mistake": {
+   "class": "TRANSFER",
+   "i": 26,
+   "description": "Correctly refused the email change (only the phone matched) but transferred with reason customer_requests_human_no_specific_reason; doc (general)_042 (retrieved at 17/21) puts identity-verification failures under account_ownership_dispute."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "yes",
+   "signal": "transfer after a failed verification (no log_verification, mismatched email shown in tool output) with a reason code other than account_ownership_dispute"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Disclosed the email mismatch at 14 and volunteered the Account Recovery Bypass Code option at 24."
+ },
+ {
+  "id": "x1e3740",
+  "first_mistake": {
+   "class": "OTHER",
+   "i": 30,
+   "description": "The KB has no travel-notification procedure, but the agent said Rho-Bank supports travel notifications and gave 'knowledge base' instructions (app, phone); the customer therefore never asked for the transfer (kb_search_unsuccessful_customer_requests_transfer) the task required."
+  },
+  "interpretation": "contested",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "customer-facing procedure attributed to the KB with no supporting retrieved text"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Contested: stray KB mentions of travel notifications/notices exist. Kept improvising UI steps through 48."
+ },
+ {
+  "id": "x6a213c",
+  "first_mistake": {
+   "class": "TIMING",
+   "i": 8,
+   "description": "Gave get_referral_link for the Business Gold Rewards Card although business_gold_rewards_card_010 (in results at 3/5) says the program stopped accepting referrals on 2025-09-15 (current date 2025-11-14)."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": false,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "program end date in a retrieved doc (2025-09-15) precedes the current date, compared before give_discoverable_user_tool (needs doc date parsing and a time lookup the agent never made)"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": true
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Never called get_current_time; restated the expired terms as active at 10 and 14."
+ },
+ {
+  "id": "xa2829c",
+  "first_mistake": {
+   "class": "RETRIEVAL",
+   "i": 55,
+   "description": "Correctly found the two under-rewarded EcoCard transactions but transferred at 55 instead of giving submit_cash_back_dispute_0589; (general)_003 never surfaced."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "no deterministic signal for the unretrieved dispute doc; weak proxy: transfer_to_human_agents with specialized_department_required for an in-scope rewards issue"
+  },
+  "claims": [
+   57
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Claim at 57: 'opened a rewards/merchant-category review ... Submitted for review'. Misexplained Uber as earning a 1% base rate (Gold is a flat 2.5%)."
+ },
+ {
+  "id": "xda7577",
+  "first_mistake": {
+   "class": "TIMING",
+   "i": 86,
+   "description": "After itself telling the customer (82, 84) that the Blue card's 11/01/2025 overdraft fee made it ineligible under (general)_040's 30-day rule, the agent raised the Blue ATM limit to $750 at 86."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "yes",
+   "signal": "an OVERDRAFT FEE transaction dated within 30 days of get_current_time already in tool output before request_temporary_debit_card_limit_increase_8374 on that account"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": true
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Verification at 28 used only DOB plus name; not consequential. Green increase to $900 matched the reference."
+ },
+ {
+  "id": "x3e8900",
+  "first_mistake": {
+   "class": "RETRIEVAL",
+   "i": 20,
+   "description": "Never searched the KB; reconciled totals only and transferred at 20 instead of giving the dispute tool from (general)_003."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "zero KB searches before transfer_to_human_agents"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Said EcoCard points matched; 'escalated to the rewards team' at 22 is supported by the transfer."
+ },
+ {
+  "id": "xff7682",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 26,
+   "description": "Closed the Silver Zoom Card (26) without the retention protocol Steps 2-4 (closure-reason history, logging found_better_card, asking what attracted her and offering a Rho card), all in the retrieved logistics_003."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "close_credit_card_account_7834 with no prior get_closure_reason_history_8293/log_credit_card_closure_reason_4521 calls while the retrieved doc names them"
+  },
+  "claims": [
+   44
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Contested: at 4 the agent offered retention/alternatives and the customer chose 'proceed with closure now'. At 44 it said it 'redeemed your 3,450 points' though only a 'retention_offer' credit posted and no points were debited (claim)."
+ },
+ {
+  "id": "x6d8bc8",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 24,
+   "description": "Submitted the CLI (22) then told the customer it was pending review with an email decision; never ran the dispute, replacement, cooldown or payment-history checks or the approve step from logistics_007."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "submit_credit_limit_increase_request_7392 returned Status PENDING and the agent's closing message contains no approve_credit_limit_increase_5847/deny_credit_limit_increase_5848 call, although the retrieved doc 007 names those tools as the required next step (needs doc tool-name parsing)"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "No false completion claim; misdescribed the process as an external review."
+ },
+ {
+  "id": "xcfc2cb",
+  "first_mistake": {
+   "class": "CALC",
+   "i": 53,
+   "description": "Applied a $150 'annual_fee_reversal' statement credit (53) though the rebate is applied after the cardmember year's annual fee is billed and no fee charge exists; the customer had already applied for Diamond Elite herself (28)."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "yes",
+   "signal": "apply_statement_credit_8472 with reason annual_fee_reversal while the transaction history in context contains no annual fee charge"
+  },
+  "claims": [
+   55
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": true
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Claim at 55: 'Submitted an application request for the Diamond Elite Card' with no receipt. Contested because doc 017 allows fee-reversal credits and the agent believed a qualified rebate was missing."
+ },
+ {
+  "id": "x9c1722",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 47,
+   "description": "Submitted the CLI (45) and closed as 'pending underwriting review'; only the CLI-history check was run (43); dispute, replacement and payment-history checks and approve_credit_limit_increase_5847 were skipped although the agent had unlocked the approve tool at 4."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "submit_credit_limit_increase_request_7392 returned Status PENDING and the agent's closing message contains no approve_credit_limit_increase_5847/deny_credit_limit_increase_5848 call, although the retrieved doc 007 names those tools as the required next step (needs doc tool-name parsing)"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Approve tool was unlocked at 4 and never used; offer to 'notify you here' is a promise, not counted as a claim."
+ },
+ {
+  "id": "x250eae",
+  "first_mistake": {
+   "class": "OTHER",
+   "i": null,
+   "description": "Interrupted by an API credit outage after 17; no consequential agent mistake before the cut."
+  },
+  "interpretation": null,
+  "rule_available_before": null,
+  "evidence_available_before": null,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "not applicable: interrupted conversation"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Correctly said goods_services_not_as_described is not provisional-credit eligible (6) and verified the customer correctly."
+ },
+ {
+  "id": "x65ca08",
+  "first_mistake": {
+   "class": "RETRIEVAL",
+   "i": 10,
+   "description": "Never searched the KB; after verification failed it transferred with kb_search_unsuccessful_customer_requests_transfer instead of account_ownership_dispute from the never-retrieved (general)_042."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "yes",
+   "signal": "reason code kb_search_unsuccessful_customer_requests_transfer used with zero KB search calls in the conversation"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Refusal to change the email without verification was correct."
+ },
+ {
+  "id": "x806126",
+  "first_mistake": {
+   "class": "TRANSFER",
+   "i": 102,
+   "description": "After the customer applied for the EcoCard and asked twice for the Silver Account, the agent said it could not open accounts and transferred (102) instead of using open_bank_account_4821 as (general)_002 (surfaced at 3/5 and grepped at 99) describes."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "agent denies a capability whose tool name appears in its own grep output, then transfers with specialized_department_required"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Earlier recommendations (58-84) ignored Diamond Elite minimums and counted card cash back, but the customer steered to EcoCard + Silver herself."
+ },
+ {
+  "id": "x928ca6",
+  "first_mistake": {
+   "class": "RETRIEVAL",
+   "i": 40,
+   "description": "Never retrieved (general)_003 or the Gold rate doc; tried a nonexistent investigation tool (34), said it could not file investigations (38) and transferred at 40."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "no deterministic signal for the unretrieved dispute doc; weak proxy: transfer_to_human_agents with specialized_department_required for an in-scope rewards issue"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Mislabelled Costco with Tentree's transaction id in the transfer summary; missed Thrive and Tentree as under-rewarded."
+ },
+ {
+  "id": "xdb439a",
+  "first_mistake": {
+   "class": "OTHER",
+   "i": null,
+   "description": "Interrupted by an API credit outage after the greeting; no agent mistake can be assessed."
+  },
+  "interpretation": null,
+  "rule_available_before": null,
+  "evidence_available_before": null,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "not applicable: interrupted conversation"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Not graded; excluded from mistake analysis."
+ },
+ {
+  "id": "x34f067",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 30,
+   "description": "Unlocked and used update_transaction_rewards_3847 to rewrite two transactions (30, 32) instead of having the customer file cash-back disputes; (general)_004 retrieved at 17."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "rewards-update write (update_transaction_rewards_3847) with no cash-back dispute on record, while a retrieved doc ties the tool to resolved disputes"
+  },
+  "claims": [
+   36
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Claim at 36: 'added rounding notes ... recorded in the investigation notes' with no tool call. Amazon written as 157 (floor gives 156); Adobe expected computed as 220."
+ },
+ {
+  "id": "x758a2b",
+  "first_mistake": {
+   "class": "TOOL_ACCESS",
+   "i": 4,
+   "description": "Transferred at 4 without unlocking or calling emergency_credit_bureau_incident_transfer_1114 as (general)_012 requires."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "transfer_to_human_agents called while a retrieved doc names an emergency tool that was never unlocked or called"
+  },
+  "claims": [
+   6,
+   8
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Claims at 6 (escalated to the incident response team) and 8 (items 'added to the escalation' before any tool call). Redundant second transfer at 10."
+ },
+ {
+  "id": "xaf8738",
+  "first_mistake": {
+   "class": "CUSTOMER_SIM",
+   "i": 45,
+   "description": "The agent correctly confirmed rebate eligibility and offered either self-application steps or a specialist; the simulated customer chose the transfer instead of applying with her own apply_for_credit_card tool, so the application never happened."
+  },
+  "interpretation": "contested",
+  "rule_available_before": null,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "no deterministic signal; the agent offered self-service before transferring"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Borderline with TRANSFER: the agent steered toward a specialist, used an ill-fitting code (specialized_department_required) and made unsupported SSN/promo statements at 44."
+ },
+ {
+  "id": "x1eafcb",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 43,
+   "description": "Rewrote rewards on three transactions (43, 45, 47) with update_transaction_rewards_3847 instead of the customer-filed dispute process; (general)_004 retrieved at 26."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "rewards-update write (update_transaction_rewards_3847) with no cash-back dispute on record, while a retrieved doc ties the tool to resolved disputes"
+  },
+  "claims": [
+   49
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Claim at 49: 'I've submitted the review' (no review exists). Predicted a wrong 3417 balance (corrected at 53). Transfer at 55 to resync balances its own edits desynchronised."
+ },
+ {
+  "id": "x81cc5d",
+  "first_mistake": {
+   "class": "OTHER",
+   "i": 65,
+   "description": "All reference actions were executed correctly; the only extra state change is an unrequested give_discoverable_user_tool('get_referral_link') at 65, which (general)_009 (retrieved at 53) does not permit and which likely broke the DB match."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "give_discoverable_user_tool for a referral tool when the customer never mentioned referrals"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Failure cause is inferred, not observed. Recommendations at 83-91 (Gold + Platinum at 10% cash back) were wrong before the customer steered to EcoCard + Silver."
+ },
+ {
+  "id": "x4b7ea0",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 48,
+   "description": "Submitted the CLI (38), described an email decision (40), ran payment and CLI history only when asked, and at its last turn (48) offered monitoring instead of finishing the checks and approving to $7,500. First deviation was at 40 but it stayed recoverable until 48."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "submit_credit_limit_increase_request_7392 returned Status PENDING and the agent's closing message contains no approve_credit_limit_increase_5847/deny_credit_limit_increase_5848 call, although the retrieved doc 007 names those tools as the required next step (needs doc tool-name parsing)"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Kept the audit index 48 (last recoverable turn); the misreading began at 40."
+ },
+ {
+  "id": "x124f50",
+  "first_mistake": {
+   "class": "VERIFICATION",
+   "i": 27,
+   "description": "Logged verification at 27 although only the phone matched (the customer's email did not match the outlook.com record); believing the customer verified, it later transferred (42) with customer_requests_human_no_specific_reason instead of account_ownership_dispute. Index moved earlier from the audit's 42."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "yes",
+   "signal": "log_verification called when only one customer-supplied field matches the record returned by the lookup tool"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Told the customer 'you've already been verified' (31/40); the transfer summary falsely says email was confirmed."
+ },
+ {
+  "id": "xecbd21",
+  "first_mistake": {
+   "class": "TIMING",
+   "i": 56,
+   "description": "Raised the Blue card ATM limit to $750 without pulling transactions; the Blue account had an overdraft fee on 11/01/2025, within (general)_040's 30-day exclusion that the agent had quoted at 21/23."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": false,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "temporary-limit write with no get_bank_account_transactions_9173 call for that account although the retrieved doc makes recent overdraft fees an eligibility condition"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": true
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Green increase to $900 was correct; the overdraft fee was never shown to the agent."
+ },
+ {
+  "id": "x55ca2a",
+  "first_mistake": {
+   "class": "TRANSFER",
+   "i": 61,
+   "description": "After diagnosing the daily-limit decline (57), the agent said it cannot raise limits from chat and transferred to a human (61, specialized_department_required) instead of requesting the temporary increase that light_green_account_005 (retrieved) says agents can request."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "agent denies a capability described in a retrieved doc, then transfers with an ill-fitting reason code"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Root cause is the false denial at 57 (tool access; doc 040 never retrieved). At 44 it misjudged the remaining ATM capacity (corrected at 57)."
+ },
+ {
+  "id": "x7b2d80",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 36,
+   "description": "For a 'found a better card' closure the agent offered to skip retention at 10, never asked what attracted the customer or offered a Rho card (logistics_003 Step 4), and closed the card at 36."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "no deterministic signal: the reason was logged and the history checked; the missed step is a conversational offer"
+  },
+  "claims": [
+   38
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Contested because the customer declined a retention attempt. Claim at 38: 'no replacement card' checked, but get_pending_replacement_orders_5765 was never called."
+ },
+ {
+  "id": "x1ed9fa",
+  "first_mistake": {
+   "class": "RETRIEVAL",
+   "i": 41,
+   "description": "Compared balances to a 30-day sum, never checked per-transaction rates, and transferred for a 'ledger audit' at 41; the dispute procedure (general)_003 was never retrieved."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "no deterministic signal for the unretrieved dispute doc; weak proxy: transfer_to_human_agents with specialized_department_required for an in-scope rewards issue"
+  },
+  "claims": [
+   43,
+   47
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Claims at 43 ('opened an internal ledger audit') and 47 ('updated the open audit', provisional adjustment requested). Second transfer at 45."
+ },
+ {
+  "id": "xb21493",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 43,
+   "description": "Correctly identified all four short-rewarded transactions but rewrote their rewards directly with update_transaction_rewards_3847 (43) instead of giving submit_cash_back_dispute_0589; (general)_004, retrieved at 28, ties that tool to resolved, approved disputes."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "rewards-update write with no cash-back dispute lookup or dispute record, while a retrieved doc describes the tool as a post-dispute correction step"
+  },
+  "claims": [
+   55
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Contested: (general)_004 describes the post-dispute use without saying 'only'. Claim at 55: 'opened a case' and flagged high priority beyond the transfer receipt."
+ },
+ {
+  "id": "x2a3e60",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 60,
+   "description": "After submitting (54) the agent told the customer Rho-Bank would review and email a decision, never checking payment history or calling approve_credit_limit_increase_5847 although logistics_007 (read at 17) requires the agent to decide."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "submit_credit_limit_increase_request_7392 returned Status PENDING and the agent's closing message contains no approve_credit_limit_increase_5847/deny_credit_limit_increase_5848 call, although the retrieved doc 007 names those tools as the required next step (needs doc tool-name parsing)"
+  },
+  "claims": [
+   66
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "At 66 the agent said 'Monitoring started' with daily checks, a capability with no tool receipt (counted as a claim)."
+ },
+ {
+  "id": "xba36ca",
+  "first_mistake": {
+   "class": "RETRIEVAL",
+   "i": 60,
+   "description": "Told the customer EcoCard rewards were correct (33), then transferred at 60 instead of giving submit_cash_back_dispute_0589 from the never-retrieved (general)_003."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "no deterministic signal for the unretrieved dispute doc; weak proxy: transfer_to_human_agents with specialized_department_required for an in-scope rewards issue"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "The earlier misreading at 33 (C4-like) did not by itself make success impossible."
+ },
+ {
+  "id": "xb8ff0a",
+  "first_mistake": {
+   "class": "TOOL_ACCESS",
+   "i": 44,
+   "description": "After all eligibility checks passed (31-37), the agent told the customer it had no access to submit_credit_limit_increase_request_7392 and offered a transfer, although logistics_007 (in results at 3 and 41) gives the agent that tool and approve_credit_limit_increase_5847. Neither was unlocked; the customer asked for a transfer and the episode ended."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "agent message denies access to a tool whose exact name appears in a retrieved doc and in the unlockable catalog, with no unlock attempt before the denial"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Denial plus transfer offer instead of acting; no transfer_to_human_agents call was made."
+ },
+ {
+  "id": "xc69e2b",
+  "first_mistake": {
+   "class": "CALC",
+   "i": 33,
+   "description": "Posted a $150 'annual_fee_reversal' credit (33) for a rebate that is only applied after the annual fee is billed (no fee charge in records); later transferred (44) for the Diamond Elite application."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "yes",
+   "signal": "apply_statement_credit_8472 with reason annual_fee_reversal while no annual fee charge appears in the retrieved transaction history"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": true
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Even without the credit, the task failed because the customer never applied; the agent offered self-service steps and the customer chose the transfer."
+ },
+ {
+  "id": "x07eea5",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 46,
+   "description": "Logged 'found_better_card' (36) and closed the card (46) without asking what attracted the customer or offering a matching Rho card, as logistics_003 Step 4 requires."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "no deterministic signal: logging and history calls were made; the missed step is conversational"
+  },
+  "claims": [
+   65
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Claim at 65: 'Redeemed 3,450 points' with no redemption receipt (only a statement credit, points not debited). Later transferred (85) for an annual fee that is in the KB."
+ },
+ {
+  "id": "xfa418a",
+  "first_mistake": {
+   "class": "CALC",
+   "i": 56,
+   "description": "Set the Green temporary ATM limit to $825 although $350 was already withdrawn and the customer needed $550; $900 (the 150% maximum) was required."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "new_limit minus same-day ATM withdrawals in tool output is below the amount the customer said they need"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Contested because the doc allows 'up to' 150%; the amount still fails the stated need. Correctly refused the Blue card (overdraft fee)."
+ },
+ {
+  "id": "x27f362",
+  "first_mistake": {
+   "class": "ARGUMENTS",
+   "i": 42,
+   "description": "Correctly handed the cash-back dispute tool for the two short-rewarded transactions but also handed it for Hilton txn_31fd03682992, which its own analysis (28) showed as over-credited by 1 point; the customer filed an extra dispute."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "dispute-tool handover for a transaction whose recorded rewards exceed the agent's own computed expectation"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Contested: doc 003 covers any perceived discrepancy and the customer asked to include Hilton. The extra 'arguments' field on the handover may also matter to grading."
+ },
+ {
+  "id": "x275788",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 49,
+   "description": "Submitted the CLI (47) and told the customer the decision would come by email; skipped Step 2 checks on the real account (CLI/payment history had been queried against a fabricated id cc_7c9f2a4b at 35/37) and never approved to $7,500."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "submit_credit_limit_increase_request_7392 returned Status PENDING and the agent's closing message contains no approve_credit_limit_increase_5847/deny_credit_limit_increase_5848 call, although the retrieved doc 007 names those tools as the required next step (needs doc tool-name parsing)"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Earlier read-only calls with a fabricated account id (35, 37) were not consequential by themselves."
+ },
+ {
+  "id": "x1fe156",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 37,
+   "description": "Logged the reason (35) and closed the card (37) without addressing the 'found a better card' concern (logistics_003 Step 4); also skipped dispute-history and pending-replacement checks."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "no deterministic signal for the missed conversational offer; the skipped read tools are a weak proxy"
+  },
+  "claims": [
+   43
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Claim at 43: points 'redeemed' and credit applied 'before closing'; the credit posted after closure and no points were deducted."
+ },
+ {
+  "id": "x9053e4",
+  "first_mistake": {
+   "class": "ARGUMENTS",
+   "i": 51,
+   "description": "Filed the Marriott dispute with card_last_4_digits empty (instead of giving the get_card_last_4_digits user tool from (general)_013, retrieved at 24) and eligible_for_provisional_credit=true for a goods_services_not_as_described dispute."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "yes",
+   "signal": "write call with an empty required identifier (card_last_4_digits) in its arguments"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "The provisional-credit rule doc (general)_015 was never retrieved; (general)_014 pointed to it. Presented provisional credit as optional at 49."
+ },
+ {
+  "id": "x18cd8f",
+  "first_mistake": {
+   "class": "TOOL_ACCESS",
+   "i": 36,
+   "description": "Instead of giving the customer the get_card_last_4_digits user tool from (general)_013, tried to unlock it as an agent tool (error at 37), then said the lookup was unavailable and left the dispute unfiled."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "unlock_discoverable_agent_tool error for a tool name that a retrieved doc lists as a user tool, followed by no give_discoverable_user_tool"
+  },
+  "claims": [
+   40
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Claim at 40: request 'held'/'queued' with no hold mechanism. Provisional-credit handling was correct."
+ },
+ {
+  "id": "xc3e39f",
+  "first_mistake": {
+   "class": "TIMING",
+   "i": 22,
+   "description": "Gave get_referral_link for the expired Business Gold referral program (closed 2025-09-15; current date 2025-11-14)."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": false,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "program end date in a retrieved doc (2025-09-15) precedes the current date, compared before give_discoverable_user_tool (needs doc date parsing and a time lookup the agent never made)"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": true
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Never opened gold_010 with shell, but search results appear to carry doc content. Offered a human transfer at 20, which (general)_009 says not to do."
+ },
+ {
+  "id": "xb11d54",
+  "first_mistake": {
+   "class": "TOOL_ACCESS",
+   "i": 50,
+   "description": "Kept asking for the last 4 digits and invented app instructions instead of giving the get_card_last_4_digits user tool documented in (general)_013 (retrieved at 25); the dispute was never filed."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "repeated requests for a value that a retrieved doc says a user tool provides, with no give_discoverable_user_tool call"
+  },
+  "claims": [
+   52,
+   58
+  ],
+  "claim_after_first_mistake": true,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Claims at 52 ('tried to pull it from the transaction record', no such call) and 58 ('status: on_hold', no hold mechanism)."
+ },
+ {
+  "id": "x5b8275",
+  "first_mistake": {
+   "class": "TIMING",
+   "i": 22,
+   "description": "Read gold_010 in full (21) and quoted 'open until 2025-09-15', then still gave get_referral_link for the expired Business Gold program."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": false,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "program end date in a retrieved doc (2025-09-15) precedes the current date, compared before give_discoverable_user_tool (needs doc date parsing and a time lookup the agent never made)"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": true
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Never called get_current_time, so did not realise the date had passed."
+ },
+ {
+  "id": "x8c3c83",
+  "first_mistake": {
+   "class": "RETRIEVAL",
+   "i": 77,
+   "description": "Recommended Gold Account + EcoCard because the +2.2% EcoCard bonus on the Silver Account (silver_account_006) was never retrieved; the customer then asked for a Gold Account and was transferred (116) instead of having an account opened."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "no",
+   "signal": "no deterministic signal for the unretrieved rate doc"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "The transfer at 116 was also avoidable (open_bank_account_4821 per (general)_002); the agent told the customer she could open the account herself online (114)."
+ },
+ {
+  "id": "xd4a5c9",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 70,
+   "description": "Submitted the CLI (64) and told the customer Rho-Bank would review and notify by email, skipping the remaining Step 2 checks and the Step 4 approve call (tool unlocked at 12)."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "submit_credit_limit_increase_request_7392 returned Status PENDING and the agent's closing message contains no approve_credit_limit_increase_5847/deny_credit_limit_increase_5848 call, although the retrieved doc 007 names those tools as the required next step (needs doc tool-name parsing)"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Checks it did run (CLI history, payment history) all passed; approval to $7,500 was the expected outcome."
+ },
+ {
+  "id": "x57406e",
+  "first_mistake": {
+   "class": "TIMING",
+   "i": 18,
+   "description": "Gave get_referral_link for the Business Gold program that closed to referrals on 2025-09-15 and said the terms 'match our documentation'."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": false,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "program end date in a retrieved doc (2025-09-15) precedes the current date, compared before give_discoverable_user_tool (needs doc date parsing and a time lookup the agent never made)"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": true
+   },
+   "CALC": {
+    "present": false,
+    "mishandled": null
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Offered a human transfer for the Crypto-Cash Back card contrary to (general)_009 (not executed)."
+ },
+ {
+  "id": "xd1693e",
+  "first_mistake": {
+   "class": "TRANSFER",
+   "i": 106,
+   "description": "The customer asked for the Silver Account to be opened (85); instead of following (general)_002 (in results at 87: verify, check eligibility, open_bank_account_4821), the agent offered a transfer and transferred at 106."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "transfer_to_human_agents for an account opening while a retrieved doc names the agent's own opening tool"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": true,
+    "mishandled": false
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": true,
+    "mishandled": true
+   }
+  },
+  "notes": "Unrequested get_referral_link handovers at 21 and 33 may themselves write DB state (as in item x81cc5d); if so they were an earlier consequential mistake. Early recommendations ignored minimum balances."
+ },
+ {
+  "id": "xb8f051",
+  "first_mistake": {
+   "class": "POLICY_STEP",
+   "i": 41,
+   "description": "Rewrote rewards on two transactions (41, 43) with update_transaction_rewards_3847 instead of giving submit_cash_back_dispute_0589; (general)_004 in results at 30 and 36."
+  },
+  "interpretation": "contested",
+  "rule_available_before": true,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "rewards-update write (update_transaction_rewards_3847) with no cash-back dispute on record, while a retrieved doc ties the tool to resolved disputes"
+  },
+  "claims": [],
+  "claim_after_first_mistake": null,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": false
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "Amounts were correct under the floor rule. 'Your account rewards total should reflect the increase' at 47 is hedged and not counted as a claim."
+ },
+ {
+  "id": "x5627e2",
+  "first_mistake": {
+   "class": "RETRIEVAL",
+   "i": 31,
+   "description": "Never retrieved (general)_003 and so never gave submit_cash_back_dispute_0589; instead, from 31 on, presented an internal 'rewards review' with no tool behind it."
+  },
+  "interpretation": "clear_violation",
+  "rule_available_before": false,
+  "evidence_available_before": true,
+  "detectable_without_answer_key": {
+   "level": "partial",
+   "signal": "customer-facing statements that a review was opened/recorded with no corresponding tool call (catches the fabricated review, not the missing handover)"
+  },
+  "claims": [
+   31,
+   35,
+   37,
+   39,
+   41
+  ],
+  "claim_after_first_mistake": false,
+  "situations": {
+   "FRAUD": {
+    "present": false,
+    "mishandled": null
+   },
+   "TIMING": {
+    "present": false,
+    "mishandled": null
+   },
+   "CALC": {
+    "present": true,
+    "mishandled": true
+   },
+   "TRANSFER": {
+    "present": false,
+    "mishandled": null
+   }
+  },
+  "notes": "The fabricated review starts at the first-mistake index, so claim_after_first_mistake is false. Expected points used rounding (157) instead of floor (156)."
+ }
+]

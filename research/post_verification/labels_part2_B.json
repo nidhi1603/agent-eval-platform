@@ -1,0 +1,189 @@
+[
+  {
+    "id": "x86d30e",
+    "first_mistake": {"class": "POLICY_STEP", "i": 37, "description": "KB has no travel-notification procedure (only a passing 'enable travel notifications' tip). Instead of telling the customer it could not find the process (policy guideline 1), the agent made up app steps and a phone number (1-800-RHO-BANK). The customer was satisfied and never asked for the transfer the task expected (kb_search_unsuccessful_customer_requests_transfer)."},
+    "interpretation": "clear_violation",
+    "rule_available_before": true,
+    "evidence_available_before": true,
+    "detectable_without_answer_key": {"level": "partial", "signal": "Specific procedural entities in the agent message (phone number, menu path) that appear in no retrieved document or tool output earlier in the conversation."},
+    "claims": [],
+    "claim_after_first_mistake": null,
+    "situations": {
+      "FRAUD": {"present": false, "mishandled": null},
+      "TIMING": {"present": false, "mishandled": null},
+      "CALC": {"present": false, "mishandled": null},
+      "TRANSFER": {"present": true, "mishandled": false}
+    },
+    "notes": "The transfer would only have been needed if the agent had admitted the KB gap. The agent also unlocked unrelated tools (fraud-alert clear, closure tools) but never used them."
+  },
+  {
+    "id": "x908dfb",
+    "first_mistake": {"class": "CUSTOMER_SIM", "i": 21, "description": "Lookup tools only accept name, email or user ID. The agent asked for full name or email. The simulated customer, whose persona includes the name Priya Sharma, refused both ('not 100% sure how my name is formatted'), so the agent could not verify her, pull transactions or give the cash-back dispute tool."},
+    "interpretation": "contested",
+    "rule_available_before": true,
+    "evidence_available_before": false,
+    "detectable_without_answer_key": {"level": "no", "signal": "Only a weak signal: the customer declines every lookup identifier the agent requests and the conversation ends without a lookup or verification call."},
+    "claims": [],
+    "claim_after_first_mistake": null,
+    "situations": {
+      "FRAUD": {"present": false, "mishandled": null},
+      "TIMING": {"present": false, "mishandled": null},
+      "CALC": {"present": true, "mishandled": false},
+      "TRANSFER": {"present": false, "mishandled": null}
+    },
+    "notes": "The agent's wording ('exact full name ... case-sensitive') likely made the simulator over-cautious, so this is not purely a simulator failure. The agent also unlocked update_transaction_rewards_3847 and debit-card tools it never used; unlocks are in-memory only and do not change the DB."
+  },
+  {
+    "id": "x944217",
+    "first_mistake": {"class": "POLICY_STEP", "i": 29, "description": "No KB procedure for travel notifications exists. The agent made up app steps and 1-800-RHO-BANK, and offered to 'add the travel notice for you' although no such tool exists, instead of saying it could not find the process. The customer was satisfied, so the expected kb_search_unsuccessful transfer never happened."},
+    "interpretation": "clear_violation",
+    "rule_available_before": true,
+    "evidence_available_before": true,
+    "detectable_without_answer_key": {"level": "partial", "signal": "Phone number and menu paths in the agent message that are not in any retrieved document; an offer of an action with no matching tool in the tool list."},
+    "claims": [],
+    "claim_after_first_mistake": null,
+    "situations": {
+      "FRAUD": {"present": false, "mishandled": null},
+      "TIMING": {"present": false, "mishandled": null},
+      "CALC": {"present": false, "mishandled": null},
+      "TRANSFER": {"present": true, "mishandled": false}
+    },
+    "notes": "At [35] the agent partly admitted 'the knowledge base does not list an exact menu label' but kept giving invented steps. This is the same pattern as x86d30e."
+  },
+  {
+    "id": "xbf152d",
+    "first_mistake": {"class": "TRANSFER", "i": 23, "description": "Identity verification failed: the customer's email did not match the record and he could give only one matching field. The agent transferred with reason customer_requests_human_no_specific_reason (Tier 3) instead of account_ownership_dispute (Tier 1, 'identity verification failures requiring specialist'). The reason-code document was never retrieved."},
+    "interpretation": "clear_violation",
+    "rule_available_before": false,
+    "evidence_available_before": true,
+    "detectable_without_answer_key": {"level": "partial", "signal": "transfer_to_human_agents called with no earlier retrieval of the transfer reason-code document, after a failed or incomplete verification (email lookup returned no record, no log_verification)."},
+    "claims": [],
+    "claim_after_first_mistake": null,
+    "situations": {
+      "FRAUD": {"present": false, "mishandled": null},
+      "TIMING": {"present": false, "mishandled": null},
+      "CALC": {"present": false, "mishandled": null},
+      "TRANSFER": {"present": true, "mishandled": true}
+    },
+    "notes": "The agent correctly refused to change the email without two matching fields; the only error is the reason code. 'You're all set — I've transferred you' at [25] is backed by the transfer receipt."
+  },
+  {
+    "id": "xca115b",
+    "first_mistake": {"class": "TIMING", "i": 24, "description": "The agent read the Business Gold referral document at [21], which says the program accepts referrals only until 2025-09-15 (current date 2025-11-14; get_current_time never called). It still gave the get_referral_link tool for the Business Gold card (first try at [22] errored on a malformed tool name; [24] succeeded). The customer generated a link for an expired program instead of moving on to the Platinum card."},
+    "interpretation": "clear_violation",
+    "rule_available_before": true,
+    "evidence_available_before": false,
+    "detectable_without_answer_key": {"level": "partial", "signal": "A retrieved document has an end date ('until 2025-09-15') and the agent takes the governed action without any get_current_time call or date comparison."},
+    "claims": [],
+    "claim_after_first_mistake": null,
+    "situations": {
+      "FRAUD": {"present": false, "mishandled": null},
+      "TIMING": {"present": true, "mishandled": true},
+      "CALC": {"present": false, "mishandled": null},
+      "TRANSFER": {"present": true, "mishandled": false}
+    },
+    "notes": "At [16] and [26] the agent offered a human transfer, although doc 009 says not to transfer in these cases; it never actually transferred. It even repeated the 2025-09-15 cutoff to the customer at [26]."
+  },
+  {
+    "id": "xd9fabc",
+    "first_mistake": {"class": "RETRIEVAL", "i": 101, "description": "The agent never opened the tier-based debit replacement document (doc 029; it only appeared in a grep/INDEX listing at [5]). It ordered the Bluest (Elite-tier) replacement with STANDARD shipping and CLASSIC design, which it had proposed as free defaults at [82]. The customer had asked for 'the best option that's free with my account', and Elite tier gets RUSH shipping and PREMIUM design at $0. At [103] it also ordered the Light Green (Entry-tier) replacement right away, breaking the 48-hour wait after closure."},
+    "interpretation": "contested",
+    "rule_available_before": false,
+    "evidence_available_before": true,
+    "detectable_without_answer_key": {"level": "partial", "signal": "order_debit_card_5739 called with fee arguments although no document with the tier fee/wait table was retrieved; the tool description itself says fees must come from tier rules."},
+    "claims": [],
+    "claim_after_first_mistake": null,
+    "situations": {
+      "FRAUD": {"present": false, "mishandled": null},
+      "TIMING": {"present": true, "mishandled": true},
+      "CALC": {"present": true, "mishandled": false},
+      "TRANSFER": {"present": false, "mishandled": null}
+    },
+    "notes": "Marked contested because the customer explicitly accepted standard/classic after the agent framed it as the free default. The Light Green order at [103] is an unambiguous second error. Freeze, unfreeze, close, credit-card replacement and activation were otherwise correct."
+  },
+  {
+    "id": "xdeb975",
+    "first_mistake": {"class": "ARGUMENTS", "i": 76, "description": "In one parallel batch the agent tried to close both frozen cards (both failed) and ordered the Bluest replacement with STANDARD/CLASSIC. The customer had asked for the best free option, and the retrieved tier document (doc 029, used at [74]) gives Elite tier free RUSH and PREMIUM. Because the order went in before the old card was closed, the new card was also issued as first_card instead of a lost replacement. Later, at [92], it ordered the Light Green card immediately despite telling the customer about the 48-hour wait."},
+    "interpretation": "clear_violation",
+    "rule_available_before": true,
+    "evidence_available_before": true,
+    "detectable_without_answer_key": {"level": "partial", "signal": "order_debit_card_5739 issued in the same step as close_debit_card calls that returned errors (ordered while the existing card was not CLOSED); later a replacement order placed right after closure for an account the agent itself had said needs a 48-hour wait."},
+    "claims": [94],
+    "claim_after_first_mistake": true,
+    "situations": {
+      "FRAUD": {"present": false, "mishandled": null},
+      "TIMING": {"present": true, "mishandled": true},
+      "CALC": {"present": true, "mishandled": false},
+      "TRANSFER": {"present": false, "mishandled": null}
+    },
+    "notes": "At [94] the agent says the Light Green replacement was 'placed/scheduled per your instructions' and that the '48-hour wait was respected'. It was actually ordered immediately, and no scheduling action exists. The Bluest card was then activated with 8291 (new) because of the first_card issue reason."
+  },
+  {
+    "id": "xe24ad6",
+    "first_mistake": {"class": "RETRIEVAL", "i": 57, "description": "The agent never retrieved the cash-back dispute document (doc 003), which says to give the customer submit_cash_back_dispute_0589. Instead it edited rewards directly with update_transaction_rewards_3847, a tool documented (doc 004) only for disputes that are already resolved and approved; dispute history was empty. It also checked only 'closed cycles' and flagged one of several mis-rewarded transactions."},
+    "interpretation": "clear_violation",
+    "rule_available_before": false,
+    "evidence_available_before": true,
+    "detectable_without_answer_key": {"level": "partial", "signal": "A state-changing rewards update with no resolved dispute on record (get_user_dispute_history returned none) and no retrieved document that authorizes direct correction."},
+    "claims": [63],
+    "claim_after_first_mistake": true,
+    "situations": {
+      "FRAUD": {"present": false, "mishandled": null},
+      "TIMING": {"present": false, "mishandled": null},
+      "CALC": {"present": true, "mishandled": true},
+      "TRANSFER": {"present": false, "mishandled": null}
+    },
+    "notes": "At [63] the agent claims it 'opened a consolidated rewards review' / 'logged case' that is 'now logged and staffed'; no tool call created any review. It also raised the Sprouts and Seventh Generation rewards by 1 point each (562 to 563, 244 to 245), against the floor-rounding policy."
+  },
+  {
+    "id": "xf05ec6",
+    "first_mistake": {"class": "CALC", "i": 46, "description": "The agent applied an interest_correction credit of $100 based on an expected APY of 6.875%: base 5.5 + Green boost 0.75 + EcoCard 0.6 + Gold Rewards Card 0.025. Under the credit-card non-stacking policy only the highest card bonus (EcoCard 0.6) applies, giving 6.85% and $98. The discrepancy report at [48] repeats the wrong expected APY and amount."},
+    "interpretation": "contested",
+    "rule_available_before": true,
+    "evidence_available_before": true,
+    "detectable_without_answer_key": {"level": "partial", "signal": "Recompute the expected APY from retrieved tables: the agent's sum includes two credit-card bonuses although a retrieved/stated non-stacking rule allows only the highest."},
+    "claims": [],
+    "claim_after_first_mistake": null,
+    "situations": {
+      "FRAUD": {"present": false, "mishandled": null},
+      "TIMING": {"present": false, "mishandled": null},
+      "CALC": {"present": true, "mishandled": true},
+      "TRANSFER": {"present": true, "mishandled": false}
+    },
+    "notes": "Contested because doc 013 calls the Gold Rewards 0.025% a 'relationship bonus', and doc 045 lets relationship bonuses stack, but doc 014 lists it as a credit-card APY bonus. The agent applied the credit before the customer asked, then transferred for a 12-month archive review."
+  },
+  {
+    "id": "xfdaa1b",
+    "first_mistake": {"class": "RETRIEVAL", "i": 16, "description": "The agent gave the get_referral_link tool for the Business Gold Rewards Card right away, without reading that card's referral document. That document says referrals closed 2025-09-15 (current date 2025-11-14). Doc 009's pre-check, which the agent had retrieved, requires confirming the card's documented program and any reason it would be rejected."},
+    "interpretation": "clear_violation",
+    "rule_available_before": false,
+    "evidence_available_before": false,
+    "detectable_without_answer_key": {"level": "yes", "signal": "give_discoverable_user_tool(get_referral_link) for a card whose referral document was never opened in the conversation (only a truncated grep hit), despite a retrieved pre-check rule requiring it."},
+    "claims": [],
+    "claim_after_first_mistake": null,
+    "situations": {
+      "FRAUD": {"present": false, "mishandled": null},
+      "TIMING": {"present": true, "mishandled": true},
+      "CALC": {"present": false, "mishandled": null},
+      "TRANSFER": {"present": true, "mishandled": false}
+    },
+    "notes": "Earlier, at [14], the agent made up '1-800-RHO-BANK' and offered a human connection that doc 009 forbids; neither mattered because the customer moved on. The underlying failure is an expired program, as in xca115b."
+  },
+  {
+    "id": "xfe8540",
+    "first_mistake": {"class": "CALC", "i": 29, "description": "The agent told the customer she did not qualify for the Platinum annual-fee rebate, saying the 07/10–08/09/2025 window totaled $7,430.40, below the $7,500 monthly threshold. Per the task she qualifies, so the monthly posted-spend totals were computed wrongly. The customer then applied for the Silver Rewards Card instead of the Diamond Elite Card."},
+    "interpretation": "clear_violation",
+    "rule_available_before": true,
+    "evidence_available_before": true,
+    "detectable_without_answer_key": {"level": "partial", "signal": "Arithmetic check: recompute per-window sums from the get_credit_card_transactions_by_user output and compare with the totals the agent states."},
+    "claims": [],
+    "claim_after_first_mistake": null,
+    "situations": {
+      "FRAUD": {"present": false, "mishandled": null},
+      "TIMING": {"present": true, "mishandled": false},
+      "CALC": {"present": true, "mishandled": true},
+      "TRANSFER": {"present": false, "mishandled": null}
+    },
+    "notes": "The stored tool output at [28] is truncated, so the exact arithmetic error could not be re-derived; the window boundaries (10th to 9th) look correct. Afterwards the agent walked the customer through a made-up application form and portal UI."
+  }
+]

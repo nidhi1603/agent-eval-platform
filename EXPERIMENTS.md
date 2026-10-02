@@ -876,3 +876,26 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
   - The task_004 cases were safely stopped at verification, but their transfers used the wrong reason code.
   - P001 stays "compatible in six treatment conversations; recovery untested".
 - **Tests:** 468 passed, 14 expected failures.
+
+### Where failed conversations first go wrong: offline tally (2026-10-01, $0)
+
+- **Corpus:** 79 failed conversations from H008, H009 and P001. Two independent readers each labelled all 79 (56 from the H008/H009 audits, 23 read in full). Instructions were fixed before reading.
+- **Agreement:** the readers agree on the first-mistake class in 60 of 79. 8 differences are the act-versus-root-cause split between TRANSFER and RETRIEVAL.
+- **Unsupported completion claims are not the first failure.** They appear in 21-23 failed conversations, but come after an earlier consequential mistake in all but one.
+- **Recurring first mistakes (conversations / tasks):**
+  - cash-back "who acts": 12 / 2;
+  - credit-limit request left pending: 8 / 1;
+  - closure without retention: 8 / 1;
+  - invented procedure: 8 / 1;
+  - transfer reason code or transfer instead of acting: 8 / 4;
+  - wrong computed amount: 8 / 4;
+  - expired referral program: 6 / 1;
+  - required tool unused: 4 / 2;
+  - fraud alert cleared: 2 / 1.
+- **Transfer check (answer key used for analysis only):** 0 of 15 transfer-expected conversations used the expected reason code, and 20 transferred where no transfer was expected.
+- **Availability:** in the 16 agreed policy-step failures, the rule and the evidence were both already in context, so this is a knowledge-to-action gap. Few first mistakes are fully detectable without the answer key.
+- **Suggestion (for review, nothing built):**
+  1. Transfer decisions first: the most cross-cutting failure, partly checkable against the knowledge base's reason-code tiers.
+  2. Procedure completion: the largest by conversations but concentrated in 4 tasks; v2's checklist gave no benefit in H002.
+  3. Claims, fraud and waiting periods are not first failures here.
+- Findings: `research/post_verification/FINDINGS.md`.
