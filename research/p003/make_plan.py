@@ -99,7 +99,14 @@ def main():
         "arms": {"control": "the held transfer's tool result is the re-check REQUEST", "treatment": "the same REQUEST plus doc 042's full text (title and tier table)"},
         "why_a_control": "separates providing the document from merely asking again (review)",
         "component_tested": ("reason-code re-check at EVERY proposed transfer: the transfer is held once and the agent gets the re-check request "
-                             "with doc 042's text, whether or not the document is already in context (amendment 3)"),
+                             "with doc 042's text, whether or not the document is already in context (amendment 3). BOUNDED: a pending "
+                             "transfer is reconsidered ONCE; the reissued transfer is then handled normally, never held again "
+                             "(clarification, second review). The probe tests only the first, held proposal."),
+        "answer_key_boundary": ("the target code, the task identity and the grading requirements are used only in scoring and in the "
+                                "preflight check; they never enter either arm's model input (the request text and doc 042 are fixed and "
+                                "identical across cases) and would not determine runtime behaviour. The targets are the readers' "
+                                "policy-derived codes; preflight only CHECKS that they equal the graded code (all 9 do) and does not "
+                                "replace any."),
         "selection_rule": ("transfer calls with a policy-CLEAR code (both readers, or the adjudicator, agree it is right or wrong and agree the "
                            "applicable code); one case per conversation (its first such call); only tasks whose tau2 grade compares the "
                            "transfer's reason. From research/transfers/ (two blind readers + adjudication, no answer key)."),
@@ -138,8 +145,12 @@ def main():
                           "anomalies per arm (multiple transfer calls, other tool calls)",
                           "per case and per task",
                           "document-ABSENT cases separately (the 'insert only when absent' variant's reach) and document-PRESENT cases separately"],
-        "limits": (f"a selected next decision, not full conversations; {len(cases)} cases from 2 tasks, "
-                   f"{sum(c['task_id'] == 'task_004' for c in cases)} of them task_004; development data; 3 samples per arm."),
+        "limits": (f"a narrow, benchmark-focused development test: a selected next decision, not full conversations; {len(cases)} "
+                   f"cases from 2 tasks, {sum(c['task_id'] == 'task_004' for c in cases)} of them task_004, and all originally-wrong "
+                   "cases are task_004; development data; 3 samples per arm. A pass shows promise on this error pattern, not general "
+                   "transfer improvement. Nothing is executed: a correct code is a PROPOSED action, so even a pass shows neither a "
+                   "successful transfer nor a higher official reward (the full-conversation comparison would). A tie (G2) is a no-go "
+                   "for this document-assisted component, not evidence that reconsideration itself is useless."),
         "forecast_usd": {"basis": "the source runs' largest agent inputs sum to about 258k tokens over these cases; 54 samples at gpt-5-mini prices, plus up to a few thousand reasoning tokens each",
                          "expected": "an estimate awaiting evidence: about $0.30-0.65 billed"},
         "budget_usd_total": 1.0,
@@ -148,8 +159,9 @@ def main():
         "amendments_before_spend": [
             {"n": 1, "from": "74a4887 froze 20 cases (11 wrong / 9 right), 120 samples",
              "to": "only cases on tasks whose grade compares the reason (task_004, task_012)",
-             "why": ("review: task_035's target is inferred and ungraded (compare_args []). The same holds for task_019 and task_047, "
-                     "whose grade has no transfer at all (reward basis DB), so their 3 cases are excluded on the same ground")},
+             "why": ("review: task_035's target is inferred and ungraded (compare_args []). task_019 and task_047's grade has no "
+                     "transfer at all (reward basis DB): excluded for LIMITED BENCHMARK RELEVANCE to the score objective, not because "
+                     "a policy target is invalid whenever the benchmark ignores it")},
             {"n": 2, "from": "majority of 3, gate on 'fixes'",
              "to": "case criterion 2 of 3 with exact integer thresholds; samples reported too; G1 worded as 'treatment gets ... right' (the control carries the causal comparison); G3 is a case criterion, not 'no regressions'",
              "why": "review"},
@@ -162,6 +174,7 @@ def main():
                      "testing the variant whose deployment-relevant set is every graded transfer. In document-present cases this tests "
                      "renewed attention, not missing information.")},
             {"n": 4, "from": "first transfer call scored only", "to": "multiple transfer calls and other tool calls recorded as anomalies", "why": "review"},
+            {"n": 5, "from": "-", "to": "clarifications only (second review, accepted): bounded once-per-transfer reconsideration; answer-key boundary; narrow-scope and proposed-action limits; tie = no-go for this component", "why": "review; no change to cases, arms, scoring or gate"},
         ],
     }
     (ROOT / "experiments" / "P003_plan.json").write_text(json.dumps(plan, indent=1) + "\n")
