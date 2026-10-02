@@ -48,4 +48,4 @@ Files: `p004_baseline.py`, `p004_baseline.json`.
 
 ## Decision (review, 2026-10-02)
 
-Package the project and pause experiments. The proposed feasibility check would only test whether search FINDS a document. The existing evidence (H008) already shows that finding a document does not reliably lead to using it correctly. So passing "8 of 13" would leave the main uncertainty unresolved. No retrieval candidate is built.
+Package the project and pause experiments. The proposed feasibility check would only test whether search FINDS a document. In H008, increased document availability did not translate into better completion in that combined configuration. So passing "8 of 13" would not resolve whether the agent would apply the procedure; finding and applying may both remain bottlenecks. No retrieval candidate is built.

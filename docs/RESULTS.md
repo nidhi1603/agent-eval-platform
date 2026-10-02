@@ -4,7 +4,7 @@ gpt-5-mini on τ-Knowledge `banking_knowledge` (tau2-bench v1.0.1, pinned), deve
 
 **Bottom line:**
 - Several components changed the behaviour they targeted in local tests.
-- None produced a validated gain in completed tasks over tau2's standard agent in full conversations.
+- No intervention demonstrated an overall completion improvement over tau2's standard agent in the full-conversation comparisons. The small samples cannot show that any intervention has zero effect.
 - The project's value is its evaluation engineering and evidence, not a better banking agent.
 
 How to read the tables:
@@ -25,14 +25,14 @@ How to read the tables:
 | H003 | standard agent, medium reasoning (calibration) | 5 × 1 | 1 / 5 | settings kept for later runs | $0.83 UB |
 | H004 | harness v1 vs v1 + dependency search | 10 × 2 (19 complete pairs) | 2 vs 3 | INCOMPLETE; gate not met (+1 < +4); write-safety screen failed under the adjudicated reading (violations 8 → 20) | $9.86 UB |
 | H005 | standard vs harness v1, `alltools` | stopped early | descriptive only | stopped: the per-run cap on the upper bound cut off the longer arm. This led to billed accounting | $3.49 UB (≈ $1.16 billed) |
-| H008 | standard vs harness v3.1 (capability search + once-only transfer hold) | 12 × 2 (22 complete pairs) | **5 vs 8** | gate not met: +3 < +5; tasks improved minus regressed +1; write safety worse (3 violations in 2 conversations vs 11 in 7, corrected) | $4.00 billed |
+| H008 | standard vs harness v3.1 (capability search + once-only transfer hold) | 12 × 2 (22 complete pairs) | **5 vs 8** (of 22 completed matched pairs) | gate not met: +3 < +5; tasks improved minus regressed +1. Write-policy audit (a different subset: every conversation with an executed write, plus both conversations of each pair whose outcomes differ), corrected: 3 violations in 2 standard conversations vs 11 in 7 harness conversations | $4.00 billed |
 | H009 | v3.1 with full vs read-only automatic tool exposure (harness vs harness) | 12 × 2 | 9 vs 6 | (c) mixed or inconclusive (corrected): fewer violations came with fewer passes | $4.24 billed |
 | P001 | v3.2 vs v3.2 + identity-disclosure check | 6 × 1 | 0 vs 0 | INCONCLUSIVE_ON_RECOVERY: the check never fired; 0 covered disclosures in either arm | $1.26 billed |
 | P004 | standard vs standard + transfer reason-code re-check | 30 × 1 | **3 vs 3** | STOP, after a disclosed infrastructure-related rerun amendment; the component was closed | $6.01 accounted (billed + $0.38 allowance) |
 
-Two closest calls, neither established:
-- **H008 (+3, 8 vs 5):** the gain came from transfer tasks (5 vs 0), while database tasks regressed (3 vs 5) with more write-policy violations.
-- **P004:** the one score-relevant chance for the component (task_004) was not corrected live.
+Notes:
+- **H008** recorded 8 of 22 passes with the harness vs 5 of 22 with the standard agent, on completed matched pairs. It did not meet the predefined gate. By stratum: transfer tasks 5 vs 0, database tasks 3 vs 5. The corrected audit found 11 policy violations across 7 harness conversations, vs 3 across 2 standard-agent conversations.
+- **P004:** the component's one score-relevant opportunity (task_004) was not corrected live.
 
 ## 2. Targeted tests: local effects on the behaviour each component aimed at
 
@@ -57,7 +57,7 @@ Two closest calls, neither established:
 **The recurring pattern:**
 - The targeted behaviour moved: fewer transfers and denials, more tool use, no false claims, more documents retrieved, better codes in replay.
 - Completed tasks did not.
-- Each fix exposed the next bottleneck, most often acting correctly on a document already in context.
+- Repeatedly, the remaining failures involved acting on documents already in context: in 16 agreed policy-step failures, the rule and the evidence were both available. Finding procedures and applying them may both remain bottlenecks.
 
 ## 3. Measurement and harness defects found and fixed
 
@@ -85,7 +85,8 @@ These are the evaluation engineering results. Each was caught by a control, an a
 |---|---|---|
 | S001–D003 (phase 1) | upper bound | $2.26 |
 | H002–H005 | upper bound | $23.67 (H005 ≈ $1.16 billed) |
-| D004–P004 | billed (P004 accounted) | $16.52 |
+| D004–P004 | billed | $16.14 |
+| P004's two operator-stopped conversations | conservatively accounted (unresolved calls at full reservation) | $0.38 |
 
 Units differ, so these are not summed. Every paid run had an explicit approval with its amount, recorded before the run.
 

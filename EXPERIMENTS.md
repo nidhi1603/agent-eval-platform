@@ -1049,7 +1049,7 @@ Second review of the frozen plan:
 
 ### Packaged; experiments paused (2026-10-02, $0)
 
-- **Decision (review):** package now and pause experiments. No retrieval candidate is built. A search-feasibility check would test finding documents, which H008 already showed is not the main uncertainty: the open question is using them.
+- **Decision (review):** package now and pause experiments. No retrieval candidate is built. A search-feasibility check would test finding documents. In H008, more document availability did not translate into better completion, so the check would not resolve whether the agent applies them.
 - **Wording (review):** "missing required documents recur" (absence, not cause). For the 3 failures that had every document: "missing required documents do not explain those three failures".
 - **Deliverables:**
   - `README.md` rewritten around the evaluation harness, with its result, how to run it and its limits;
@@ -1057,3 +1057,13 @@ Second review of the frozen plan:
   - `docs/REPORT.md`: hypotheses, findings and decisions to stop;
   - `make demo-provenance` (`bench/demo_provenance.py`, tested): the intercepted-draft verification bug and its fix, end to end on a scripted conversation, offline, $0.
 - **Tests:** 484 passed, 14 expected failures.
+
+#### Final editorial pass (review; package frozen for sharing)
+
+- The README now opens with what the system does and the demo, then states the result: local behavioural improvements, no established overall completion gain.
+- H008 is stated with explicit denominators: 8 of 22 vs 5 of 22 on completed matched pairs, gate not met. The audit subset is stated separately: 11 violations in 7 harness conversations vs 3 in 2.
+- "No intervention demonstrated an overall completion improvement" replaces "none improved completion".
+- H008 is not described as settling retrieval: finding and applying procedures may both remain bottlenecks.
+- The demo's scope is stated: scripted behaviour and regression fix only.
+- Spend separates billed ($16.14) from the conservative allowance ($0.38).
+- No further revisions are planned.

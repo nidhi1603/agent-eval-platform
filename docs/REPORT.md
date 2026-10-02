@@ -11,7 +11,8 @@ Nidhi Rajani, October 2026.
 **Answer, on this evidence: not shown.**
 - Ten full-conversation batches were run under frozen plans: eight comparisons and two baselines or calibrations.
 - Several components moved the behaviour they targeted in local tests.
-- None produced a gain in completed tasks that met its pre-registered rule. The closest, harness v3.1 in H008 (8 vs 5 of 22 pairs), came with more write-policy violations and did not meet the gate.
+- No intervention demonstrated an overall completion improvement in the full-conversation comparisons; the samples cannot show zero effect either.
+- H008 recorded 8 of 22 passes with harness v3.1 vs 5 of 22 with the standard agent, on completed matched pairs, and did not meet the predefined gate. Its corrected audit found 11 policy violations across 7 harness conversations, vs 3 across 2 standard-agent conversations.
 - The engineering produced is reusable:
   - a pinned, audited evaluation runner;
   - spend control;
@@ -55,7 +56,7 @@ Nidhi Rajani, October 2026.
   - false transfer claims 26 of 27 → 2 of 27 after a wording fix.
 - **Passes did not follow.** H002 gave 0 vs 1 vs 0 of 20, and H004 2 vs 3 of 19.
 - **Violations grew** with tools in reach: dependency search took violations from 8 to 20 (adjudicated). v3.1 had 11 in 7 conversations against the standard agent's 3 in 2.
-- **The pattern:** each fix moved the bottleneck to acting correctly on a document already in context. In 16 agreed policy-step failures, the rule and the evidence were both already available.
+- **The pattern:** repeatedly, the remaining failures involved acting on documents already in context. In 16 agreed policy-step failures, the rule and the evidence were both available. Finding and applying procedures may both remain bottlenecks.
 
 **Phase 2b: verification and disclosure safety (v3.2, D005, P001, P002).**
 - **Hypothesis:** holding unsupported verifications prevents echo verifications.
@@ -74,14 +75,14 @@ Nidhi Rajani, October 2026.
 ## Why I stopped
 
 1. **Reach.** P004's component could directly affect only 2 of 30 tasks' scores, and it met one live opportunity. A successful correction would still have had a ceiling of 2 passes. Choosing a target by its tractability rather than its reach was the main design error of the last cycle.
-2. **The next obvious candidate has prior negative evidence.** In P004's fresh failures, 13 of 27 transferred where the reference has no transfer, on 13 tasks, with required documents unread. But H008 had already shown that retrieving such documents for the agent did not make it use them: the lookup tool was offered in 16 conversations and called in 6. A cheap check that search can find the document would leave that main uncertainty unresolved.
+2. **The next obvious candidate has prior negative evidence.** In P004's fresh failures, 13 of 27 transferred where the reference has no transfer, on 13 tasks, with required documents unread. But in H008, increased document availability did not translate into better completion in that combined configuration: the lookup tool was offered in 16 conversations and called in 6. A cheap check that search can find the document would not resolve whether the agent would apply it.
 3. **Power.** With one conversation per task, an identical copy of the agent comes out at least one pass ahead in about 42% of simulated runs. That figure is conditional on the estimated per-task pass rates. Detecting a component with a small ceiling needs many more trials than this budget supports.
 
 ## What I would do differently
 
 - **Choose interventions by reach first.** How many tasks, and how many conversations per task, could the change affect? Then by mechanism.
 - **Estimate power before building.** Use the noise simulation to decide whether a full-conversation screen can detect the component's maximum plausible effect at all.
-- **Test "acting on what is in context" directly**, rather than adding more retrieval. That was the bottleneck most of the evidence pointed to.
+- **Test "acting on what is in context" directly**, alongside retrieval: much of the evidence pointed to applying procedures, not only finding them.
 - **Plan long runs for the tooling's time limits**, with resumable batches from the start.
 
 ## Limits
@@ -95,5 +96,5 @@ Nidhi Rajani, October 2026.
 
 - `make test`: the test suite, offline.
 - `make demo`: the phase-1 deterministic checks, and the saved results.
-- `make demo-provenance`: the delivered-message vs intercepted-draft verification bug and its fix, end to end on a scripted conversation ($0, offline).
+- `make demo-provenance`: the delivered-message vs intercepted-draft verification bug and its fix, end to end on a scripted conversation ($0, offline). It proves the scripted behaviour and the regression fix. It does not demonstrate general identity-verification security or live recovery reliability; its value is making a subtle state-tracking defect reproducible.
 - Every plan, result, journal and findings file is under `experiments/`. Analyses are under `research/`. The chronological log is `EXPERIMENTS.md`.

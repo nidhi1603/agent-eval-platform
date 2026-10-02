@@ -1,15 +1,21 @@
 # Agent Eval Platform
 
-A reproducible evaluation harness for LLM support agents on Sierra's τ-Knowledge banking benchmark (tau2-bench v1.0.1, pinned). It was used to test whether harness components can make the same model (gpt-5-mini) complete more banking tasks than tau2's standard agent.
+An evaluation platform and runtime harness for tool-using banking agents, on Sierra's τ-Knowledge benchmark (tau2-bench v1.0.1, pinned). It supports:
+- budget-controlled experiments;
+- conversation replay;
+- checks before tool execution;
+- evidence tracking that distinguishes customer-visible messages from intercepted model drafts.
 
-**Result, stated plainly:**
-- Several components changed the behaviour they targeted in local tests.
-- None produced a validated gain in completed tasks in full conversations.
-- The value here is the evaluation engineering and the evidence, not a better banking agent.
+**Try it first:** `make demo-provenance` reproduces a verification bug and its fix, offline and at no cost. An intercepted draft incorrectly invalidates information the customer later supplies independently. The demo proves the scripted behaviour and the regression fix. It is not a demonstration of general identity-verification security or live recovery reliability.
+
+**Results:**
+- The experiments produced local behavioural improvements.
+- They have not established an overall task-completion gain over tau2's standard agent (gpt-5-mini, same model in both arms).
+- The record includes negative findings, corrected measurements and disclosed protocol deviations.
 
 | Read | For |
 |---|---|
-| [docs/RESULTS.md](docs/RESULTS.md) | every experiment side by side: full-conversation comparisons, targeted tests, 13 measurement defects found and fixed, spend |
+| [docs/RESULTS.md](docs/RESULTS.md) | every experiment side by side: full-conversation comparisons, targeted tests, 13 measurement or harness defects found and fixed, spend (billed and conservatively accounted kept apart) |
 | [docs/REPORT.md](docs/REPORT.md) | the technical report: hypotheses, findings, and why each line was stopped |
 | [docs/WRITEUP.md](docs/WRITEUP.md) | phase 1 in detail (instructions and diagnostics) |
 | [EXPERIMENTS.md](EXPERIMENTS.md) | the chronological log, including each review's corrections |
@@ -34,9 +40,9 @@ A reproducible evaluation harness for LLM support agents on Sierra's τ-Knowledg
 Requires [uv](https://docs.astral.sh/uv/) and the pinned tau2-bench data (see `bench/pins.py`).
 
 ```bash
+make demo-provenance    # the intercepted-draft verification bug and its fix, end to end on a scripted conversation; offline, $0
 make test               # the test suite, offline
 make demo               # deterministic checks (benchmark exposure and fix, a failure end to end) and saved results; offline, $0
-make demo-provenance    # the intercepted-draft verification bug and its fix, end to end on a scripted conversation; offline, $0
 ```
 
 A live conversation or a batch needs an OpenAI key in `.env`. It runs only under an explicit budget:

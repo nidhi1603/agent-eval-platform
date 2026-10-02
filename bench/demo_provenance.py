@@ -87,6 +87,8 @@ def main() -> int:
     print("\nOld rule: the customer's own date of birth was refused as evidence, so a valid verification was held.")
     print("Fixed rule: the leak is still intercepted, and the customer's independent evidence counts.")
     print("Regression tests: tests/test_identity_disclosure.py (fail under the old rule).")
+    print("Scope: this proves the scripted behaviour and the regression fix; it does not demonstrate general")
+    print("identity-verification security or live recovery reliability.")
     print("\nDEMO", "OK" if ok else "DID NOT REPRODUCE")
     return 0 if ok else 1
 
