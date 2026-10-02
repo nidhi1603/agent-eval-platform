@@ -1,6 +1,8 @@
 # Evaluating a banking support agent on τ-Knowledge: what I built, found and stopped
 
 Nidhi Rajani, September 2026.
+
+> **Phase 1 only.** Phase 2 (A001–P004) and the decision to pause are in [REPORT.md](REPORT.md); every experiment is tabulated in [RESULTS.md](RESULTS.md).
 - **Authorship.** Implementation was AI-assisted (Claude Code). A second model (ChatGPT, acting as tech lead) reviewed each stage. Research direction, every spending approval and every decision to publish were mine.
 - **Reproduce it.** After installing dependencies and the pinned benchmark data, `make demo` reproduces selected deterministic checks and displays saved experimental results, with no model calls or API spend. It runs offline: it makes no network connection. It does not regenerate the stochastic model outputs; those are the saved traces.
 - **Spend.** The live runs cost **$2.26** in usage-based estimates (list prices; not reconciled with the provider).

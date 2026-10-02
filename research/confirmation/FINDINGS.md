@@ -3,7 +3,7 @@
 **Scope.** The 27 baseline conversations in P004 that failed. The pass answers the review's three questions mechanically: which of each task's required documents reached the model, from the agent's own view (`bench/kb_evidence.py`, full or partial). Required documents and reference actions are used only to score.
 **Caveat.** These are new conversations on familiar development tasks, not independent validation data. No reading or labelling was done.
 
-## 1. Do missing-procedure failures recur? Mechanically, yes; but "missing" is broad
+## 1. Missing required documents recur (absence only, not the cause of failure)
 
 - **24 of 27** failed conversations never reached at least one required document.
 - Required-document lists are long (up to 21 per task), so "some document missing" is nearly universal and is NOT evidence of cause.
@@ -21,7 +21,7 @@
 
 ## 2. Procedures available, yet failed (abandonment or misapplication)
 
-**3 of 27** (task_015, task_041, task_066) reached every required document and still failed. Retrieval cannot address these.
+**3 of 27** (task_015, task_041, task_066) reached every required document and still failed. Missing required documents do not explain these three failures. Having the documents does not establish that their relevant instructions were understood or applied.
 
 ## 3. Reach
 
@@ -45,3 +45,7 @@ H008 already tested "retrieve before giving up": harness v3.1's capability searc
 - A new candidate here would need a credible reason to succeed where v3.1 did not. At minimum, a $0 feasibility check: from conversation evidence alone (the customer's request before the transfer), does retrieval surface the missing governing procedure in most of the 13?
 
 Files: `p004_baseline.py`, `p004_baseline.json`.
+
+## Decision (review, 2026-10-02)
+
+Package the project and pause experiments. The proposed feasibility check would only test whether search FINDS a document. The existing evidence (H008) already shows that finding a document does not reliably lead to using it correctly. So passing "8 of 13" would leave the main uncertainty unresolved. No retrieval candidate is built.

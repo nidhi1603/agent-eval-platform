@@ -1046,3 +1046,14 @@ Second review of the frozen plan:
 - $6.01 is the total accounted cost, including the $0.38 allowance; treatment spend at most $2.98 vs $3.03.
 - C5 was vacuous (no writes after a hold). "Unwanted transfers" is renamed: these transfers were not policy-reviewed.
 - The reason-code transfer component is CLOSED: no more spending on it, and no broader performance claim.
+
+### Packaged; experiments paused (2026-10-02, $0)
+
+- **Decision (review):** package now and pause experiments. No retrieval candidate is built. A search-feasibility check would test finding documents, which H008 already showed is not the main uncertainty: the open question is using them.
+- **Wording (review):** "missing required documents recur" (absence, not cause). For the 3 failures that had every document: "missing required documents do not explain those three failures".
+- **Deliverables:**
+  - `README.md` rewritten around the evaluation harness, with its result, how to run it and its limits;
+  - `docs/RESULTS.md`: every experiment side by side, 13 defects found and fixed, spend by unit;
+  - `docs/REPORT.md`: hypotheses, findings and decisions to stop;
+  - `make demo-provenance` (`bench/demo_provenance.py`, tested): the intercepted-draft verification bug and its fix, end to end on a scripted conversation, offline, $0.
+- **Tests:** 484 passed, 14 expected failures.

@@ -3,7 +3,7 @@ RELEASE := aep
 IMAGE   := agent-eval:dev
 CHART   := deploy/helm/agent-eval
 
-.PHONY: test cluster image load deploy up smoke logs down bench-mock demo
+.PHONY: test cluster image load deploy up smoke logs down bench-mock demo demo-provenance
 
 test:
 	uv run pytest -q
@@ -16,6 +16,9 @@ bench-mock:
 # The project's evidence trail from saved artifacts: pins, benchmark exposure, one failure end to end, results. $0.
 demo:
 	uv run --extra bench python -m bench.demo
+
+demo-provenance:
+	uv run --extra bench python -m bench.demo_provenance
 
 cluster:
 	kind get clusters | grep -qx $(CLUSTER) || kind create cluster --config deploy/kind/cluster.yaml
