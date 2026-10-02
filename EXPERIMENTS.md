@@ -945,3 +945,21 @@ Rules: [docs/RESEARCH_PROTOCOL.md](docs/RESEARCH_PROTOCOL.md). Failed ideas stay
 - **Reconstruction:** all 20 cases pass. Their history and tool list match the original call that proposed the transfer. This reuses D005's offered-tool and capability-draft alignment, needed for the H009 exposure arms.
 - **Budget:** $2.00, forecast $0.60-1.40 (an estimate). Needs "run P003 with $2.00".
 - **Tests:** 472 passed, 14 expected failures.
+
+### P003 amended before any spend (2026-10-02, $0; NOT run)
+
+Second review of the frozen plan. All changes were made before any paid call; the plan records them under `amendments_before_spend`.
+- **Cases: only tasks whose grade checks the reason code.** The review dropped task_035, whose target was inferred and is ungraded (compare_args `[]`). The same ground applies to task_019 and task_047: their grade has no transfer at all (reward basis DB). So 11 cases are excluded and listed, leaving **9 cases: 4 originally wrong, 5 originally right** (task_004 ×7, task_012 ×2), 54 samples.
+  - Every target now equals the code the task's grade requires; preflight checks it.
+  - In both tasks the grade is that single transfer action, so in these conversations the right code is the reward once the transfer is made.
+- **Document exposure:** 2 cases document-absent (both originally wrong), 7 document-present (2 wrong, 5 right).
+  - The review asked for the gate on document-absent cases, the relevant set for an "insert only when absent" component. With 2 cases and no originally right case, that gate cannot test G3 or decide anything.
+  - 2 of the 4 graded wrong codes were chosen with the document in context, so an absent-only trigger could reach only half the graded failures.
+  - **The component under test is therefore a re-check with doc 042 at every proposed transfer**, gated on all 9 cases. Absent and present cases are reported separately; in present cases the probe tests renewed attention, not missing information. The sample was not expanded.
+- **Gate, exact integers** (case criterion: at least 2 of 3 samples right):
+  - G1: treatment gets at least 2 of the 4 originally wrong cases right;
+  - G2: treatment gets more of the 9 cases right than control;
+  - G3: 0 of the 5 originally right cases fail the criterion under treatment. This is not "no regressions": single wrong samples are reported separately.
+- **Scoring:** the first transfer call's code is still the primary outcome, described as reason-code selection only. Multiple transfer calls and other tool calls are recorded as anomalies.
+- **Budget:** $1.00, forecast $0.30-0.65 (an estimate). Needs "run P003 with $1.00".
+- **Tests:** 473 passed, 14 expected failures.

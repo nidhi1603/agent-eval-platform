@@ -16,9 +16,10 @@ agent itself received (bench.continuation.agent_visible). Reconstruction is chec
 messages align one-to-one with the original run's agent calls, and the tool list hashes to the tools_sha256 the
 ledger recorded for the call that proposed the transfer.
 
-Score per sample: the first transfer_to_human_agents call's `reason`. CORRECT if it equals the case's policy target
-(the readers' adjudicated applicable code); a missing transfer call, an invalid code or a text-only reply is a
-failure. Cases are selected development decisions, not a rate estimate.
+Score per sample: the first transfer_to_human_agents call's `reason`. CORRECT if it equals the case's target (the code
+the task's tau2 grade requires, which the readers' adjudicated applicable code matches); a missing transfer call, an
+invalid code or a text-only reply is a failure. Multiple transfer calls and other tool calls are recorded as anomalies.
+The outcome is reason-code selection only. Cases are selected development decisions, not a rate estimate.
 
     uv run --extra bench python -m bench.code_probe experiments/P003_plan.json --approved-usd X
 """
@@ -61,13 +62,19 @@ def feedback(arm: str) -> str:
 
 
 def score(reply: dict, target: str, codes: set[str]) -> dict:
-    calls = [c for c in reply.get("tool_calls") or [] if c["name"] == TRANSFER]
+    """The primary outcome is the FIRST transfer call's code. Anomalies (more than one transfer call, any other tool
+    call) are recorded so that a correct first code cannot hide a problematic reply; they do not change the score."""
+    all_calls = reply.get("tool_calls") or []
+    calls = [c for c in all_calls if c["name"] == TRANSFER]
+    anomalies = {"transfer_calls": len(calls), "transfer_reasons": [(c.get("arguments") or {}).get("reason") for c in calls],
+                 "other_tool_calls": [c["name"] for c in all_calls if c["name"] != TRANSFER]}
+    anomalies["anomalous"] = len(calls) > 1 or bool(anomalies["other_tool_calls"])
     if not calls:
-        return {"reason": None, "outcome": "no_transfer_call", "correct": False}
+        return {"reason": None, "outcome": "no_transfer_call", "correct": False, **anomalies}
     reason = (calls[0].get("arguments") or {}).get("reason")
     if reason not in codes:
-        return {"reason": reason, "outcome": "invalid_code", "correct": False}
-    return {"reason": reason, "outcome": "transfer_call", "correct": reason == target}
+        return {"reason": reason, "outcome": "invalid_code", "correct": False, **anomalies}
+    return {"reason": reason, "outcome": "transfer_call", "correct": reason == target, **anomalies}
 
 
 class Case:
@@ -207,6 +214,16 @@ def probe(case: Case, arm: str, model: str, llm_args: dict, target: str, codes: 
     return {"reply_text": reply.get("content"), "reply_tool_calls": reply.get("tool_calls") or [], **score(reply, target, codes)}
 
 
+def graded_reason(task_id: str) -> str | None:
+    """The reason the task's tau2 grade requires: its reference transfer action's reason, when the action compares it."""
+    from tau2.runner.helpers import get_tasks
+
+    for a in get_tasks(pins.DOMAIN, task_ids=[task_id])[0].evaluation_criteria.actions or []:
+        if a.name == TRANSFER and (a.compare_args is None or "reason" in a.compare_args):
+            return a.arguments.get("reason")
+    return None
+
+
 def preflight(plan: dict, approved_usd: float):
     if plan.get("budget_usd_total") is None or abs(approved_usd - plan["budget_usd_total"]) > 1e-9:
         raise PlanError(f"approved ${approved_usd} does not match the plan's ${plan.get('budget_usd_total')}")
@@ -223,6 +240,8 @@ def preflight(plan: dict, approved_usd: float):
             raise PlanError(f"case {spec['id']}: source trace missing or changed")
         if spec["target"] not in codes:
             raise PlanError(f"case {spec['id']}: target {spec['target']!r} is not a code in the tier document")
+        if graded_reason(spec["task_id"]) != spec["target"]:
+            raise PlanError(f"case {spec['id']}: target {spec['target']!r} is not the reason the task's grade requires")
         c = Case(spec)
         bad = [k for k, ok in c.checks().items() if not ok]
         if bad:
@@ -235,36 +254,62 @@ def preflight(plan: dict, approved_usd: float):
              "benchmark": pins.verify_benchmark(), "provenance": pins.provenance()}, cases, codes)
 
 
+def _case_correct(n_correct: int, n: int) -> bool | None:
+    """The case criterion: correct in at least 2 of 3 samples (a strict majority)."""
+    return n_correct * 2 > n if n else None
+
+
 def summarize(rows: list[dict], plan: dict) -> dict:
-    """Case level: a case is CORRECT in an arm when a majority of its samples are correct (failures count as wrong)."""
+    """Case level: a case is CORRECT in an arm when a majority (2 of 3) of its samples are correct (failures count as
+    wrong). The gate's integer thresholds come from the frozen plan. Every sample is also reported."""
     done = [r for r in rows if r.get("status") == "done"]
     per = {}
     for spec in plan["cases"]:
         cid = spec["id"]
         per[cid] = {"originally": "correct" if spec["originally_correct"] else "wrong", "task": spec["task_id"],
-                    "target": spec["target"], "original_code": spec["original_code"]}
+                    "exposure": spec.get("tier_doc_exposure"), "target": spec["target"], "original_code": spec["original_code"]}
         for arm in ARMS:
             xs = [r for r in done if r["case"] == cid and r["arm"] == arm]
-            per[cid][arm] = {"correct_samples": sum(r["correct"] for r in xs), "samples": len(xs),
-                             "majority_correct": sum(r["correct"] for r in xs) * 2 > len(xs) if xs else None,
-                             "codes": [r.get("reason") or r["outcome"] for r in xs]}
-    wrong = [c for c, v in per.items() if v["originally"] == "wrong"]
-    right = [c for c, v in per.items() if v["originally"] == "correct"]
-    t_fix = sum(per[c]["treatment"]["majority_correct"] is True for c in wrong)
-    t_all = sum(per[c]["treatment"]["majority_correct"] is True for c in per)
-    c_all = sum(per[c]["control"]["majority_correct"] is True for c in per)
-    t_break = [c for c in right if per[c]["treatment"]["majority_correct"] is not True]
-    gate = {"G1_treatment_corrects_at_least_half_of_originally_wrong": f"{t_fix} of {len(wrong)}",
-            "G1_met": t_fix * 2 >= len(wrong),
-            "G2_treatment_more_correct_cases_than_control": f"{t_all} vs {c_all}", "G2_met": t_all > c_all,
-            "G3_no_originally_correct_case_incorrect_under_treatment": t_break, "G3_met": not t_break}
-    complete = all(per[c][arm]["samples"] == plan["samples_per_arm"] for c in per for arm in ARMS)
+            k = sum(r["correct"] for r in xs)
+            per[cid][arm] = {"correct_samples": k, "samples": len(xs), "case_correct": _case_correct(k, len(xs)),
+                             "codes": [r.get("reason") or r["outcome"] for r in xs],
+                             "anomalous_samples": sum(bool(r.get("anomalous")) for r in xs)}
+
+    def tally(ids):
+        wrong = [c for c in ids if per[c]["originally"] == "wrong"]
+        right = [c for c in ids if per[c]["originally"] == "correct"]
+        return {"cases": len(ids), "originally_wrong": len(wrong), "originally_correct": len(right),
+                **{arm: {"right_of_originally_wrong": sum(per[c][arm]["case_correct"] is True for c in wrong),
+                         "right_of_all": sum(per[c][arm]["case_correct"] is True for c in ids),
+                         "originally_correct_failing": [c for c in right if per[c][arm]["case_correct"] is not True]}
+                   for arm in ARMS}}
+
+    g = plan["gate"]
+    allc = tally(list(per))
+    t, c = allc["treatment"], allc["control"]
+    gate = {"G1": f"treatment right in {t['right_of_originally_wrong']} of {allc['originally_wrong']} originally-wrong cases (needs {g['G1']['min_correct']})",
+            "G1_met": t["right_of_originally_wrong"] >= g["G1"]["min_correct"],
+            "G2": f"cases right: treatment {t['right_of_all']} vs control {c['right_of_all']} of {allc['cases']} (needs more)",
+            "G2_met": t["right_of_all"] > c["right_of_all"],
+            "G3": f"originally-correct cases failing under treatment: {len(t['originally_correct_failing'])} of {allc['originally_correct']} (allowed {g['G3']['max_failing']})",
+            "G3_failing_cases": t["originally_correct_failing"],
+            "G3_met": len(t["originally_correct_failing"]) <= g["G3"]["max_failing"]}
+    complete = all(per[x][arm]["samples"] == plan["samples_per_arm"] for x in per for arm in ARMS)
     verdict = ("INCOMPLETE" if not complete else
                "PASS" if gate["G1_met"] and gate["G2_met"] and gate["G3_met"] else "FAIL")
-    pooled = {arm: {"samples": sum(r["arm"] == arm for r in done), "correct": sum(r["correct"] for r in done if r["arm"] == arm),
-                    "outcomes": {o: sum(r["outcome"] == o for r in done if r["arm"] == arm)
-                                 for o in ("transfer_call", "no_transfer_call", "invalid_code")}} for arm in ARMS}
-    return {"verdict": verdict, "gate": gate, "pooled_samples": pooled, "per_case": per}
+    right_ids = {x for x, v in per.items() if v["originally"] == "correct"}
+    samples = {arm: {"samples": sum(r["arm"] == arm for r in done), "correct": sum(r["correct"] for r in done if r["arm"] == arm),
+                     "outcomes": {"correct": sum(r["correct"] for r in done if r["arm"] == arm),
+                                  "wrong_code": sum(r["outcome"] == "transfer_call" and not r["correct"] for r in done if r["arm"] == arm),
+                                  "invalid_code": sum(r["outcome"] == "invalid_code" for r in done if r["arm"] == arm),
+                                  "no_transfer_call": sum(r["outcome"] == "no_transfer_call" for r in done if r["arm"] == arm)},
+                     "wrong_samples_on_originally_correct_cases": sum(not r["correct"] for r in done if r["arm"] == arm and r["case"] in right_ids),
+                     "anomalous": sum(bool(r.get("anomalous")) for r in done if r["arm"] == arm),
+                     "multiple_transfer_calls": sum((r.get("transfer_calls") or 0) > 1 for r in done if r["arm"] == arm),
+                     "other_tool_calls": sum(bool(r.get("other_tool_calls")) for r in done if r["arm"] == arm)} for arm in ARMS}
+    by_exposure = {e: tally([x for x, v in per.items() if v["exposure"] == e]) for e in ("absent", "present")}
+    return {"verdict": verdict, "gate": gate, "cases": allc, "by_exposure_descriptive": by_exposure,
+            "samples": samples, "per_case": per}
 
 
 def main(argv=None, send=None, prices=None) -> int:

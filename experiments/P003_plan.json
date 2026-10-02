@@ -1,75 +1,24 @@
 {
  "batch_id": "P003",
  "kind": "next-message probe (development diagnostic): controlled reason-code re-check at saved transfer proposals; nothing executed, nothing graded by tau2",
- "status": "FROZEN DRAFT, NOT RUN. Needs review and Nidhi's explicit approval with the amount.",
- "question": "With the conversation held fixed, does giving the model the bank's reason-code document make it choose the policy-correct transfer reason code more often than the same re-check request alone?",
+ "status": "FROZEN DRAFT (amended before any spend), NOT RUN. Needs review and Nidhi's explicit approval with the amount.",
+ "question": "With the conversation held fixed, does giving the model the bank's reason-code document make it choose the graded reason code more often than the same re-check request alone?",
+ "primary_outcome": "reason-code SELECTION at one held transfer: not a correct overall transfer decision, not conversation completion",
  "arms": {
   "control": "the held transfer's tool result is the re-check REQUEST",
   "treatment": "the same REQUEST plus doc 042's full text (title and tier table)"
  },
  "why_a_control": "separates providing the document from merely asking again (review)",
- "selection_rule": "transfer calls with a policy-CLEAR code (both readers, or the adjudicator, agree it is right or wrong and agree the applicable code); one case per conversation (its first such call). From research/transfers/ (two blind readers + adjudication, no answer key).",
+ "component_tested": "reason-code re-check at EVERY proposed transfer: the transfer is held once and the agent gets the re-check request with doc 042's text, whether or not the document is already in context (amendment 3)",
+ "selection_rule": "transfer calls with a policy-CLEAR code (both readers, or the adjudicator, agree it is right or wrong and agree the applicable code); one case per conversation (its first such call); only tasks whose tau2 grade compares the transfer's reason. From research/transfers/ (two blind readers + adjudication, no answer key).",
+ "graded_code_by_task": {
+  "task_004": true,
+  "task_012": true,
+  "task_019": false,
+  "task_035": false,
+  "task_047": false
+ },
  "cases": [
-  {
-   "id": "d01f885",
-   "task_id": "task_047",
-   "batch": "H009",
-   "source_trace": "runs/local/20261001T075722Z_task_047_live_4b31e34f/trace.json",
-   "trace_sha256": "1ed5d3204b0165a12e88e02e63fd2f428158b13862e2c6e9481f124a1d6d2b2c",
-   "trajectory_index": 85,
-   "call_id": "call_gNC5xfMXPtg4i55BiA3X9SOd",
-   "original_code": "specialized_department_required",
-   "originally_correct": false,
-   "target": "kb_search_unsuccessful_customer_requests_transfer",
-   "retrieval_config": "alltools",
-   "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": false
-  },
-  {
-   "id": "d0fc9e6",
-   "task_id": "task_035",
-   "batch": "H009",
-   "source_trace": "runs/local/20261001T072344Z_task_035_live_8c6f38ae/trace.json",
-   "trace_sha256": "42cdfff09a82cc3fe36c903a4b989372cf07d6562dbf3ecbb978786ba05a4b42",
-   "trajectory_index": 16,
-   "call_id": "call_GAX8Y3fddvQJjfTlrveZov6b",
-   "original_code": "technical_system_error",
-   "originally_correct": true,
-   "target": "technical_system_error",
-   "retrieval_config": "alltools",
-   "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": false
-  },
-  {
-   "id": "d10555c",
-   "task_id": "task_035",
-   "batch": "H008",
-   "source_trace": "runs/local/20260930T183206Z_task_035_live_ae25708a/trace.json",
-   "trace_sha256": "7ce716e97680df52294ab4382ceea3b65958e63ccef46a3849507baacb1086f0",
-   "trajectory_index": 17,
-   "call_id": "call_pZK3SMMkK1vsKlNxvreFVhDB",
-   "original_code": "specialized_department_required",
-   "originally_correct": false,
-   "target": "technical_system_error",
-   "retrieval_config": "alltools",
-   "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": false
-  },
-  {
-   "id": "d12dd3d",
-   "task_id": "task_019",
-   "batch": "H008",
-   "source_trace": "runs/local/20260930T182321Z_task_019_live_df04ce98/trace.json",
-   "trace_sha256": "b009eca0499301ae4ae76bba65c1e6d39aefcbc217f7c058e184eae7a361f540",
-   "trajectory_index": 40,
-   "call_id": "call_vufA1P3CPnteMt0M72XktlKd",
-   "original_code": "specialized_department_required",
-   "originally_correct": false,
-   "target": "kb_search_unsuccessful_customer_requests_transfer",
-   "retrieval_config": "alltools",
-   "source_harness": "standard agent",
-   "tier_doc_body_seen_before": false
-  },
   {
    "id": "d17cd57",
    "task_id": "task_012",
@@ -83,7 +32,8 @@
    "target": "kb_search_unsuccessful_customer_requests_transfer",
    "retrieval_config": "alltools",
    "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": true
+   "tier_doc_body_seen_before": true,
+   "tier_doc_exposure": "present"
   },
   {
    "id": "d300e41",
@@ -98,37 +48,8 @@
    "target": "kb_search_unsuccessful_customer_requests_transfer",
    "retrieval_config": "alltools",
    "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": true
-  },
-  {
-   "id": "d33304c",
-   "task_id": "task_035",
-   "batch": "H008",
-   "source_trace": "runs/local/20260930T183632Z_task_035_live_8cd1431f/trace.json",
-   "trace_sha256": "fa9ef87a4c68f7b45c6134ecf28f5434b8ca57be3a5521a6adaa6a9b417cde35",
-   "trajectory_index": 4,
-   "call_id": "call_vNLscEBp82tRSYyJjrmY7mbp",
-   "original_code": "technical_system_error",
-   "originally_correct": true,
-   "target": "technical_system_error",
-   "retrieval_config": "alltools",
-   "source_harness": "standard agent",
-   "tier_doc_body_seen_before": false
-  },
-  {
-   "id": "d7df8ca",
-   "task_id": "task_035",
-   "batch": "H009",
-   "source_trace": "runs/local/20261001T071906Z_task_035_live_51577e3a/trace.json",
-   "trace_sha256": "11210ca0a5f069f3b4f57f9e7490983ac55ac0a0db5a1f4f195b178852eaaa4e",
-   "trajectory_index": 14,
-   "call_id": "call_WwgVfz1hIwHL34JDlIu2B2QT",
-   "original_code": "fraud_or_security_concern",
-   "originally_correct": false,
-   "target": "technical_system_error",
-   "retrieval_config": "alltools",
-   "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": false
+   "tier_doc_body_seen_before": true,
+   "tier_doc_exposure": "present"
   },
   {
    "id": "d7f79f2",
@@ -143,22 +64,8 @@
    "target": "account_ownership_dispute",
    "retrieval_config": "alltools",
    "source_harness": "standard agent",
-   "tier_doc_body_seen_before": true
-  },
-  {
-   "id": "d90fd31",
-   "task_id": "task_035",
-   "batch": "H009",
-   "source_trace": "runs/local/20261001T072400Z_task_035_live_3110d42a/trace.json",
-   "trace_sha256": "7ccd90945d4b02683d10fa942e6c765604397667a17aa444da3d9b6b1178cf2e",
-   "trajectory_index": 17,
-   "call_id": "call_vCTj9LHK1gy9ph3aIk7DRHIL",
-   "original_code": "technical_system_error",
-   "originally_correct": true,
-   "target": "technical_system_error",
-   "retrieval_config": "alltools",
-   "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": true
+   "tier_doc_body_seen_before": true,
+   "tier_doc_exposure": "present"
   },
   {
    "id": "da368e0",
@@ -173,22 +80,8 @@
    "target": "account_ownership_dispute",
    "retrieval_config": "alltools",
    "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": true
-  },
-  {
-   "id": "da75e20",
-   "task_id": "task_035",
-   "batch": "H008",
-   "source_trace": "runs/local/20260930T183730Z_task_035_live_a37800f1/trace.json",
-   "trace_sha256": "61215b393ff269c140232d57033eb3ba6170148866c350c1e96aa3f2405f728d",
-   "trajectory_index": 14,
-   "call_id": "call_qjFwHs5YSB0w32ER6Sy1qIyR",
-   "original_code": "specialized_department_required",
-   "originally_correct": false,
-   "target": "technical_system_error",
-   "retrieval_config": "alltools",
-   "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": false
+   "tier_doc_body_seen_before": true,
+   "tier_doc_exposure": "present"
   },
   {
    "id": "da94b93",
@@ -203,7 +96,8 @@
    "target": "account_ownership_dispute",
    "retrieval_config": "alltools",
    "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": false
+   "tier_doc_body_seen_before": false,
+   "tier_doc_exposure": "absent"
   },
   {
    "id": "dae642b",
@@ -218,7 +112,8 @@
    "target": "account_ownership_dispute",
    "retrieval_config": "alltools",
    "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": true
+   "tier_doc_body_seen_before": true,
+   "tier_doc_exposure": "present"
   },
   {
    "id": "db563b6",
@@ -233,22 +128,8 @@
    "target": "account_ownership_dispute",
    "retrieval_config": "alltools",
    "source_harness": "standard agent",
-   "tier_doc_body_seen_before": false
-  },
-  {
-   "id": "dbdf71f",
-   "task_id": "task_035",
-   "batch": "H008",
-   "source_trace": "runs/local/20260930T183248Z_task_035_live_c8be8709/trace.json",
-   "trace_sha256": "bec455eb0f28be55218662672c8fc4dea06f16bc5da668ace691db58fff6c41d",
-   "trajectory_index": 16,
-   "call_id": "call_QC0VwxjPmW1raH8XXcJQwL73",
-   "original_code": "technical_system_error",
-   "originally_correct": true,
-   "target": "technical_system_error",
-   "retrieval_config": "alltools",
-   "source_harness": "standard agent",
-   "tier_doc_body_seen_before": false
+   "tier_doc_body_seen_before": false,
+   "tier_doc_exposure": "absent"
   },
   {
    "id": "dbea0fa",
@@ -263,7 +144,8 @@
    "target": "account_ownership_dispute",
    "retrieval_config": "alltools",
    "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": true
+   "tier_doc_body_seen_before": true,
+   "tier_doc_exposure": "present"
   },
   {
    "id": "dc7c3e3",
@@ -278,51 +160,84 @@
    "target": "account_ownership_dispute",
    "retrieval_config": "alltools",
    "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": true
-  },
-  {
-   "id": "de77203",
-   "task_id": "task_019",
-   "batch": "H009",
-   "source_trace": "runs/local/20261001T075452Z_task_019_live_7fd6efb5/trace.json",
-   "trace_sha256": "e502143d7c1e2946837643d9d210fb03781e445e4852791f4db71d6e9c40e500",
-   "trajectory_index": 53,
-   "call_id": "call_EsUiwiwzPH6cqpTu8Hqpkt72",
-   "original_code": "specialized_department_required",
-   "originally_correct": false,
-   "target": "request_completed_customer_wants_human_followup",
-   "retrieval_config": "alltools",
-   "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": false
-  },
-  {
-   "id": "dfcb489",
-   "task_id": "task_035",
-   "batch": "H009",
-   "source_trace": "runs/local/20261001T071924Z_task_035_live_ac3e7a56/trace.json",
-   "trace_sha256": "6a882124275360624727982ffcb44c1c854c8f24fee05ac64b2dbe2513fdbe91",
-   "trajectory_index": 16,
-   "call_id": "call_2lhtGYCZ5IeQsyAhIkkSChzh",
-   "original_code": "specialized_department_required",
-   "originally_correct": false,
-   "target": "technical_system_error",
-   "retrieval_config": "alltools",
-   "source_harness": "harness_v3.1",
-   "tier_doc_body_seen_before": false
+   "tier_doc_body_seen_before": true,
+   "tier_doc_exposure": "present"
   }
  ],
  "case_counts": {
-  "total": 20,
-  "originally_wrong": 11,
-  "originally_correct": 9,
+  "total": 9,
+  "originally_wrong": 4,
+  "originally_correct": 5,
   "by_task": {
    "task_004": 7,
-   "task_012": 2,
-   "task_019": 2,
-   "task_035": 8,
-   "task_047": 1
+   "task_012": 2
   }
  },
+ "case_counts_by_exposure": {
+  "absent": {
+   "total": 2,
+   "originally_wrong": 2,
+   "originally_correct": 0,
+   "by_task": {
+    "task_004": 2
+   }
+  },
+  "present": {
+   "total": 7,
+   "originally_wrong": 2,
+   "originally_correct": 5,
+   "by_task": {
+    "task_004": 5,
+    "task_012": 2
+   }
+  }
+ },
+ "excluded_code_not_graded": [
+  {
+   "id": "d01f885",
+   "task_id": "task_047"
+  },
+  {
+   "id": "d0fc9e6",
+   "task_id": "task_035"
+  },
+  {
+   "id": "d10555c",
+   "task_id": "task_035"
+  },
+  {
+   "id": "d12dd3d",
+   "task_id": "task_019"
+  },
+  {
+   "id": "d33304c",
+   "task_id": "task_035"
+  },
+  {
+   "id": "d7df8ca",
+   "task_id": "task_035"
+  },
+  {
+   "id": "d90fd31",
+   "task_id": "task_035"
+  },
+  {
+   "id": "da75e20",
+   "task_id": "task_035"
+  },
+  {
+   "id": "dbdf71f",
+   "task_id": "task_035"
+  },
+  {
+   "id": "de77203",
+   "task_id": "task_019"
+  },
+  {
+   "id": "dfcb489",
+   "task_id": "task_035"
+  }
+ ],
  "excluded_policy_unclear": [
   "d065ffd",
   "d0b8a7a",
@@ -352,111 +267,11 @@
   "d9a8442",
   "dbc445c"
  ],
- "target_caveat": "task_035's target (technical_system_error) is the readers' policy reading: doc 042 names no code for the credit-bureau incident, and tau2's grade accepts any code there. 8 of the cases are task_035; results are also reported without them.",
+ "target_note": "every target equals the code the task's tau2 grade requires (task_004: account_ownership_dispute; task_012: kb_search_unsuccessful_customer_requests_transfer). Both tasks are graded on that ONE action (reward basis ACTION, one reference action), so in these conversations a correct code is the reward once the transfer is made.",
  "samples_per_arm": 3,
  "run_order": "per case, its 3 control and 3 treatment samples in a seeded random order (seed 20261002)",
  "runs": [
   {
-   "case": "d01f885",
-   "arm": "control"
-  },
-  {
-   "case": "d01f885",
-   "arm": "treatment"
-  },
-  {
-   "case": "d01f885",
-   "arm": "treatment"
-  },
-  {
-   "case": "d01f885",
-   "arm": "control"
-  },
-  {
-   "case": "d01f885",
-   "arm": "treatment"
-  },
-  {
-   "case": "d01f885",
-   "arm": "control"
-  },
-  {
-   "case": "d0fc9e6",
-   "arm": "treatment"
-  },
-  {
-   "case": "d0fc9e6",
-   "arm": "treatment"
-  },
-  {
-   "case": "d0fc9e6",
-   "arm": "control"
-  },
-  {
-   "case": "d0fc9e6",
-   "arm": "control"
-  },
-  {
-   "case": "d0fc9e6",
-   "arm": "treatment"
-  },
-  {
-   "case": "d0fc9e6",
-   "arm": "control"
-  },
-  {
-   "case": "d10555c",
-   "arm": "treatment"
-  },
-  {
-   "case": "d10555c",
-   "arm": "control"
-  },
-  {
-   "case": "d10555c",
-   "arm": "control"
-  },
-  {
-   "case": "d10555c",
-   "arm": "control"
-  },
-  {
-   "case": "d10555c",
-   "arm": "treatment"
-  },
-  {
-   "case": "d10555c",
-   "arm": "treatment"
-  },
-  {
-   "case": "d12dd3d",
-   "arm": "treatment"
-  },
-  {
-   "case": "d12dd3d",
-   "arm": "control"
-  },
-  {
-   "case": "d12dd3d",
-   "arm": "treatment"
-  },
-  {
-   "case": "d12dd3d",
-   "arm": "control"
-  },
-  {
-   "case": "d12dd3d",
-   "arm": "control"
-  },
-  {
-   "case": "d12dd3d",
-   "arm": "treatment"
-  },
-  {
-   "case": "d17cd57",
-   "arm": "control"
-  },
-  {
    "case": "d17cd57",
    "arm": "control"
   },
@@ -477,20 +292,16 @@
    "arm": "treatment"
   },
   {
-   "case": "d300e41",
-   "arm": "treatment"
-  },
-  {
-   "case": "d300e41",
-   "arm": "treatment"
-  },
-  {
-   "case": "d300e41",
-   "arm": "treatment"
-  },
-  {
-   "case": "d300e41",
+   "case": "d17cd57",
    "arm": "control"
+  },
+  {
+   "case": "d300e41",
+   "arm": "treatment"
+  },
+  {
+   "case": "d300e41",
+   "arm": "treatment"
   },
   {
    "case": "d300e41",
@@ -501,51 +312,11 @@
    "arm": "control"
   },
   {
-   "case": "d33304c",
-   "arm": "control"
-  },
-  {
-   "case": "d33304c",
-   "arm": "control"
-  },
-  {
-   "case": "d33304c",
+   "case": "d300e41",
    "arm": "treatment"
   },
   {
-   "case": "d33304c",
-   "arm": "treatment"
-  },
-  {
-   "case": "d33304c",
-   "arm": "treatment"
-  },
-  {
-   "case": "d33304c",
-   "arm": "control"
-  },
-  {
-   "case": "d7df8ca",
-   "arm": "control"
-  },
-  {
-   "case": "d7df8ca",
-   "arm": "treatment"
-  },
-  {
-   "case": "d7df8ca",
-   "arm": "treatment"
-  },
-  {
-   "case": "d7df8ca",
-   "arm": "control"
-  },
-  {
-   "case": "d7df8ca",
-   "arm": "treatment"
-  },
-  {
-   "case": "d7df8ca",
+   "case": "d300e41",
    "arm": "control"
   },
   {
@@ -562,10 +333,6 @@
   },
   {
    "case": "d7f79f2",
-   "arm": "treatment"
-  },
-  {
-   "case": "d7f79f2",
    "arm": "control"
   },
   {
@@ -573,28 +340,8 @@
    "arm": "treatment"
   },
   {
-   "case": "d90fd31",
+   "case": "d7f79f2",
    "arm": "treatment"
-  },
-  {
-   "case": "d90fd31",
-   "arm": "control"
-  },
-  {
-   "case": "d90fd31",
-   "arm": "treatment"
-  },
-  {
-   "case": "d90fd31",
-   "arm": "control"
-  },
-  {
-   "case": "d90fd31",
-   "arm": "treatment"
-  },
-  {
-   "case": "d90fd31",
-   "arm": "control"
   },
   {
    "case": "da368e0",
@@ -602,7 +349,7 @@
   },
   {
    "case": "da368e0",
-   "arm": "treatment"
+   "arm": "control"
   },
   {
    "case": "da368e0",
@@ -618,39 +365,11 @@
   },
   {
    "case": "da368e0",
-   "arm": "control"
-  },
-  {
-   "case": "da75e20",
    "arm": "treatment"
-  },
-  {
-   "case": "da75e20",
-   "arm": "treatment"
-  },
-  {
-   "case": "da75e20",
-   "arm": "treatment"
-  },
-  {
-   "case": "da75e20",
-   "arm": "control"
-  },
-  {
-   "case": "da75e20",
-   "arm": "control"
-  },
-  {
-   "case": "da75e20",
-   "arm": "control"
   },
   {
    "case": "da94b93",
    "arm": "control"
-  },
-  {
-   "case": "da94b93",
-   "arm": "treatment"
   },
   {
    "case": "da94b93",
@@ -669,12 +388,8 @@
    "arm": "control"
   },
   {
-   "case": "dae642b",
-   "arm": "control"
-  },
-  {
-   "case": "dae642b",
-   "arm": "control"
+   "case": "da94b93",
+   "arm": "treatment"
   },
   {
    "case": "dae642b",
@@ -686,27 +401,19 @@
   },
   {
    "case": "dae642b",
+   "arm": "treatment"
+  },
+  {
+   "case": "dae642b",
    "arm": "control"
   },
   {
    "case": "dae642b",
-   "arm": "treatment"
-  },
-  {
-   "case": "db563b6",
-   "arm": "treatment"
-  },
-  {
-   "case": "db563b6",
    "arm": "control"
   },
   {
-   "case": "db563b6",
-   "arm": "treatment"
-  },
-  {
-   "case": "db563b6",
-   "arm": "treatment"
+   "case": "dae642b",
+   "arm": "control"
   },
   {
    "case": "db563b6",
@@ -717,35 +424,19 @@
    "arm": "control"
   },
   {
-   "case": "dbdf71f",
-   "arm": "control"
-  },
-  {
-   "case": "dbdf71f",
-   "arm": "control"
-  },
-  {
-   "case": "dbdf71f",
+   "case": "db563b6",
    "arm": "treatment"
   },
   {
-   "case": "dbdf71f",
-   "arm": "control"
-  },
-  {
-   "case": "dbdf71f",
+   "case": "db563b6",
    "arm": "treatment"
   },
   {
-   "case": "dbdf71f",
+   "case": "db563b6",
    "arm": "treatment"
   },
   {
-   "case": "dbea0fa",
-   "arm": "treatment"
-  },
-  {
-   "case": "dbea0fa",
+   "case": "db563b6",
    "arm": "control"
   },
   {
@@ -765,11 +456,11 @@
    "arm": "control"
   },
   {
-   "case": "dc7c3e3",
+   "case": "dbea0fa",
    "arm": "treatment"
   },
   {
-   "case": "dc7c3e3",
+   "case": "dbea0fa",
    "arm": "control"
   },
   {
@@ -782,6 +473,10 @@
   },
   {
    "case": "dc7c3e3",
+   "arm": "control"
+  },
+  {
+   "case": "dc7c3e3",
    "arm": "treatment"
   },
   {
@@ -789,52 +484,8 @@
    "arm": "control"
   },
   {
-   "case": "de77203",
+   "case": "dc7c3e3",
    "arm": "treatment"
-  },
-  {
-   "case": "de77203",
-   "arm": "treatment"
-  },
-  {
-   "case": "de77203",
-   "arm": "control"
-  },
-  {
-   "case": "de77203",
-   "arm": "control"
-  },
-  {
-   "case": "de77203",
-   "arm": "control"
-  },
-  {
-   "case": "de77203",
-   "arm": "treatment"
-  },
-  {
-   "case": "dfcb489",
-   "arm": "control"
-  },
-  {
-   "case": "dfcb489",
-   "arm": "control"
-  },
-  {
-   "case": "dfcb489",
-   "arm": "treatment"
-  },
-  {
-   "case": "dfcb489",
-   "arm": "treatment"
-  },
-  {
-   "case": "dfcb489",
-   "arm": "treatment"
-  },
-  {
-   "case": "dfcb489",
-   "arm": "control"
   }
  ],
  "tier_document_sha256": "3bafec74920617cc9b73989d5463801d1ab625497eb42a8406e87c735d8f0086",
@@ -847,29 +498,66 @@
   "max_output_tokens": 16384,
   "budget_accounting": "billed"
  },
- "scoring": "per sample: the first transfer_to_human_agents call's reason; CORRECT iff it equals the case target. No transfer call, an invalid code or text only = failure (counts as wrong). Per case and arm: MAJORITY of the 3 samples correct.",
+ "scoring": "per sample: the FIRST transfer_to_human_agents call's reason; CORRECT iff it equals the case target. No transfer call, an invalid code or text only = failure (counts as wrong). Anomalies are recorded but do not change the score: more than one transfer call, any other tool call in the reply. Per case and arm: correct when at least 2 of the 3 samples are correct.",
  "gate": {
-  "note": "engineering screening thresholds, not statistical proof",
-  "G1": "treatment majority-correct in at least half of the originally-wrong cases",
-  "G2": "treatment has more majority-correct cases than control (all cases)",
-  "G3": "no originally-correct case is not majority-correct under treatment",
+  "note": "engineering screening thresholds on all cases (exact integers), not statistical proof; passing justifies a full-conversation experiment, not reliability",
+  "G1": {
+   "text": "treatment gets at least 2 of the 4 originally-wrong cases right (case criterion)",
+   "cases": 4,
+   "min_correct": 2
+  },
+  "G2": {
+   "text": "treatment gets more of the 9 cases right than control (case criterion)",
+   "cases": 9
+  },
+  "G3": {
+   "text": "0 of the 5 originally-correct cases fail the case criterion under treatment; this is not 'no regressions': single wrong samples are reported separately",
+   "cases": 5,
+   "max_failing": 0
+  },
   "PASS": "G1 and G2 and G3 -> plan a full-conversation comparison: standard agent vs standard agent + this component (shared infrastructure, fixed task mix; completion, policy violations, cost)",
   "FAIL": "any of G1-G3 fails -> drop the component (no tuning cycle)",
   "INCOMPLETE": "any case or arm missing samples"
  },
  "reported_also": [
-  "sample-level counts per arm",
+  "every sample: outcome (correct / wrong code / invalid code / no transfer call) and code chosen",
+  "sample-level wrong replies on originally-correct cases, per arm",
+  "anomalies per arm (multiple transfer calls, other tool calls)",
   "per case and per task",
-  "results excluding task_035",
-  "outcome types (transfer call / no transfer call / invalid code)",
-  "codes chosen"
+  "document-ABSENT cases separately (the 'insert only when absent' variant's reach) and document-PRESENT cases separately"
  ],
- "limits": "a selected next decision, not full conversations; 20 cases from 5 tasks; development data.",
+ "limits": "a selected next decision, not full conversations; 9 cases from 2 tasks, 7 of them task_004; development data; 3 samples per arm.",
  "forecast_usd": {
-  "basis": "the original proposing calls used 4k-86k input tokens (about 585k summed over the 20 cases); 120 samples at gpt-5-mini prices, plus reasoning output",
-  "expected": "an estimate awaiting evidence: about $0.60-1.40 billed (upper bound without caching about $1.40)"
+  "basis": "the source runs' largest agent inputs sum to about 258k tokens over these cases; 54 samples at gpt-5-mini prices, plus up to a few thousand reasoning tokens each",
+  "expected": "an estimate awaiting evidence: about $0.30-0.65 billed"
  },
- "budget_usd_total": 2.0,
- "budget_note": "one sample at a time; the budget reserves each call's full input plus max_output_tokens before sending (about $0.11 for the largest case), well inside the total",
- "approval": "runs only after Nidhi approves in chat: 'run P003 with $2.00'"
+ "budget_usd_total": 1.0,
+ "budget_note": "one sample at a time; the budget reserves each call's full input plus max_output_tokens before sending (about $0.05 for the largest case), well inside the total",
+ "approval": "runs only after Nidhi approves in chat: 'run P003 with $1.00'",
+ "amendments_before_spend": [
+  {
+   "n": 1,
+   "from": "74a4887 froze 20 cases (11 wrong / 9 right), 120 samples",
+   "to": "only cases on tasks whose grade compares the reason (task_004, task_012)",
+   "why": "review: task_035's target is inferred and ungraded (compare_args []). The same holds for task_019 and task_047, whose grade has no transfer at all (reward basis DB), so their 3 cases are excluded on the same ground"
+  },
+  {
+   "n": 2,
+   "from": "majority of 3, gate on 'fixes'",
+   "to": "case criterion 2 of 3 with exact integer thresholds; samples reported too; G1 worded as 'treatment gets ... right' (the control carries the causal comparison); G3 is a case criterion, not 'no regressions'",
+   "why": "review"
+  },
+  {
+   "n": 3,
+   "from": "component: insert doc 042 only when it is absent from context",
+   "to": "component: re-check with doc 042 at every proposed transfer; gate on all cases; absent and present reported separately",
+   "why": "review asked for the gate on document-absent cases, the deployment-relevant set for the absent-only component. Among the graded cases only 2 are document-absent (both originally wrong, none originally correct), so that gate cannot test G3 and 2 cases cannot decide anything; 2 of the 4 originally-wrong graded codes were chosen WITH the document in context, so an absent-only trigger cannot reach half of the graded failures. Not expanding the sample: instead testing the variant whose deployment-relevant set is every graded transfer. In document-present cases this tests renewed attention, not missing information."
+  },
+  {
+   "n": 4,
+   "from": "first transfer call scored only",
+   "to": "multiple transfer calls and other tool calls recorded as anomalies",
+   "why": "review"
+  }
+ ]
 }
