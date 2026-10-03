@@ -17,6 +17,7 @@ An evaluation platform and runtime harness for tool-using banking agents, on Sie
 | Read | For |
 |---|---|
 | [docs/RESULTS.md](docs/RESULTS.md) | every experiment side by side: full-conversation comparisons, targeted tests, 13 measurement or harness defects found and fixed, spend (billed and conservatively accounted kept apart) |
+| [docs/COMPARISON.md](docs/COMPARISON.md) | what the harness and evaluation layer add to the standard tau2 setup, each with its evidence and limit |
 | [docs/REPORT.md](docs/REPORT.md) | the technical report: hypotheses, findings, and why each line was stopped |
 | [docs/WRITEUP.md](docs/WRITEUP.md) | phase 1 in detail (instructions and diagnostics) |
 | [EXPERIMENTS.md](EXPERIMENTS.md) | the chronological log, including each review's corrections |

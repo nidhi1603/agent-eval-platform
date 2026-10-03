@@ -1076,3 +1076,9 @@ Second review of the frozen plan:
   - a harness-improvement system: not built. The loop was run by hand (Claude implementing; a human and model reviews choosing, correcting and stopping).
 - The goal is unfinished, not disproven.
 - **Wording:** the blind readers were separate model instances, not humans. The tau2 relation is stated as "extended", and tau2 replays a conversation's database and customer itself.
+
+#### docs/COMPARISON.md added (2026-10-03, $0)
+
+- What the runtime harness and the evaluation layer add to the standard tau2 setup, each row with its evidence and its limit.
+- Scope: the standard LLMAgent and runner as used here; from our records, not an upstream source audit.
+- Corrected in passing: H004's 8 → 20 violations compared two harness arms (v1 vs v1 + dependency search), not harness vs standard agent.
