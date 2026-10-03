@@ -12,6 +12,7 @@ An evaluation platform and runtime harness for tool-using banking agents, on Sie
 - The experiments produced local behavioural improvements.
 - They have not established an overall task-completion gain over tau2's standard agent (gpt-5-mini, same model in both arms).
 - The record includes negative findings, corrected measurements and disclosed protocol deviations.
+- The broader aim, a harness that builds better harnesses, was not reached. This repo supplies the evaluation machinery such a loop needs; the improvement loop itself was run by hand and never validated ([REPORT.md](docs/REPORT.md#three-layers-and-which-one-this-project-completed)).
 
 | Read | For |
 |---|---|
@@ -33,7 +34,7 @@ An evaluation platform and runtime harness for tool-using banking agents, on Sie
   - the verification-evidence and identity-disclosure checks;
   - proposal-time nudges (`bench/harness.py`, `bench/guard.py`, `bench/nudge.py`).
 - **Targeted tests.** Saved-prefix continuations, restored conversations, and next-message probes with exact replay checks (`bench/continuation.py`, `bench/resume.py`, `bench/*_probe.py`).
-- **Blind review tooling.** Exports for blind, two-reader labelling and frozen verdict functions (`research/*/`).
+- **Blind review tooling.** Exports for blind labelling by two independent model readers, adjudication and frozen verdict functions (`research/*/`).
 
 ## Run it
 

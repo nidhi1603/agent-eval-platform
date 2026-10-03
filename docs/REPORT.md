@@ -36,7 +36,7 @@ Nidhi Rajani, October 2026.
 - **Spend admission control.** Every call reserves its worst-case cost before sending, and a run that cannot be covered never starts. After H005, completed calls settle at the provider-billed cost.
 - **Answer independence.** The agent is built without the task. Differential replay re-executes every agent-visible output against a copy of the task with the answer key erased. This found the benchmark exposure (F001).
 - **Negative controls.** Every harness version replays all 30 reference solutions with the same official reward (30 / 30). Hard checks fire 0 times.
-- **Blind, independent review.** Safety audits, transfer-claim reads and failure labels were done blind to arm by two readers, with a blind adjudicator for disagreements. The reviews also showed their limit: in H008/H009, reviewers agreed on three verifications that a provenance check later showed were invalid.
+- **Blind, independent review.** Safety audits, transfer-claim reads and failure labels were done blind to arm by two readers, with a blind adjudicator for disagreements. The readers were separate model instances (Claude), not humans. What this adds is blinding, independent readings and adjudication, not human ground truth. The reviews also showed their limit: in H008/H009, reviewers agreed on three verifications that a provenance check later showed were invalid.
 - **Separate evaluation types.** Full conversations (official grade) and targeted tests (selected development cases, local checks) are reported apart and never merged.
 
 ## The hypotheses, in order
@@ -72,6 +72,34 @@ Nidhi Rajani, October 2026.
 - **Full conversations (P004):** 3 vs 3 of 30. The re-check fired 10 times, and the agent re-sent the same code 9 times. On the one task where the code decides the score, it re-sent the wrong code.
 - **Stopped** under the frozen rule.
 
+## Three layers, and which one this project completed
+
+The broader aim behind the work was a harness that can build a better harness. That needs three layers:
+
+| Layer | What it should do | What this project achieved |
+|---|---|---|
+| **Evaluation platform** | run agents, measure outcomes, control cost, diagnose failures | substantially implemented, with the limits stated here |
+| **Runtime harness** | help an agent complete tasks safely through checks, evidence and recovery | several local improvements; no overall completion gain established |
+| **Harness-improvement system** | use evaluation results to propose, implement, test and select better harness versions, and show the selected versions improve on separate tasks | **not built.** The loop was run by hand: Claude implemented changes, while a human and model reviews chose the hypotheses, corrected measurements, changed plans and decided when to stop. That is AI-assisted engineering, not an autonomous, validated optimizer |
+
+An automatic loop would need to:
+1. identify a failure pattern from traces;
+2. propose and implement a bounded change;
+3. test it against the unchanged baseline;
+4. accept or reject it on completion, safety and cost;
+5. choose the next experiment;
+6. show, on separate evaluation tasks, that the versions it selected are better.
+
+The evaluation layer supplies part of that machinery: a trusted scorer, answer-independence checks, regression controls, spend caps and frozen decision rules. The central result, evidence that an improvement process selects better harnesses, is missing.
+
+The manual loop also gives reasons for caution before automating it:
+- improvements in replays did not carry over to full conversations (P003 → P004);
+- at one conversation per task, an identical agent comes out ahead about 42% of the time, so selecting among many candidates would mostly select noise.
+
+The goal is unfinished, not disproven.
+
+**Relation to tau2-bench.** We extended tau2 with experiment controls, provenance checks and diagnostic workflows. Those extensions helped uncover failures in both the benchmark integration (the answer exposure) and our own harness (the other defects in RESULTS.md). tau2 itself supplies the official grading and replays a conversation's database and simulated customer; our additions build on it. They did not establish a better-performing agent or an effective automatic harness-improvement system.
+
 ## Why I stopped
 
 1. **Reach.** P004's component could directly affect only 2 of 30 tasks' scores, and it met one live opportunity. A successful correction would still have had a ceiling of 2 passes. Choosing a target by its tractability rather than its reach was the main design error of the last cycle.
@@ -89,7 +117,7 @@ Nidhi Rajani, October 2026.
 
 - One model, one domain, development tasks only, small samples.
 - Every result is a development screen. None is a benchmark score or leaderboard-comparable: the official protocol is all 97 tasks × 4 trials.
-- Many labels come from reading transcripts (blind, two readers where it mattered), not from a validated classifier.
+- Many labels come from blind model readers of transcripts (two readers where it mattered), not from human annotation or a validated classifier.
 - Spend figures are estimates from token usage.
 
 ## Reproduce

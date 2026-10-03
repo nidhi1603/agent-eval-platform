@@ -1067,3 +1067,12 @@ Second review of the frozen plan:
 - The demo's scope is stated: scripted behaviour and regression fix only.
 - Spend separates billed ($16.14) from the conservative allowance ($0.38).
 - No further revisions are planned.
+
+#### Goal clarified: three layers (review, 2026-10-03, $0)
+
+- The broader aim was a harness that builds a better harness. REPORT.md now separates three layers:
+  - the evaluation platform: substantially implemented;
+  - the runtime harness: local improvements, no completion gain established;
+  - a harness-improvement system: not built. The loop was run by hand (Claude implementing; a human and model reviews choosing, correcting and stopping).
+- The goal is unfinished, not disproven.
+- **Wording:** the blind readers were separate model instances, not humans. The tau2 relation is stated as "extended", and tau2 replays a conversation's database and customer itself.
